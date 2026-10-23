@@ -538,6 +538,30 @@ def manual_ai_step():
     })
 
 
+@app.route("/api/manual/session/<session_id>")
+def api_manual_session_turns(session_id):
+    """Retrieve all turns for a specific manual red-teaming session in sequential order."""
+    if not session_id:
+        return jsonify({"success": False, "error": "Missing session_id"}), 400
+    if not os.path.exists(agent.RESULTS_DB_PATH):
+        return jsonify({"success": False, "error": "Database not found"}), 404
+    conn = agent.init_results_db(agent.RESULTS_DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            "SELECT id, language, attack_type, source_reference, technique, prompt, "
+            "injected_prompt, response, success, private_table_accessed, private_table_blocked, "
+            "leaked_canaries, raw_leaked_canaries, schema_disclosed, tool_calls_json, red_analysis, red_strategy, "
+            "defense_level, attempt, red_model, blue_model, run_timestamp "
+            "FROM test_results WHERE id = ? ORDER BY attempt ASC",
+            (session_id,),
+        ).fetchall()
+        turns = _parse_result_rows(rows)
+        return jsonify({"success": True, "session_id": session_id, "turns": turns, "count": len(turns)})
+    finally:
+        conn.close()
+
+
 @app.route("/api/manual/reset", methods=["POST"])
 def manual_reset():
     verify_csrf()

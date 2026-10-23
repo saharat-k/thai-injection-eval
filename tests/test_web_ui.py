@@ -119,6 +119,15 @@ class WebUiTests(unittest.TestCase):
         self.assertEqual(session_turns[0]["attempt"], 2)
         self.assertEqual(session_turns[1]["attempt"], 1)
 
+        # 4.2 Verify dedicated session turns API
+        sess_turns_resp = self.client.get(f"/api/manual/session/{session_id}")
+        self.assertEqual(sess_turns_resp.status_code, 200)
+        sess_turns_data = sess_turns_resp.get_json()
+        self.assertTrue(sess_turns_data["success"])
+        self.assertEqual(sess_turns_data["count"], 2)
+        self.assertEqual(sess_turns_data["turns"][0]["attempt"], 1)
+        self.assertEqual(sess_turns_data["turns"][1]["attempt"], 2)
+
         # 5. Reset session
         reset_payload = {
             "csrf_token": "test-csrf-token",
