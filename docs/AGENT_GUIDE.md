@@ -42,7 +42,7 @@ Local test bench that checks whether prompt injection in Thai, English, or mixed
 # Interactive CLI menu (automatic or manual mode)
 .\.venv\Scripts\python.exe agent.py
 
-# Full OWASP Top 10 for LLM scientific evaluation export
+# Full OWASP-aligned evaluation export
 .\.venv\Scripts\python.exe agent.py --eval-owasp
 
 # Run offline unit/integration test suite (100 tests, zero API cost)

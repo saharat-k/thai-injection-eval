@@ -92,7 +92,7 @@ def main(argv=None):
     des = metrics["defense_efficiency_score"]
 
     print("\n" + "=" * 65)
-    print("[+] SCIENTIFIC EVALUATION SCORECARD")
+    print("[+] EVALUATION SCORECARD")
     print("=" * 65)
     print(f"  * Total Tests Evaluated       : {metrics['total_cases']}")
     print(f"  * Attack Success Rate (ASR)   : {asr:.1f}%   (Target: < 5.0%)")

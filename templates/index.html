@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>TH-LLM-Prompt-Injection: AI Security Test Bench & Red-Teaming Console</title>
+  <title>thai-injection-eval: AI Security Test Bench & Red-Teaming Console</title>
   <style>
     :root {
       --bg-base: #07090e;
@@ -1032,7 +1032,7 @@
   <!-- Top Clean Header -->
   <header class="app-header">
     <div class="brand-group">
-      <span class="brand-logo-pill">TH-LLM-Prompt-Injection</span>
+      <span class="brand-logo-pill">thai-injection-eval</span>
       <h1 class="brand-title">Thai Prompt Injection Security Harness</h1>
     </div>
     <div class="header-system-meta">
@@ -1053,7 +1053,7 @@
   <div class="main-nav-tabs">
     <button type="button" class="nav-tab-btn active" id="tabBtnDashboard" onclick="switchMainTab('dashboard')">📊 ผลการทดสอบ & รันประเมิน (Evaluation)</button>
     <button type="button" class="nav-tab-btn" id="tabBtnPlayground" onclick="switchMainTab('playground')">💬 โหมดควบคุมเอง / แชทสด (Interactive Playground)</button>
-    <button type="button" class="nav-tab-btn" id="tabBtnOwasp" onclick="switchMainTab('owasp')">🛡️ เบนช์มาร์ก OWASP (Scientific Evaluation)</button>
+    <button type="button" class="nav-tab-btn" id="tabBtnOwasp" onclick="switchMainTab('owasp')">🛡️ เบนช์มาร์ก OWASP (Evaluation)</button>
   </div>
 
   <!-- TAB 1: Evaluation Dashboard -->
@@ -1644,15 +1644,15 @@
     </div>
   </div> <!-- end viewPlayground -->
 
-  <!-- TAB 3: OWASP Scientific Benchmark -->
+  <!-- TAB 3: OWASP Benchmark -->
   <div id="viewOwasp" style="display: none;">
     <div class="playground-wrapper">
       <div class="card-panel">
         <div class="card-panel-title">
-          <span>🛡️ OWASP Top 10 for LLM Scientific Benchmark & Evaluator</span>
+          <span>🛡️ OWASP Top 10 for LLM Benchmark & Evaluator</span>
         </div>
         <div class="card-panel-sub">
-          ประเมินและทดสอบความแข็งแกร่งของ AI Agent ตามมาตรฐาน OWASP LLM01 (Prompt Injection) และ LLM06 (Excessive Agency) พร้อมคำนวณ Scientific Metrics: ASR, FRR, TVR และ DES
+          ประเมินและทดสอบความแข็งแกร่งของ AI Agent ตามมาตรฐาน OWASP LLM01 (Prompt Injection) และ LLM06 (Excessive Agency) พร้อมคำนวณตัวชี้วัด: ASR, FRR, TVR และ DES
         </div>
         <div class="form-grid" style="margin-top: 8px;">
           <div class="field-group">

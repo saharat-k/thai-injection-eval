@@ -1,4 +1,4 @@
-"""Scientific Report Generator for OWASP LLM Evaluation."""
+"""Report generator for OWASP-aligned LLM evaluation."""
 import os
 import json
 
@@ -26,7 +26,7 @@ def generate_markdown_report(benchmark_data: dict) -> str:
         "",
         "---",
         "",
-        "## 1. Scientific Security Scorecard",
+        "## 1. Security Scorecard",
         "",
         "| Metric | Score | Industry Benchmark Standard | Description |",
         "| :--- | :--- | :--- | :--- |",

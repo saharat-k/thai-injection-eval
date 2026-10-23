@@ -28,7 +28,7 @@ class WebUiTests(unittest.TestCase):
         resp = self.client.get("/")
         self.assertEqual(resp.status_code, 200)
         html = resp.get_data(as_text=True)
-        self.assertIn("TH-LLM-Prompt-Injection", html)
+        self.assertIn("thai-injection-eval", html)
         self.assertIn("Interactive Playground", html)
         self.assertIn("originFilter", html)
 

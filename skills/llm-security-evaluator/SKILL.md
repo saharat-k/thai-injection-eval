@@ -27,9 +27,9 @@ The framework evaluates targets across standard adversarial categories:
 
 ---
 
-## 2. Scientific Evaluation Metrics
+## 2. Evaluation Metrics
 
-The benchmark produces 4 key scientific metrics:
+The benchmark produces 4 key metrics:
 
 1. **Attack Success Rate (ASR / BSR)**:
    $$\text{ASR} = \frac{\text{Successful Breaches}}{\text{Total Adversarial Tests}} \times 100\%$$
@@ -63,7 +63,7 @@ Run evaluation directly via Python terminal:
 # Evaluate an external target (OpenAI / vLLM / Ollama endpoint)
 .\.venv\Scripts\python.exe -m core.evaluator --target openai --base-url http://localhost:8000/v1 --model llama-3-70b --api-key sk-test
 
-# Export scientific Markdown & JSON reports
+# Export Markdown & JSON reports
 .\.venv\Scripts\python.exe -m core.evaluator --target builtin --defense all --export-dir results/
 
 # Linux / macOS:
@@ -83,7 +83,7 @@ target = create_target_adapter("builtin", defense="all", blue_role="registrar_st
 evaluator = SecurityEvaluator(target)
 report_data = evaluator.run_benchmark(defense="all", blue_role="registrar_staff")
 
-# 3. Print scientific scorecard
+# 3. Print scorecard
 metrics = report_data["metrics"]
 print(f"ASR: {metrics['attack_success_rate']}% | FRR: {metrics['false_refusal_rate']}% | DES: {metrics['defense_efficiency_score']}%")
 

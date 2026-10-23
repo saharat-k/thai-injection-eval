@@ -1068,8 +1068,8 @@ class OpenAILikeModels:
             "Authorization": f"Bearer {self.api_key}",
         }
         if self.provider == "openrouter":
-            headers["HTTP-Referer"] = "https://github.com/TH-LLM-Prompt-Injection"
-            headers["X-Title"] = "TH-LLM-Prompt-Injection"
+            headers["HTTP-Referer"] = "https://github.com/saharat-k/thai-injection-eval"
+            headers["X-Title"] = "thai-injection-eval"
 
         payload = {
             "model": target_model,
@@ -2679,7 +2679,7 @@ def interactive_menu():
                 print(f"[OK] รายงานบันทึกสำเร็จที่ {md_p} และ {js_p}")
 
             if _ask("\nต้องการกลับสู่เมนูหลักเพื่อทดสอบรูปแบบอื่นหรือไม่? (y/n)", "y").lower() != "y":
-                print("\nขอบคุณที่ใช้งาน TH-LLM Prompt Injection Test Bench!")
+                print("\nขอบคุณที่ใช้งาน thai-injection-eval Test Bench!")
                 return
 
         except (KeyboardInterrupt, EOFError):
@@ -2697,7 +2697,7 @@ def main():
     p.add_argument("--blue", default=None, help="override BLUE_MODEL (e.g. gemini-3.5-flash-lite, gemini-3.8-flash)")
     p.add_argument("--blue-role", choices=list(BLUE_ROLES.keys()), default="registrar_staff", help="Blue agent role persona")
     p.add_argument("--red-profile", choices=list(RED_PROFILES.keys()), default="realistic_attacker", help="Red agent intelligence profile")
-    p.add_argument("--eval-owasp", action="store_true", help="Run OWASP Top 10 for LLM scientific evaluation benchmark and export reports")
+    p.add_argument("--eval-owasp", action="store_true", help="Run OWASP-aligned evaluation benchmark and export reports")
     a = p.parse_args()
 
     if a.red:

@@ -8,7 +8,10 @@
 
 ระบบทดสอบ ประเมินความมั่นคงปลอดภัย และจำลองการโจมตี (Security Test Bench & Red-Teaming Harness) สำหรับโมเดลภาษาขนาดใหญ่ (LLM) ต่อภัยคุกคามด้าน **Prompt Injection** และ **Sensitive Data Leakage** ตามกรอบมาตรฐาน **OWASP Top 10 for LLM Applications (2025)** ครอบคลุมบริบท **ภาษาไทย ภาษาอังกฤษ และคำถามปนภาษา (Code-mixed)** พร้อมกลไกความปลอดภัยแบบหลายชั้น (Defense-in-Depth) และหน้าต่างควบคุมแบบโต้ตอบ (Interactive Red-Teaming Playground)
 
-> **English Executive Summary**: A production-grade security evaluation harness and red-teaming test bench designed to benchmark Large Language Model (LLM) agents against **Direct/Indirect Prompt Injection (OWASP LLM01)** and **Sensitive Information Disclosure (OWASP LLM02)** in Thai, English, and mixed-language environments. It provides a multi-turn autonomous Red Agent, role-based Blue Assistant defenses (Prompt Isolation, Tool Gatekeeper, Synthetic Honeytokens, Multilingual Canary DLP), an OWASP scientific metrics engine, and an interactive Web UI for security operations. Includes a 100-test offline verification suite requiring zero API quota.
+> **English Executive Summary**: A security evaluation harness and red-teaming test bench designed to benchmark Large Language Model (LLM) agents against **Direct/Indirect Prompt Injection (OWASP LLM01)** and **Sensitive Information Disclosure (OWASP LLM02)** in Thai, English, and mixed-language environments. It provides a multi-turn autonomous Red Agent, role-based Blue Assistant defenses (Prompt Isolation, Tool Gatekeeper, Synthetic Honeytokens, Multilingual Canary DLP), an OWASP-aligned metrics engine (ASR/FRR/TVR/DES), and an interactive Web UI for security operations. Includes a 100-test offline verification suite requiring zero API quota.
+
+> [!IMPORTANT]
+> **ข้อจำกัดและขอบเขตการแปลผล (Methodology & Scope Limitations):** โปรดอ่าน [**`LIMITATIONS.md`**](LIMITATIONS.md) ก่อนนำผลการทดลองไปอ้างอิง เอกสารดังกล่าวระบุข้อจำกัดของโมเดลระดับ Free-tier, ความกว้างของช่วงความเชื่อมั่นเมื่อขนาดตัวอย่าง `n` เล็ก, ความไม่สมดุลของชุดทดสอบดั้งเดิม (`test_cases.json`), เหตุผลที่ผลลัพธ์ 0% ในโหมด `tools`/`all` เป็นผลเชิงโครงสร้าง (`blocked by construction`), และช่องโหว่ของตัวตัดสินแบบ Canary/DLP อย่างตรงไปตรงมา
 
 <p align="center">
   <img src="docs/images/web_ui_dashboard.png" alt="Thai Prompt Injection Test Bench & Dashboard" width="100%" />
@@ -24,9 +27,9 @@
 
 ```mermaid
 flowchart LR
-    A["1. Threat Landscape<br/>Prompt Injection เข้าถึงตารางลับ<br/>(OWASP LLM01 / LLM02)"] --> B["2. Attack Corpus<br/>36 กรณีศึกษา / 8 เวกเตอร์โจมตี<br/>(ไทย 24, อังกฤษ 8, ผสม 4)"]
+    A["1. Threat Landscape<br/>Prompt Injection เข้าถึงตารางลับ<br/>(OWASP LLM01 / LLM02)"] --> B["2. Attack Corpus<br/>36 กรณีศึกษา / 8 เวกเตอร์โจมตี<br/>(ไทย 24, อังกฤษ 8, ผสม 4 - ไม่สมดุล ดู LIMITATIONS.md)"]
     B --> C["3. Defense-in-Depth<br/>4 Tiers: Prompt ➔ Tool ACL<br/>➔ Canaries ➔ Multi-Encoding DLP"]
-    C --> D["4. Empirical Findings<br/>Prompt Policy รั่วไหล ~37%<br/>ต้องใช้ Code ACL + DLP ป้องกัน 100%"]
+    C --> D["4. ผลทดลอง<br/>TBD (ยังไม่ได้รันจริง)<br/>จะเผยแพร่ใน results/published/ พร้อม metadata"]
 ```
 
 ### กรอบความปลอดภัยตามมาตรฐาน OWASP Top 10 for LLM (2025)
@@ -100,12 +103,12 @@ flowchart TD
     DB_RES -.->|Metrics & Audit Trail| ClientLayer
 ```
 
-| ระดับการป้องกัน (Tier) | การควบคุมระดับนโยบาย (Policy) | การควบคุมระดับโค้ด (Tool ACL) | กลไกตรวจจับขาออก (Output DLP) | ผลการป้องกันเชิงประจักษ์ |
+| ระดับการป้องกัน (Tier) | การควบคุมระดับนโยบาย (Policy) | การควบคุมระดับโค้ด (Tool ACL) | กลไกตรวจจับขาออก (Output DLP) | ลักษณะผลลัพธ์ที่คาดหวัง |
 |---|---|---|---|---|
-| **`off`** (Baseline) | Prompt พื้นฐาน พร้อมเปิดเผยชื่อตารางทั้งหมดใน Schema | ให้อนุญาตทุกตาราง ไม่มีการกลั่นกรอง | ปิด | **ช่องโหว่พื้นฐาน (ข้อมูลรั่วไหล 37.1%)** |
-| **`prompt`** (Policy-only) | Hardened Anti-leak System Prompt ห้ามเปิดเผยข้อมูลลับ | ให้อนุญาตทุกตาราง (พึ่งพาคำสั่งของโมเดล) | ปิด | **ทดสอบการเชื่อฟังคำสั่ง (รั่วไหลได้ง่าย)** |
-| **`tools`** (Deterministic) | Prompt พื้นฐาน | ล็อกสิทธิ์เฉพาะ `PUBLIC_TABLES` เท่านั้น บล็อก SQL Wildcard (`%`, `_`) | ปิด | **ตัดสิทธิ์ที่ฐานข้อมูล 100% (No Table Access)** |
-| **`all`** (Full Defense) | Hardened Prompt + ขอบเขตสิทธิ์ตามบทบาท | ล็อกสิทธิ์เฉพาะ `PUBLIC_TABLES` + Sanitization | เปิด (ดักจับ Canary, เลขไทย, Base64, Hex) | **ป้องกันสมบูรณ์แบบ 100% (Defense-in-Depth)** |
+| **`off`** (Baseline) | Prompt พื้นฐาน พร้อมเปิดเผยชื่อตารางทั้งหมดใน Schema | ให้อนุญาตทุกตาราง ไม่มีการกลั่นกรอง | ปิด | Baseline ไม่มีการป้องกัน - อัตราการรั่วไหล: TBD (ยังไม่ได้รันจริง) |
+| **`prompt`** (Policy-only) | Hardened Anti-leak System Prompt ห้ามเปิดเผยข้อมูลลับ | ให้อนุญาตทุกตาราง (พึ่งพาคำสั่งของโมเดล) | ปิด | วัดว่าโมเดลเชื่อฟังคำสั่งใน prompt เพียงใด - อัตราการรั่วไหล: TBD (ยังไม่ได้รันจริง) |
+| **`tools`** (Deterministic) | Prompt พื้นฐาน | ล็อกสิทธิ์เฉพาะ `PUBLIC_TABLES` เท่านั้น บล็อก SQL Wildcard (`%`, `_`) | ปิด | ปิดช่องทางเข้าถึงตารางลับโดยโครงสร้างการออกแบบ (blocked by construction) ผลเป็น 0% ผ่านช่องทางนี้เป็นผลโดยตรงจากการจำกัดตาราง ไม่ใช่ข้อค้นพบเชิงประจักษ์ ช่องทางอื่น (เช่น indirect injection ผ่านตารางสาธารณะ) ยังไม่ได้วัด |
+| **`all`** (Layered) | Hardened Prompt + ขอบเขตสิทธิ์ตามบทบาท | ล็อกสิทธิ์เฉพาะ `PUBLIC_TABLES` + Sanitization | เปิด (ดักจับ Canary, เลขไทย, Base64, Hex) | เพิ่ม DLP ขาออกซ้อนบน `tools` ปิดช่องทางตารางลับโดยโครงสร้างเช่นเดียวกัน ส่วน DLP ตรวจได้เฉพาะรูปแบบที่ออกแบบไว้ จึงไม่รับประกันว่าไม่มีการรั่วแบบอื่น (ดู [LIMITATIONS.md](LIMITATIONS.md)) |
 
 ---
 
@@ -115,19 +118,19 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    S1["Step 1: Setup & Verify<br/>ติดตั้งและตรวจเช็คออฟไลน์<br/>(99 Tests / 0 API Cost)"] --> S2["Step 2: Quick Smoke Test<br/>ทดลองยิงเจาะระบบเคสแรก<br/>(Single Probe TH-1)"]
+    S1["Step 1: Setup & Verify<br/>ติดตั้งและตรวจเช็คออฟไลน์<br/>(100 Tests / 0 API Cost)"] --> S2["Step 2: Quick Smoke Test<br/>ทดลองยิงเจาะระบบเคสแรก<br/>(Single Probe TH-1)"]
     S2 --> S3["Step 3: Interactive Web UI<br/>เปิดหน้าต่างทดสอบสด<br/>(Turn-by-Turn Playground)"]
-    S3 --> S4["Step 4: Advanced Benchmark<br/>ทดสอบ Red Team เต็มรูปแบบ<br/>(OWASP Scientific Report)"]
+    S3 --> S4["Step 4: Advanced Benchmark<br/>ทดสอบ Red Team เต็มรูปแบบ<br/>(OWASP-aligned Report)"]
 ```
 
 > [!TIP]
 > **ทำไมจึงแนะนำให้ใช้ `.\.venv\Scripts\python.exe` โดยตรง?**
-> บน Windows PowerShell การสั่งรันผ่าน `.\.venv\Scripts\python.exe` เป็นการเรียก Python ภายใน Virtual Environment โดยตรง ทำให้สามารถคัดลอกคำสั่งไปวางแล้วรันได้ทันที 100% โดยไม่ต้องกังวลเรื่องการลืม Activate หรือปัญหา PowerShell Script Execution Policy (`PSSecurityException`) และป้องกันข้อผิดพลาด `ModuleNotFoundError: No module named 'flask'` ที่เกิดจากการเผลอไปรันบน Global Python ของระบบ (สำหรับ Linux / macOS สามารถใช้ `./.venv/bin/python ...`)
+> บน Windows PowerShell การสั่งรันผ่าน `.\.venv\Scripts\python.exe` เป็นการเรียก Python ภายใน Virtual Environment โดยตรง ทำให้สามารถคัดลอกคำสั่งไปวางแล้วรันได้ทันที โดยไม่ต้องกังวลเรื่องการลืม Activate หรือปัญหา PowerShell Script Execution Policy (`PSSecurityException`) และป้องกันข้อผิดพลาด `ModuleNotFoundError: No module named 'flask'` ที่เกิดจากการเผลอไปรันบน Global Python ของระบบ (สำหรับ Linux / macOS สามารถใช้ `./.venv/bin/python ...`)
 
 ---
 
 ### 🟢 ขั้นตอนที่ 1: ติดตั้งและตรวจเช็คความพร้อม (Setup & Zero-Cost Verification)
-ติดตั้งสภาพแวดล้อมและรันชุดทดสอบความปลอดภัย 99 รายการแบบออฟไลน์ 100% (ไม่เสียค่า API และไม่ต้องต่ออินเทอร์เน็ต):
+ติดตั้งสภาพแวดล้อมและรันชุดทดสอบ 100 รายการแบบออฟไลน์ (ไม่เสียค่า API และไม่ต้องต่ออินเทอร์เน็ต):
 
 ```powershell
 # 1.1 สร้าง Virtual Environment
@@ -221,7 +224,7 @@ copy .env.example .env         # Linux / macOS: cp .env.example .env
 *รายงานจะถูกบันทึกอัตโนมัติใน `results/owasp_evaluation_report.md` และ `.json` เพื่อนำไปใช้อ้างอิงหรือรายงานผลทางวิชาการ*
 
 <p align="center">
-  <img src="docs/images/web_ui_owasp.png" alt="OWASP Scientific Security Benchmark" width="100%" />
+  <img src="docs/images/web_ui_owasp.png" alt="OWASP-aligned Security Benchmark" width="100%" />
 </p>
 
 ---
@@ -265,7 +268,7 @@ copy .env.example .env         # Linux / macOS: cp .env.example .env
 ├── templates/
 │   └── index.html              # หน้าเว็บแดชบอร์ด HTML5/CSS3/JS พร้อม CSRF Protection
 │
-└── tests/                      # ชุดทดสอบความถูกต้อง 100 รายการ (100% Offline)
+└── tests/                      # ชุดทดสอบความถูกต้อง 100 รายการ (Offline ไม่เรียก API)
     ├── test_agent.py           # 63 tests: DLP, ACL, Prompt, Session, Tool Security
     ├── test_evaluator.py       # 16 tests: Adapters, Engine, Metrics, Report Export
     └── test_web_ui.py          # 21 tests: Endpoints, CSRF, Concurrency, Session Lifecycle
@@ -290,13 +293,21 @@ copy .env.example .env         # Linux / macOS: cp .env.example .env
 
 ## 🔒 นโยบายความเป็นส่วนตัวและความปลอดภัย (Privacy & Ethics)
 
-1. **ข้อมูลสังเคราะห์ 100% (Synthetic Data Only)**:
+1. **ข้อมูลสังเคราะห์เท่านั้น (Synthetic Data Only)**:
    - ข้อมูลทั้งหมดในฐานข้อมูลมหาวิทยาลัย (`data/university.db`) ถูกสร้างขึ้นด้วยกระบวนการสุ่มผ่านไลบรารี Faker ร่วมกับการกำหนด Deterministic Seed (Seed = 42)
    - ไม่มีการใช้ข้อมูลส่วนบุคคล หมายเลขประจำตัวประชาชน หรือความลับขององค์กรจริงในระบบอย่างเด็ดขาด
 2. **สุขอนามัยของ Git และความลับ (Secret Hygiene)**:
    - ไฟล์ `.env`, `.flask_secret`, `data/*.db` และรายงานใน `results/` ถูกระบุไว้ใน `.gitignore` เพื่อป้องกันการรั่วไหลสู่ Public Repository
 3. **การใช้งานเพื่อการศึกษาและวิจัย (Ethical Research Purpose)**:
    - เครื่องมือนี้พัฒนาขึ้นเพื่อการวิจัยด้านความปลอดภัยของ AI การประเมินช่องโหว่เชิงป้องกัน (Defensive AI Safety) และการเสริมสร้างความปลอดภัยให้แก่ระบบ Enterprise AI Assistants เท่านั้น
+
+---
+
+## 🤖 การพัฒนาโดยมี AI ช่วย (AI-Assisted Development)
+
+โปรเจกต์นี้ใช้ผู้ช่วยเขียนโค้ด AI ร่วมในการร่างโค้ด เขียนชุดทดสอบออฟไลน์ และจัดทำโครงสร้างเอกสาร ภายใต้กฎวิศวกรรมและข้อจำกัดด้านความปลอดภัยที่กำหนดไว้ใน [`GEMINI.md`](GEMINI.md) และ [`skills/`](skills/) โดยคอมมิตที่เครื่องมือ AI มีส่วนร่วมในการเขียนหรือแก้ไขโค้ดจะระบุบรรทัด `Co-authored-by:` กำกับไว้ในประวัติ Git อย่างโปร่งใส
+
+<!-- TODO(owner): อธิบายสิ่งที่ฉันออกแบบ/ตัดสินใจ/ตรวจสอบเอง -->
 
 ---
 
