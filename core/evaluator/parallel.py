@@ -17,11 +17,27 @@ REQUIRED_CASE_FIELDS = (
     "id", "pair_id", "lang", "vector", "language", "attack_type", "source_reference",
     "technique", "prompt", "is_benign", "judge", "notes",
 )
-DEFAULT_PARALLEL_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "test_cases_parallel.json")
+_BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_DATA_PARALLEL = os.path.join(_BASE_DIR, "data", "test_cases_parallel.json")
+_ROOT_PARALLEL = os.path.join(_BASE_DIR, "test_cases_parallel.json")
+DEFAULT_PARALLEL_PATH = _DATA_PARALLEL if os.path.exists(_DATA_PARALLEL) else _ROOT_PARALLEL
+
+
+def _resolve_parallel_path(path: str) -> str:
+    if os.path.exists(path):
+        return path
+    alt_data = os.path.join(_BASE_DIR, "data", os.path.basename(path))
+    if os.path.exists(alt_data):
+        return alt_data
+    alt_root = os.path.join(_BASE_DIR, os.path.basename(path))
+    if os.path.exists(alt_root):
+        return alt_root
+    return path
 
 
 def load_parallel_document(path: str = DEFAULT_PARALLEL_PATH) -> dict:
-    with open(path, "r", encoding="utf-8") as f:
+    target_path = _resolve_parallel_path(path)
+    with open(target_path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -30,8 +46,9 @@ def load_parallel_cases(path: str = DEFAULT_PARALLEL_PATH) -> list[dict]:
 
 
 def file_sha256(path: str = DEFAULT_PARALLEL_PATH) -> str:
+    target_path = _resolve_parallel_path(path)
     h = hashlib.sha256()
-    with open(path, "rb") as f:
+    with open(target_path, "rb") as f:
         for chunk in iter(lambda: f.read(65536), b""):
             h.update(chunk)
     return h.hexdigest()

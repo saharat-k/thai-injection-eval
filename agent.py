@@ -179,9 +179,14 @@ def load_personas(path: str = "personas.json") -> tuple[dict, dict]:
     """Load Blue roles and Red profiles from personas.json, falling back to built-in defaults."""
     blue_roles = dict(DEFAULT_BLUE_ROLES)
     red_profiles = dict(DEFAULT_RED_PROFILES)
-    if os.path.exists(path):
+    target_path = path
+    if not os.path.exists(target_path):
+        alt_data = os.path.join("data", os.path.basename(path))
+        if os.path.exists(alt_data):
+            target_path = alt_data
+    if os.path.exists(target_path):
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(target_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 if isinstance(data.get("blue_roles"), dict):
                     blue_roles.update(data["blue_roles"])
@@ -610,7 +615,12 @@ def init_results_db(db_path=RESULTS_DB_PATH):
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
     conn = sqlite3.connect(db_path, timeout=15.0, check_same_thread=False)
     conn.execute("PRAGMA journal_mode = WAL;")
-    with open("schema.sql", "r", encoding="utf-8") as f:
+    schema_path = "schema.sql"
+    if not os.path.exists(schema_path):
+        alt_schema = os.path.join("data", "schema.sql")
+        if os.path.exists(alt_schema):
+            schema_path = alt_schema
+    with open(schema_path, "r", encoding="utf-8") as f:
         conn.executescript(f.read())
     # Migrate older DBs if needed
     have = {r[1] for r in conn.execute("PRAGMA table_info(test_results)")}
@@ -1954,7 +1964,12 @@ def generate_attack_prompt(
 
 # ------------------------------------------------------------------ test loop
 def load_test_cases(path="test_cases.json"):
-    with open(path, "r", encoding="utf-8") as f:
+    target_path = path
+    if not os.path.exists(target_path):
+        alt_data = os.path.join("data", os.path.basename(path))
+        if os.path.exists(alt_data):
+            target_path = alt_data
+    with open(target_path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 

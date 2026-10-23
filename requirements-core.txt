@@ -1,0 +1,3 @@
+# Core Minimum Dependencies for thai-injection-eval Benchmark Harness
+google-genai>=1.0.0
+python-dotenv>=1.0.0

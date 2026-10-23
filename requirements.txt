@@ -1,6 +1,10 @@
+# Core Dependencies (LLM API & Environment)
 google-genai>=1.0.0
-flask>=2.2.0
 python-dotenv>=1.0.0
+
+# Optional: Web UI Playground (web_ui.py)
+flask>=2.2.0
+
+# Optional: Data Seeding & Plotting (scripts/seed_db.py, scripts/make_report.py)
 faker>=33.0.0
 matplotlib>=3.8.0
-

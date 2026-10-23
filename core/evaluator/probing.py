@@ -43,14 +43,27 @@ REQUIRED_PROBING_FIELDS = (
     "prompt",
     "notes",
 )
-DEFAULT_PROBING_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-    "test_cases_probing.json",
-)
+_BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_DATA_PROBING = os.path.join(_BASE_DIR, "data", "test_cases_probing.json")
+_ROOT_PROBING = os.path.join(_BASE_DIR, "test_cases_probing.json")
+DEFAULT_PROBING_PATH = _DATA_PROBING if os.path.exists(_DATA_PROBING) else _ROOT_PROBING
+
+
+def _resolve_probing_path(path: str) -> str:
+    if os.path.exists(path):
+        return path
+    alt_data = os.path.join(_BASE_DIR, "data", os.path.basename(path))
+    if os.path.exists(alt_data):
+        return alt_data
+    alt_root = os.path.join(_BASE_DIR, os.path.basename(path))
+    if os.path.exists(alt_root):
+        return alt_root
+    return path
 
 
 def load_probing_document(path: str = DEFAULT_PROBING_PATH) -> dict:
-    with open(path, "r", encoding="utf-8") as f:
+    target_path = _resolve_probing_path(path)
+    with open(target_path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
