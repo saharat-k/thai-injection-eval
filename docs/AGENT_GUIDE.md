@@ -45,7 +45,7 @@ Local test bench that checks whether prompt injection in Thai, English, or mixed
 # Full OWASP-aligned evaluation export
 .\.venv\Scripts\python.exe agent.py --eval-owasp
 
-# Run offline unit/integration test suite (108 tests, zero API cost)
+# Run offline unit/integration test suite (114 tests, zero API cost)
 .\.venv\Scripts\python.exe -m unittest discover -s tests
 ```
 Manual mode uses one multi-turn Blue chat; you send prompts (template or custom) and can hand over to Red for N rounds (stops on canary leak, round limit, or Ctrl+C). Turns are logged to `results.db` as `MANUAL-<timestamp>` with the sender in `technique`.

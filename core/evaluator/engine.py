@@ -2,6 +2,7 @@
 import os
 import sys
 import json
+import time
 from typing import Optional, Callable
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -167,5 +168,102 @@ class SecurityEvaluator:
             "timestamp": ts,
             "metadata": full_meta,
             "metrics": calculate_parallel_metrics(rows),
+            "results": rows,
+        }
+
+    def run_probing_benchmark(
+        self,
+        defenses=("tools", "all"),
+        repeats: int = 1,
+        progress_callback: Optional[Callable[[int, int, dict], None]] = None,
+        metadata: Optional[dict] = None,
+    ) -> dict:
+        """Run the Item 7 probing suite (`test_cases_probing.json`) across defense tiers.
+
+        Uses each case's own `blue_role` (or `registrar_staff` if omitted) so that
+        role-boundary probes (`student_guest`) and DLP probes (`system_admin`) execute
+        under the intended persona.
+        """
+        from core.evaluator.parallel import build_run_metadata
+        from core.evaluator.probing import calculate_probing_metrics, judge_probing_case
+
+        rows: list[dict] = []
+        models_seen: list[str] = []
+        total = len(self.cases) * len(defenses) * repeats
+        done = 0
+        pace = float(os.getenv("EVAL_PACE_SECONDS", "0.0"))
+        for defense in defenses:
+            for rep in range(1, repeats + 1):
+                for case in self.cases:
+                    role = case.get("blue_role", "registrar_staff")
+                    self.target.reset()
+                    if pace > 0 and done > 0:
+                        time.sleep(pace)
+                    resp = self.target.send(case["prompt"], defense=defense, blue_role=role)
+                    done += 1
+                    m_used = resp.metadata.get("model_used") or getattr(agent, "BLUE_MODEL", "unknown")
+                    if m_used and m_used not in models_seen:
+                        models_seen.append(m_used)
+                    base = {
+                        "id": case["id"],
+                        "pair_id": case["pair_id"],
+                        "lang": case["lang"],
+                        "category": case["category"],
+                        "vector": case["vector"],
+                        "target_defense": case.get("target_defense", defense),
+                        "blue_role": role,
+                        "is_benign": case.get("is_benign", False),
+                        "defense": defense,
+                        "repeat": rep,
+                    }
+                    if resp.error:
+                        row = {
+                            **base,
+                            "success": -1,
+                            "matched": [],
+                            "error": resp.error,
+                            "response": "",
+                            "tool_calls_total": len(resp.tool_calls),
+                            "tool_calls_blocked": 0,
+                            "model_used": m_used,
+                        }
+                    else:
+                        verdict = judge_probing_case(case, resp.text)
+                        row = {
+                            **base,
+                            "success": verdict["success"],
+                            "matched": verdict["matched"],
+                            "error": None,
+                            "response": resp.text,
+                            "tool_calls_total": len(resp.tool_calls),
+                            "tool_calls_blocked": sum(1 for t in resp.tool_calls if t.get("status") == "blocked"),
+                            "model_used": m_used,
+                        }
+                    rows.append(row)
+                    if progress_callback:
+                        progress_callback(done, total, row)
+
+        ts = agent.now()
+        blue_spec = getattr(agent, "BLUE_MODEL", "unknown")
+        provider = blue_spec.split(":", 1)[0] if ":" in blue_spec else "gemini"
+        full_meta = build_run_metadata(
+            red_model="static-probing-prompts",
+            blue_model=blue_spec,
+            model_used=",".join(models_seen) if models_seen else blue_spec,
+            provider=provider,
+            timestamp=ts,
+            attempts=repeats,
+            random_seed=os.getenv("EVAL_SEED", "unlocked (provider default)"),
+            defense=",".join(defenses),
+            extra=metadata or {},
+        )
+        return {
+            "kind": "probing",
+            "target_info": self.target.get_info(),
+            "defenses": list(defenses),
+            "repeats": repeats,
+            "timestamp": ts,
+            "metadata": full_meta,
+            "metrics": calculate_probing_metrics(rows),
             "results": rows,
         }

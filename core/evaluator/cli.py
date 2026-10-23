@@ -19,6 +19,12 @@ from core.evaluator.parallel import (
     load_parallel_document,
     validate_parallel_document,
 )
+from core.evaluator.probing import (
+    DEFAULT_PROBING_PATH,
+    evaluate_dlp_bypass_probes,
+    load_probing_document,
+    validate_probing_document,
+)
 
 ALL_DEFENSES = ("off", "prompt", "tools", "all")
 
@@ -63,6 +69,9 @@ def main(argv=None):
     parser.add_argument("--defenses", default=",".join(ALL_DEFENSES), help="Comma-separated defense tiers for --parallel")
     parser.add_argument("--repeats", type=int, default=1, help="Repetitions per case/tier for --parallel")
     parser.add_argument("--parallel-cases", default=DEFAULT_PARALLEL_PATH, help="Path to the parallel cases file")
+    parser.add_argument("--probing", action="store_true", help="Run the Item 7 probing suite (test_cases_probing.json) for tools/all tiers")
+    parser.add_argument("--probing-cases", default=DEFAULT_PROBING_PATH, help="Path to the probing cases file")
+    parser.add_argument("--dlp-audit", action="store_true", help="Run offline deterministic audit of DLP bypass encodings (no API calls)")
     parser.add_argument("--dry-run", action="store_true", help="Validate inputs and print the estimated LLM request count, then exit without any API call")
     parser.add_argument("--publish", action="store_true", help="Also export sanitized summary/CSV/Markdown (without raw responses) to results/published/")
 
@@ -73,6 +82,10 @@ def main(argv=None):
     print(f"Target: {args.target} | Defense: {args.defense} | Role: {args.role}")
     print("=" * 65 + "\n")
 
+    if args.dlp_audit:
+        return _run_dlp_audit()
+    if args.probing:
+        return _run_probing(args)
     if args.parallel:
         return _run_parallel(args)
 
@@ -193,6 +206,68 @@ def _run_parallel(args):
         pub_dir = os.path.join(args.export_dir, "published")
         s_path, c_path, m_path = export_published_files(report, output_dir=pub_dir, base_name=args.export_name)
         print(f"[OK] Published sanitized artifacts: {s_path}, {c_path}, {m_path}")
+
+
+def _run_dlp_audit():
+    rows = evaluate_dlp_bypass_probes()
+    print("[OFFLINE DLP BYPASS AUDIT — 0 LLM API CALLS]")
+    for r in rows:
+        status = "BYPASSED" if r["bypass_succeeded"] else "BLOCKED"
+        print(f"  - {r['pair_id']} ({r['encoding']:<15}): {status} | canary={r['expected_canary']}")
+    return rows
+
+
+def _run_probing(args):
+    raw_def = args.defenses if args.defenses != ",".join(ALL_DEFENSES) else "tools,all"
+    defenses = [d.strip() for d in raw_def.split(",") if d.strip()]
+    bad = [d for d in defenses if d not in ALL_DEFENSES]
+    if bad or not defenses:
+        print(f"[-] Invalid --defenses: {bad or args.defenses}. Allowed: {', '.join(ALL_DEFENSES)}", file=sys.stderr)
+        sys.exit(1)
+    if args.repeats < 1:
+        print("[-] --repeats must be >= 1", file=sys.stderr)
+        sys.exit(1)
+
+    doc = load_probing_document(args.probing_cases)
+    problems = validate_probing_document(doc)
+    if problems:
+        print("[-] Probing cases file is invalid:", file=sys.stderr)
+        for p in problems:
+            print(f"    - {p}", file=sys.stderr)
+        sys.exit(1)
+    cases = doc["cases"]
+
+    est = _estimate_requests(len(cases), len(defenses), args.repeats)
+    print(f"Probing set v{doc['version']}: {len(cases)} cases x {len(defenses)} tiers x {args.repeats} repeat(s) = {est['chats']} Blue chats")
+    print(f"Estimated LLM requests: >= {est['min_requests']} (typically {est['typical_low']}-{est['typical_high']} with tool calls; retries not included)")
+    if args.dry_run:
+        print("[dry-run] No API call was made.")
+        return
+
+    config = {"defense": defenses[0], "blue_role": args.role}
+    adapter = create_target_adapter(args.target, config=config)
+    evaluator = SecurityEvaluator(adapter, cases=cases)
+
+    def on_progress(done, total, row):
+        if not args.quiet:
+            status = {1: "[HIT]", 0: "[miss]", -1: "[ERROR]"}[row["success"]]
+            print(f"[{done:03d}/{total:03d}] {row['id']:<15} {row['defense']:<7} {status}")
+
+    report = evaluator.run_probing_benchmark(
+        defenses=defenses,
+        repeats=args.repeats,
+        progress_callback=on_progress,
+        metadata={"cases_version": doc["version"], "cases_sha256": file_sha256(args.probing_cases)},
+    )
+    os.makedirs(args.export_dir, exist_ok=True)
+    json_path = os.path.join(args.export_dir, f"{args.export_name}_probing.json")
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(report, f, ensure_ascii=False, indent=2)
+    print(f"\n[OK] Probing JSON report (contains responses; keep out of git): {json_path}")
+    if args.publish:
+        pub_dir = os.path.join(args.export_dir, "published")
+        s_path, c_path, m_path = export_published_files(report, output_dir=pub_dir, base_name=f"{args.export_name}_probing")
+        print(f"[OK] Published sanitized probing artifacts: {s_path}, {c_path}, {m_path}")
 
 
 if __name__ == "__main__":

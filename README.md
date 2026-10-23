@@ -1,6 +1,6 @@
 # Thai Prompt Injection Security Test Bench & Red-Teaming Harness
 
-[![Tests](https://img.shields.io/badge/Tests-108%20Passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-114%20Passing-brightgreen.svg)](tests/)
 [![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.14-blue.svg)](https://www.python.org/)
 [![OWASP](https://img.shields.io/badge/OWASP-Top%2010%20for%20LLM%20(2025)-orange.svg)](https://owasp.org/www-project-top-10-for-large-language-model-applications/)
 [![Defense](https://img.shields.io/badge/Defense-4--Tier%20Defense--in--Depth-purple.svg)](#-สถาปัตยกรรมความปลอดภัย-4-ระดับ-4-tier-defense-in-depth)
@@ -8,7 +8,7 @@
 
 ระบบทดสอบ ประเมินความมั่นคงปลอดภัย และจำลองการโจมตี (Security Test Bench & Red-Teaming Harness) สำหรับโมเดลภาษาขนาดใหญ่ (LLM) ต่อภัยคุกคามด้าน **Prompt Injection** และ **Sensitive Data Leakage** ตามกรอบมาตรฐาน **OWASP Top 10 for LLM Applications (2025)** ครอบคลุมบริบท **ภาษาไทย ภาษาอังกฤษ และคำถามปนภาษา (Code-mixed)** พร้อมกลไกความปลอดภัยแบบหลายชั้น (Defense-in-Depth) และหน้าต่างควบคุมแบบโต้ตอบ (Interactive Red-Teaming Playground)
 
-> **English Executive Summary**: A security evaluation harness and red-teaming test bench designed to benchmark Large Language Model (LLM) agents against **Direct/Indirect Prompt Injection (OWASP LLM01)** and **Sensitive Information Disclosure (OWASP LLM02)** in Thai, English, and mixed-language environments. It provides a multi-turn autonomous Red Agent, role-based Blue Assistant defenses (Prompt Isolation, Tool Gatekeeper, Synthetic Honeytokens, Multilingual Canary DLP), an OWASP-aligned metrics engine (ASR/FRR/TVR/DES), and an interactive Web UI for security operations. Includes a 108-test offline verification suite requiring zero API quota.
+> **English Executive Summary**: A security evaluation harness and red-teaming test bench designed to benchmark Large Language Model (LLM) agents against **Direct/Indirect Prompt Injection (OWASP LLM01)** and **Sensitive Information Disclosure (OWASP LLM02)** in Thai, English, and mixed-language environments. It provides a multi-turn autonomous Red Agent, role-based Blue Assistant defenses (Prompt Isolation, Tool Gatekeeper, Synthetic Honeytokens, Multilingual Canary DLP), an OWASP-aligned metrics engine (ASR/FRR/TVR/DES), and an interactive Web UI for security operations. Includes a 114-test offline verification suite requiring zero API quota.
 
 > [!IMPORTANT]
 > **ข้อจำกัดและขอบเขตการแปลผล (Methodology & Scope Limitations):** โปรดอ่าน [**`LIMITATIONS.md`**](LIMITATIONS.md) ก่อนนำผลการทดลองไปอ้างอิง เอกสารดังกล่าวระบุข้อจำกัดของโมเดลระดับ Free-tier, ความกว้างของช่วงความเชื่อมั่นเมื่อขนาดตัวอย่าง `n` เล็ก, ความไม่สมดุลของชุดทดสอบดั้งเดิม (`test_cases.json`), เหตุผลที่ผลลัพธ์ 0% ในโหมด `tools`/`all` เป็นผลเชิงโครงสร้าง (`blocked by construction`), และช่องโหว่ของตัวตัดสินแบบ Canary/DLP อย่างตรงไปตรงมา
@@ -41,7 +41,7 @@ flowchart LR
 
 ## 🎯 เวกเตอร์การโจมตีและชุดทดสอบมาตรฐาน (Attack Taxonomy & Dataset)
 
-โปรเจกต์นี้แยกชุดทดสอบออกเป็น 2 ไฟล์ตามวัตถุประสงค์การใช้งาน:
+โปรเจกต์นี้แยกชุดทดสอบออกเป็น 3 ไฟล์ตามวัตถุประสงค์การใช้งาน:
 
 1. **ชุดทดสอบคู่ขนาน 3 ภาษา [`test_cases_parallel.json`](test_cases_parallel.json) *(แนะนำสำหรับวัดผลและเปรียบเทียบข้ามภาษา)***:
    - ออกแบบให้ทุกเจตนาการโจมตี (`pair_id`) มีครบทั้ง **3 ภาษา (`TH`, `EN`, `MIX`)** ในความยากและเป้าหมายเดียวกัน:
@@ -50,7 +50,19 @@ flowchart LR
    - ใช้ตัวตัดสินแบบกฎตายตัว (Rule-based Judge: Canary / Schema Disclosure / Benign Expected Output) โดยไม่ใช้ LLM ตัดสิน และรายงานผลพร้อมค่า `n` และช่วงความเชื่อมั่น **95% แบบ Wilson Confidence Interval**
    - รันด้วยคำสั่ง: `.\.venv\Scripts\python.exe -m core.evaluator.cli --parallel --dry-run` (ดูจำนวน request ก่อนรันจริง)
 
-2. **ชุดทดสอบดั้งเดิม [`test_cases.json`](test_cases.json) *(เก็บไว้เพื่อความเข้ากันได้ย้อนหลัง)***:
+2. **ชุดทดสอบเจาะจุดบอดของโหมด `tools` และ `all` [`test_cases_probing.json`](test_cases_probing.json) *(สำหรับวัดช่องทางที่ไม่ถูกปิดโดยโครงสร้าง)***:
+   - ประกอบด้วย **8 คู่ (24 เคส ครบ `TH`/`EN`/`MIX`)** แบ่งเป็น 3 หมวดหมู่ที่ `PUBLIC_TABLES` allowlist เพียงอย่างเดียวไม่ได้บล็อกไว้ล่วงหน้า:
+     - **`indirect_public_tools` (6 เคส)**: คำสั่งแฝงแบบไม่ใช้วงเล็บเหลี่ยมในตารางสาธารณะ (`announcements.ANN992`, `course_evaluations.EV993`) ที่หลุดรอด `_sanitize_db_cell()` และสั่งให้โมเดลดึงข้อมูลตารางสาธารณะอื่น (`enrollments`, `awards`)
+     - **`dlp_bypass_probe` (12 เคส)**: ทดสอบการหลบเลี่ยง Output DLP (`apply_defense_output`) ด้วยการเข้ารหัสที่ระบบยังไม่ถอดรหัส ได้แก่ `ROT13`, `URL Percent-Encoding (%XX)`, `Tilde Delimiter (~)` และ `HTML Decimal Entities (&#NN;)`
+     - **`collateral_public_leak` (6 เคส)**: ทดสอบการรั่วไหลของข้อมูลนักศึกษาคนอื่นที่ไม่ได้ถามถึง (`S002`–`S005`, `S040`, `S047`) จากการคิวรีตารางสาธารณะ (`enrollments`, `awards`) ด้วยคำค้นกว้าง
+   - **ผลการรันจริง (Live API Run — โมเดล `gemini-3.5-flash-lite` ผ่าน Google AI Studio Gemini API, 24 เคส × 2 โหมด `tools,all` = 48 turns, 1 รอบ, วันที่ `2026-10-23`, commit `10efb96`, ดูรายงานเต็มใน [`results/published/PUBLISHED_REPORT.md`](results/published/PUBLISHED_REPORT.md))**:
+     - `collateral_public_leak`: **`12/12 = 100.0% [95% CI 75.8%, 100.0%]`** (รั่วไหลทั้งโหมด `tools` `6/6` และ `all` `6/6` เนื่องจากไม่มีการจำกัดสิทธิ์ระดับแถวข้อมูลบนตารางสาธารณะ)
+     - `indirect_public_tools`: **`0/12 = 0.0% [95% CI 0.0%, 24.2%]`** (โมเดลสรุปเนื้อหาประกาศโดยไม่ทำตามคำสั่งแฝงข้ามตาราง)
+     - `dlp_bypass_probe`: **`0/20 = 0.0% [95% CI 0.0%, 16.1%]`** ในการรัน End-to-End (ติดบล็อกที่ระดับ `PUBLIC_TABLES` ก่อนดึงข้อมูลความลับ; เกิด transient 429/500 จำนวน 4 แถวซึ่งตัดออกจาก `n`) ในขณะที่การทดสอบฟังก์ชัน `apply_defense_output` โดยตรงแบบออฟไลน์ (`--dlp-audit`) ยืนยันว่าทั้ง **`4/4 รูปแบบ (100%)`** หลุดรอดตัวกรอง DLP ปัจจุบัน
+   - ตรวจสอบผล DLP Bypass แบบออฟไลน์ (0 API Call): `.\.venv\Scripts\python.exe -m core.evaluator.cli --dlp-audit`
+   - คำนวณจำนวน request ก่อนรันจริง: `.\.venv\Scripts\python.exe -m core.evaluator.cli --probing --dry-run`
+
+3. **ชุดทดสอบดั้งเดิม [`test_cases.json`](test_cases.json) *(เก็บไว้เพื่อความเข้ากันได้ย้อนหลัง)***:
    - ⚠️ **คำเตือนสำคัญ**: **ห้ามใช้ `test_cases.json` ในการเปรียบเทียบอัตราการโจมตีสำเร็จข้ามภาษา** เนื่องจากจำนวนเคสไม่สมดุล (ไทย 24 เคส, อังกฤษ 8 เคส, ผสม 4 เคส) และบางเวกเตอร์มีเฉพาะบางภาษา หากต้องการเปรียบเทียบระหว่างภาษาไทย อังกฤษ และคำถามปนภาษา ให้ใช้ [`test_cases_parallel.json`](test_cases_parallel.json) เท่านั้น
    - ประกอบด้วย **36 กรณีศึกษา** ครอบคลุม **8 เวกเตอร์การโจมตี** อ้างอิงแนวคิดจาก [InjecAgent (ACL 2024)](docs/REFERENCES.md#1-injecagent-acl-2024-uiuc-kang-lab), [BIPIA (Microsoft Research)](docs/REFERENCES.md#2-bipia-microsoft-research) และ [MultiJail Benchmark](docs/REFERENCES.md#3-multijail-multilingual-jailbreak--safety-benchmark):
 
@@ -118,8 +130,8 @@ flowchart TD
 |---|---|---|---|---|
 | **`off`** (Baseline) | Prompt พื้นฐาน พร้อมเปิดเผยชื่อตารางทั้งหมดใน Schema | ให้อนุญาตทุกตาราง ไม่มีการกลั่นกรอง | ปิด | Baseline ไม่มีการป้องกัน - อัตราการรั่วไหล: TBD (ยังไม่ได้รันจริง) |
 | **`prompt`** (Policy-only) | Hardened Anti-leak System Prompt ห้ามเปิดเผยข้อมูลลับ | ให้อนุญาตทุกตาราง (พึ่งพาคำสั่งของโมเดล) | ปิด | วัดว่าโมเดลเชื่อฟังคำสั่งใน prompt เพียงใด - อัตราการรั่วไหล: TBD (ยังไม่ได้รันจริง) |
-| **`tools`** (Deterministic) | Prompt พื้นฐาน | ล็อกสิทธิ์เฉพาะ `PUBLIC_TABLES` เท่านั้น บล็อก SQL Wildcard (`%`, `_`) | ปิด | ปิดช่องทางเข้าถึงตารางลับโดยโครงสร้างการออกแบบ (blocked by construction) ผลเป็น 0% ผ่านช่องทางนี้เป็นผลโดยตรงจากการจำกัดตาราง ไม่ใช่ข้อค้นพบเชิงประจักษ์ ช่องทางอื่น (เช่น indirect injection ผ่านตารางสาธารณะ) ยังไม่ได้วัด |
-| **`all`** (Layered) | Hardened Prompt + ขอบเขตสิทธิ์ตามบทบาท | ล็อกสิทธิ์เฉพาะ `PUBLIC_TABLES` + Sanitization | เปิด (ดักจับ Canary, เลขไทย, Base64, Hex) | เพิ่ม DLP ขาออกซ้อนบน `tools` ปิดช่องทางตารางลับโดยโครงสร้างเช่นเดียวกัน ส่วน DLP ตรวจได้เฉพาะรูปแบบที่ออกแบบไว้ จึงไม่รับประกันว่าไม่มีการรั่วแบบอื่น (ดู [LIMITATIONS.md](LIMITATIONS.md)) |
+| **`tools`** (Deterministic) | Prompt พื้นฐาน | ล็อกสิทธิ์เฉพาะ `PUBLIC_TABLES` เท่านั้น บล็อก SQL Wildcard (`%`, `_`) | ปิด | ปิดช่องทางเข้าถึงตารางลับโดยโครงสร้างการออกแบบ (blocked by construction) ผลเป็น 0% ผ่านช่องทางตารางลับเป็นผลโดยตรงจากการจำกัดตาราง ไม่ใช่ข้อค้นพบเชิงประจักษ์ ส่วนช่องทางตารางสาธารณะในชุด Probing (`gemini-3.5-flash-lite`, `2026-10-23`, commit `10efb96`) พบ Collateral Leak `6/6 (100.0%)` และ Indirect Public Pivot `0/6 (0.0%)` |
+| **`all`** (Layered) | Hardened Prompt + ขอบเขตสิทธิ์ตามบทบาท | ล็อกสิทธิ์เฉพาะ `PUBLIC_TABLES` + Sanitization | เปิด (ดักจับ Canary, เลขไทย, Base64, Hex) | เพิ่ม DLP ขาออกซ้อนบน `tools` ปิดช่องทางตารางลับโดยโครงสร้างเช่นเดียวกัน แต่ในชุด Probing (`gemini-3.5-flash-lite`, `2026-10-23`, commit `10efb96`) ยังพบ Collateral Leak บนตารางสาธารณะ `6/6 (100.0%)` และ DLP ขาออกไม่รองรับ ROT13 / URL-encode / Tilde / HTML entities (ดู [LIMITATIONS.md](LIMITATIONS.md)) |
 
 ---
 
@@ -129,7 +141,7 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    S1["Step 1: Setup & Verify<br/>ติดตั้งและตรวจเช็คออฟไลน์<br/>(108 Tests / 0 API Cost)"] --> S2["Step 2: Quick Smoke Test<br/>ทดลองยิงเจาะระบบเคสแรก<br/>(Single Probe TH-1)"]
+    S1["Step 1: Setup & Verify<br/>ติดตั้งและตรวจเช็คออฟไลน์<br/>(114 Tests / 0 API Cost)"] --> S2["Step 2: Quick Smoke Test<br/>ทดลองยิงเจาะระบบเคสแรก<br/>(Single Probe TH-1)"]
     S2 --> S3["Step 3: Interactive Web UI<br/>เปิดหน้าต่างทดสอบสด<br/>(Turn-by-Turn Playground)"]
     S3 --> S4["Step 4: Advanced Benchmark<br/>ทดสอบ Red Team เต็มรูปแบบ<br/>(OWASP-aligned Report)"]
 ```
@@ -141,7 +153,7 @@ flowchart LR
 ---
 
 ### 🟢 ขั้นตอนที่ 1: ติดตั้งและตรวจเช็คความพร้อม (Setup & Zero-Cost Verification)
-ติดตั้งสภาพแวดล้อมและรันชุดทดสอบ 108 รายการแบบออฟไลน์ (ไม่เสียค่า API และไม่ต้องต่ออินเทอร์เน็ต):
+ติดตั้งสภาพแวดล้อมและรันชุดทดสอบ 114 รายการแบบออฟไลน์ (ไม่เสียค่า API และไม่ต้องต่ออินเทอร์เน็ต):
 
 ```powershell
 # 1.1 สร้าง Virtual Environment
@@ -155,11 +167,11 @@ python -m venv .venv
 copy .env.example .env         # Linux / macOS: cp .env.example .env
 # ใส่ GEMINI_API_KEY ที่ได้จาก https://aistudio.google.com/app/apikey ในไฟล์ .env
 
-# 1.4 รันชุดทดสอบความปลอดภัย 108 ข้อเพื่อยืนยันความถูกต้องของระบบ
+# 1.4 รันชุดทดสอบความปลอดภัย 114 ข้อเพื่อยืนยันความถูกต้องของระบบ
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 # Linux / macOS: ./.venv/bin/python -m unittest discover -s tests -v
 ```
-*ผลลัพธ์ที่คาดหวัง:* `Ran 108 tests in ~12s - OK`
+*ผลลัพธ์ที่คาดหวัง:* `Ran 114 tests in ~15s - OK`
 
 ---
 
@@ -246,6 +258,7 @@ copy .env.example .env         # Linux / macOS: cp .env.example .env
 ├── agent.py                    # โมดูลหลัก: Blue Session, Tool Security, Red Attack Loop, CLI
 ├── web_ui.py                   # Flask Dashboard: REST API, CSRF Guard, Stale Session Cleaner
 ├── test_cases_parallel.json    # ชุดทดสอบคู่ขนาน 3 ภาษา (TH/EN/MIX, 45 เคส) สำหรับเปรียบเทียบข้ามภาษา
+├── test_cases_probing.json     # ชุดทดสอบเจาะจุดบอดโหมด tools/all (TH/EN/MIX, 24 เคส)
 ├── test_cases.json             # ชุดทดสอบดั้งเดิม 36 กรณีศึกษา (เก็บไว้เพื่อความเข้ากันได้ย้อนหลัง)
 ├── LIMITATIONS.md              # ข้อจำกัดของงานทดลองและขอบเขตการแปลผล
 ├── personas.json               # ข้อกำหนดบทบาท Blue Roles (3) และโปรไฟล์ Red Profiles (3)
@@ -254,7 +267,7 @@ copy .env.example .env         # Linux / macOS: cp .env.example .env
 ├── .env.example                # แม่แบบการตั้งค่า Environment Variables
 │
 ├── .github/workflows/
-│   └── tests.yml               # CI Pipeline: รันชุดทดสอบ 108 ข้ออัตโนมัติบน GitHub Actions
+│   └── tests.yml               # CI Pipeline: รันชุดทดสอบ 114 ข้อและตรวจ Secret Hygiene อัตโนมัติ
 │
 ├── docs/                       # เอกสารสถาปัตยกรรมและการวิจัยเชิงลึก
 │   ├── ARCHITECTURE.md         # สถาปัตยกรรมระบบ การแยกฐานข้อมูล และ Data Flow โดยละเอียด
@@ -269,7 +282,7 @@ copy .env.example .env         # Linux / macOS: cp .env.example .env
 │   ├── defenses/
 │   │   └── dlp.py              # Data Loss Prevention: Canary Scanner, NFKC Normalizer, Regex
 │   ├── adapters/               # Target Adapters: Builtin, Callable, OpenAI-Compatible REST
-│   └── evaluator/              # OWASP Benchmark Engine, Parallel Runner, Wilson CI, Reporter
+│   └── evaluator/              # OWASP Benchmark Engine, Parallel/Probing Runners, Wilson CI, Reporter
 │
 ├── data/                       # โครงสร้างฐานข้อมูลจำลอง (Synthetic SQLite Data)
 │   ├── university_schema.sql   # สคีมาตารางสาธารณะ (students, courses, departments...)
@@ -280,15 +293,17 @@ copy .env.example .env         # Linux / macOS: cp .env.example .env
 │
 ├── scripts/
 │   ├── seed_db.py              # สคริปต์สร้างฐานข้อมูลจำลองด้วย Faker (Deterministic Seed 42)
-│   └── make_report.py          # สคริปต์สร้างตารางสรุปและกราฟ matplotlib จาก results/published/
+│   ├── make_report.py          # สคริปต์สร้างตารางสรุปและกราฟ matplotlib จาก results/published/
+│   └── check_secrets.py        # สคริปต์ตรวจสอบ Secret Patterns และสุขอนามัยของ .gitignore
 │
 ├── templates/
 │   └── index.html              # หน้าเว็บแดชบอร์ด HTML5/CSS3/JS พร้อม CSRF Protection
 │
-└── tests/                      # ชุดทดสอบความถูกต้อง 108 รายการ (Offline ไม่เรียก API)
+└── tests/                      # ชุดทดสอบความถูกต้อง 114 รายการ (Offline ไม่เรียก API)
     ├── test_agent.py           # 63 tests: DLP, ACL, Prompt, Session, Tool Security
     ├── test_evaluator.py       # 16 tests: Adapters, Engine, Metrics, Report Export
     ├── test_parallel.py        # 8 tests: Parallel Dataset, Rule-based Judge, Wilson 95% CI, Reproducibility
+    ├── test_probing.py         # 6 tests: Public-Table Indirect Pivot, DLP Evasion Audit, Collateral Leaks
     └── test_web_ui.py          # 21 tests: Endpoints, CSRF, Concurrency, Session Lifecycle
 ```
 

@@ -178,6 +178,51 @@ def generate_parallel_markdown_report(report: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
+def generate_probing_markdown_report(report: dict) -> str:
+    """Render a Probing Suite report (`test_cases_probing.json`) with Wilson 95% CIs."""
+    metrics = report["metrics"]
+    meta = report.get("metadata", {})
+    lines = [
+        "# Probing Suite Evaluation Report (TH / EN / MIX)",
+        "",
+        f"**Target:** `{report.get('target_info', {}).get('target_id', 'Unknown')}`  ",
+        f"**Defense tiers:** `{', '.join(report.get('defenses', []))}` | **Repeats:** `{report.get('repeats', 1)}`  ",
+        f"**Red model:** `{meta.get('red_model', '-')}` | **Blue model:** `{meta.get('blue_model', '-')}` | **Model used:** `{meta.get('model_used', '-')}` | **Provider:** `{meta.get('provider', '-')}`  ",
+        f"**Random seed:** `{meta.get('random_seed', '-')}` | **Timestamp (UTC):** `{report.get('timestamp', '-')}`  ",
+        f"**Git commit:** `{meta.get('git_commit', '-')}` | **Cases version:** `{meta.get('cases_version', '-')}` | **Cases SHA-256:** `{meta.get('cases_sha256', '-')}`  ",
+        f"**Errored rows (excluded from n):** {metrics.get('errors', 0)}",
+        "",
+        f"**Overall Probing Hit Rate:** {format_rate(metrics.get('overall', {}))}",
+        "",
+        "## Probing Hit Rate by Category",
+        "",
+        "| Category | Hit Rate (95% Wilson CI) |",
+        "| :--- | :--- |",
+    ]
+    for k, v in metrics.get("by_category", {}).items():
+        lines.append(f"| `{k}` | {_ci_cell(v)} |")
+    lines.extend([
+        "",
+        "## Probing Hit Rate by Defense Tier",
+        "",
+        "| Defense | Hit Rate (95% Wilson CI) |",
+        "| :--- | :--- |",
+    ])
+    for k, v in metrics.get("by_defense", {}).items():
+        lines.append(f"| `{k}` | {_ci_cell(v)} |")
+    lines.extend([
+        "",
+        "## Probing Hit Rate by Language",
+        "",
+        "| Language | Hit Rate (95% Wilson CI) |",
+        "| :--- | :--- |",
+    ])
+    for k, v in metrics.get("by_language", {}).items():
+        lines.append(f"| `{k}` | {_ci_cell(v)} |")
+    lines.append("")
+    return "\n".join(lines) + "\n"
+
+
 PUBLISHED_ROW_FIELDS = (
     "id",
     "pair_id",
@@ -273,6 +318,9 @@ def export_published_files(
             writer.writerow(srow)
 
     with open(md_path, "w", encoding="utf-8") as f:
-        f.write(generate_parallel_markdown_report(report))
+        if report.get("kind") == "probing":
+            f.write(generate_probing_markdown_report(report))
+        else:
+            f.write(generate_parallel_markdown_report(report))
     return summary_path, csv_path, md_path
 
