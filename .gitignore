@@ -27,8 +27,9 @@ data/*.db-wal
 data/*.db-shm
 results.md
 
-# Scratch
+# Scratch & local AI rules
 scratch/
+GEMINI.md
 
 # Evaluator output (raw responses stay ignored; sanitized published summaries are tracked)
 results/*
