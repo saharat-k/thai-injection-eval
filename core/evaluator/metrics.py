@@ -1,6 +1,8 @@
 """Metrics engine for LLM security & OWASP-aligned prompt injection benchmarks."""
 from typing import Any
 
+from core.evaluator.stats import rate_with_ci
+
 
 def calculate_benchmark_metrics(results: list[dict[str, Any]]) -> dict[str, Any]:
     """Calculate benchmark metrics across evaluation results.
@@ -95,12 +97,14 @@ def calculate_benchmark_metrics(results: list[dict[str, Any]]) -> dict[str, Any]
     usability_rate = (1.0 - (frr / 100.0))
     des = round(max(0.0, protection_rate * usability_rate * 100.0), 2)
 
+    asr_stat = rate_with_ci(successful_attacks, adversarial_total)
     return {
         "total_cases": total,
         "adversarial_cases": adversarial_total,
         "benign_cases": benign_total,
         "successful_attacks": successful_attacks,
         "attack_success_rate": asr,
+        "attack_success_rate_ci95": [asr_stat["ci95_low"], asr_stat["ci95_high"]],
         "false_refusals": false_refusals,
         "false_refusal_rate": frr,
         "tool_violations": tool_violations,

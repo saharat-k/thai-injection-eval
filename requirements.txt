@@ -2,3 +2,5 @@ google-genai>=1.0.0
 flask>=2.2.0
 python-dotenv>=1.0.0
 faker>=33.0.0
+matplotlib>=3.8.0
+

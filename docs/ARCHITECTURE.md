@@ -87,9 +87,10 @@ flowchart TD
 ├── templates/
 │   └── index.html              # หน้ากาก Web UI แดชบอร์ดสรุปผลและสนามทดสอบแชทสด
 │
-└── tests/                      # ชุดทดสอบอัตโนมัติแบบออฟไลน์ 100% (รวม 100 ข้อสอบ)
+└── tests/                      # ชุดทดสอบอัตโนมัติแบบออฟไลน์ 100% (รวม 108 ข้อสอบ)
     ├── test_agent.py           # 63 ข้อสอบ: Canary DLP, ACL, Heuristics, Multi-Provider, Roles
     ├── test_evaluator.py       # 16 ข้อสอบ: Adapters, Metrics, Engine, CLI, Report Generation
+    ├── test_parallel.py        # 8 ข้อสอบ: Parallel Dataset, Rule-based Judge, Wilson 95% CI, Reproducibility
     └── test_web_ui.py          # 21 ข้อสอบ: Web Routes, CSRF, Multithreading SQLite, API
 ```
 
@@ -145,7 +146,7 @@ flowchart TD
 
 ## 6. คำสั่งรันและทดสอบระบบ (Verification Commands)
 
-### 6.1 รันชุดทดสอบความปลอดภัยแบบออฟไลน์ (100 Tests - Zero Quota)
+### 6.1 รันชุดทดสอบความปลอดภัยแบบออฟไลน์ (108 Tests - Zero Quota)
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 # Linux / macOS: ./.venv/bin/python -m unittest discover -s tests -v

@@ -91,3 +91,81 @@ class SecurityEvaluator:
             "metrics": metrics,
             "results": results,
         }
+
+    def run_parallel_benchmark(
+        self,
+        defenses=("off", "prompt", "tools", "all"),
+        blue_role: str = "registrar_staff",
+        repeats: int = 1,
+        progress_callback: Optional[Callable[[int, int, dict], None]] = None,
+        metadata: Optional[dict] = None,
+    ) -> dict:
+        """Run the parallel TH/EN/MIX case set (rule-based judges) over several defense tiers.
+
+        ``self.cases`` must be the cases from ``test_cases_parallel.json``. Every row keeps the
+        raw response in memory only; exporters in ``reporter`` strip it before publishing.
+        """
+        from core.evaluator.parallel import build_run_metadata, calculate_parallel_metrics, judge_case
+
+        rows: list[dict] = []
+        models_seen: list[str] = []
+        total = len(self.cases) * len(defenses) * repeats
+        done = 0
+        for defense in defenses:
+            for rep in range(1, repeats + 1):
+                for case in self.cases:
+                    self.target.reset()
+                    resp = self.target.send(case["prompt"], defense=defense, blue_role=blue_role)
+                    done += 1
+                    m_used = resp.metadata.get("model_used") or getattr(agent, "BLUE_MODEL", "unknown")
+                    if m_used and m_used not in models_seen:
+                        models_seen.append(m_used)
+                    base = {
+                        "id": case["id"],
+                        "pair_id": case["pair_id"],
+                        "lang": case["lang"],
+                        "vector": case["vector"],
+                        "is_benign": case["is_benign"],
+                        "defense": defense,
+                        "repeat": rep,
+                    }
+                    if resp.error:
+                        row = {**base, "success": -1, "matched": [], "error": resp.error,
+                               "response": "", "tool_calls_total": len(resp.tool_calls),
+                               "tool_calls_blocked": 0, "model_used": m_used}
+                    else:
+                        verdict = judge_case(case, resp.text)
+                        row = {**base, "success": verdict["success"], "matched": verdict["matched"],
+                               "error": None, "response": resp.text,
+                               "tool_calls_total": len(resp.tool_calls),
+                               "tool_calls_blocked": sum(1 for t in resp.tool_calls if t.get("status") == "blocked"),
+                               "model_used": m_used}
+                    rows.append(row)
+                    if progress_callback:
+                        progress_callback(done, total, row)
+
+        ts = agent.now()
+        blue_spec = getattr(agent, "BLUE_MODEL", "unknown")
+        provider = blue_spec.split(":", 1)[0] if ":" in blue_spec else "gemini"
+        full_meta = build_run_metadata(
+            red_model="static-parallel-prompts",
+            blue_model=blue_spec,
+            model_used=",".join(models_seen) if models_seen else blue_spec,
+            provider=provider,
+            timestamp=ts,
+            attempts=repeats,
+            random_seed=os.getenv("EVAL_SEED", "unlocked (provider default)"),
+            defense=",".join(defenses),
+            extra=metadata or {},
+        )
+        return {
+            "kind": "parallel",
+            "target_info": self.target.get_info(),
+            "defenses": list(defenses),
+            "blue_role": blue_role,
+            "repeats": repeats,
+            "timestamp": ts,
+            "metadata": full_meta,
+            "metrics": calculate_parallel_metrics(rows),
+            "results": rows,
+        }

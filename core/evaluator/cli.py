@@ -7,7 +7,30 @@ import json
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from core.adapters.factory import create_target_adapter
 from core.evaluator.engine import SecurityEvaluator
-from core.evaluator.reporter import export_report_files, generate_markdown_report
+from core.evaluator.reporter import (
+    export_published_files,
+    export_report_files,
+    generate_markdown_report,
+    generate_parallel_markdown_report,
+)
+from core.evaluator.parallel import (
+    DEFAULT_PARALLEL_PATH,
+    file_sha256,
+    load_parallel_document,
+    validate_parallel_document,
+)
+
+ALL_DEFENSES = ("off", "prompt", "tools", "all")
+
+
+def _estimate_requests(n_cases: int, n_defenses: int, repeats: int) -> dict:
+    """Rough LLM API request estimate for a parallel run (no network access).
+
+    Each case is one Blue chat. With automatic function calling every tool call adds one more
+    model request, so the lower bound is 1 request per case and a typical run is 2-3.
+    """
+    chats = n_cases * n_defenses * repeats
+    return {"chats": chats, "min_requests": chats, "typical_low": chats * 2, "typical_high": chats * 3}
 
 
 def main(argv=None):
@@ -36,6 +59,12 @@ def main(argv=None):
     parser.add_argument("--export-dir", default="results", help="Directory for exported reports")
     parser.add_argument("--export-name", default="owasp_evaluation_report", help="Filename prefix for reports")
     parser.add_argument("--quiet", action="store_true", help="Suppress individual test progress")
+    parser.add_argument("--parallel", action="store_true", help="Run the parallel TH/EN/MIX set (test_cases_parallel.json) across defense tiers")
+    parser.add_argument("--defenses", default=",".join(ALL_DEFENSES), help="Comma-separated defense tiers for --parallel")
+    parser.add_argument("--repeats", type=int, default=1, help="Repetitions per case/tier for --parallel")
+    parser.add_argument("--parallel-cases", default=DEFAULT_PARALLEL_PATH, help="Path to the parallel cases file")
+    parser.add_argument("--dry-run", action="store_true", help="Validate inputs and print the estimated LLM request count, then exit without any API call")
+    parser.add_argument("--publish", action="store_true", help="Also export sanitized summary/CSV/Markdown (without raw responses) to results/published/")
 
     args = parser.parse_args(argv)
 
@@ -43,6 +72,9 @@ def main(argv=None):
     print("[OWASP LLM SECURITY EVALUATOR & BENCHMARK HARNESS]")
     print(f"Target: {args.target} | Defense: {args.defense} | Role: {args.role}")
     print("=" * 65 + "\n")
+
+    if args.parallel:
+        return _run_parallel(args)
 
     config = {
         "defense": args.defense,
@@ -105,6 +137,62 @@ def main(argv=None):
     print(f"\n[OK] Reports exported successfully:")
     print(f"  - Markdown Report : {md_path}")
     print(f"  - JSON Report     : {json_path}\n")
+
+
+def _run_parallel(args):
+    defenses = [d.strip() for d in args.defenses.split(",") if d.strip()]
+    bad = [d for d in defenses if d not in ALL_DEFENSES]
+    if bad or not defenses:
+        print(f"[-] Invalid --defenses: {bad or args.defenses}. Allowed: {', '.join(ALL_DEFENSES)}", file=sys.stderr)
+        sys.exit(1)
+    if args.repeats < 1:
+        print("[-] --repeats must be >= 1", file=sys.stderr)
+        sys.exit(1)
+
+    doc = load_parallel_document(args.parallel_cases)
+    problems = validate_parallel_document(doc)
+    if problems:
+        print("[-] Parallel cases file is invalid:", file=sys.stderr)
+        for p in problems:
+            print(f"    - {p}", file=sys.stderr)
+        sys.exit(1)
+    cases = doc["cases"]
+
+    est = _estimate_requests(len(cases), len(defenses), args.repeats)
+    print(f"Parallel set v{doc['version']}: {len(cases)} cases x {len(defenses)} tiers x {args.repeats} repeat(s) = {est['chats']} Blue chats")
+    print(f"Estimated LLM requests: >= {est['min_requests']} (typically {est['typical_low']}-{est['typical_high']} with tool calls; retries not included)")
+    if args.dry_run:
+        print("[dry-run] No API call was made.")
+        return
+
+    config = {"defense": defenses[0], "blue_role": args.role}
+    adapter = create_target_adapter(args.target, config=config)
+    evaluator = SecurityEvaluator(adapter, cases=cases)
+
+    def on_progress(done, total, row):
+        if not args.quiet:
+            status = {1: "[HIT]", 0: "[miss]", -1: "[ERROR]"}[row["success"]]
+            print(f"[{done:03d}/{total:03d}] {row['id']:<12} {row['defense']:<7} {status}")
+
+    report = evaluator.run_parallel_benchmark(
+        defenses=defenses,
+        blue_role=args.role,
+        repeats=args.repeats,
+        progress_callback=on_progress,
+        metadata={"cases_version": doc["version"], "cases_sha256": file_sha256(args.parallel_cases)},
+    )
+    os.makedirs(args.export_dir, exist_ok=True)
+    md_path = os.path.join(args.export_dir, f"{args.export_name}_parallel.md")
+    json_path = os.path.join(args.export_dir, f"{args.export_name}_parallel.json")
+    with open(md_path, "w", encoding="utf-8") as f:
+        f.write(generate_parallel_markdown_report(report))
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(report, f, ensure_ascii=False, indent=2)
+    print(f"\n[OK] Parallel report: {md_path}\n[OK] Raw JSON (contains responses; keep out of git): {json_path}")
+    if args.publish:
+        pub_dir = os.path.join(args.export_dir, "published")
+        s_path, c_path, m_path = export_published_files(report, output_dir=pub_dir, base_name=args.export_name)
+        print(f"[OK] Published sanitized artifacts: {s_path}, {c_path}, {m_path}")
 
 
 if __name__ == "__main__":

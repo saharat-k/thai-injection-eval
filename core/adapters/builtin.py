@@ -32,7 +32,13 @@ class BuiltinTargetAdapter(BaseTargetAdapter):
             return TargetResponse(
                 text=resp_text,
                 tool_calls=[dict(t) for t in tool_calls_turn],
-                metadata={"defense": self.defense, "role": self.role, "model": self.session.model},
+                metadata={
+                    "defense": self.defense,
+                    "role": self.role,
+                    "model": self.session.model,
+                    # Model that actually answered (differs from "model" when the fallback was used)
+                    "model_used": getattr(self.session, "_chat_model", None),
+                },
             )
         except Exception as e:
             sanitized_err = agent.sanitize_error(str(e))

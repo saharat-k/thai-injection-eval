@@ -30,5 +30,7 @@ results.md
 # Scratch
 scratch/
 
-# Evaluator output (regenerate with python -m core.evaluator)
-results/
+# Evaluator output (raw responses stay ignored; sanitized published summaries are tracked)
+results/*
+!results/published/
+
