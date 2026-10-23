@@ -1,0 +1,2845 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TH-LLM-Prompt-Injection: AI Security Test Bench & Red-Teaming Console</title>
+  <style>
+    :root {
+      --bg-base: #07090e;
+      --bg-surface: #0d111a;
+      --bg-surface-sub: #121824;
+      --bg-input: #080b12;
+      --border-subtle: #192030;
+      --border-light: #252f44;
+      --border-focus: #94a3b8;
+      --text-white: #f8fafc;
+      --text-main: #cbd5e1;
+      --text-muted: #8492a6;
+      --text-dim: #4c5b70;
+      
+      --color-primary: #1e293b;
+      --color-primary-border: #334155;
+      --color-primary-hover: #293548;
+      
+      /* Intentional single accent color: Crimson for breaches */
+      --color-rose: #ef4444;
+      --color-rose-bg: rgba(239, 68, 68, 0.10);
+      --color-rose-border: rgba(239, 68, 68, 0.35);
+      
+      /* Subtle monochrome tints for defended & warnings */
+      --color-emerald: #94a3b8;
+      --color-emerald-bg: rgba(255, 255, 255, 0.04);
+      --color-amber: #cbd5e1;
+      --color-amber-bg: rgba(255, 255, 255, 0.04);
+      
+      --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg-base);
+      color: var(--text-main);
+      padding: 16px 20px;
+      line-height: 1.5;
+      font-size: 13px;
+      min-height: 100vh;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg-base); }
+    ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 3px; }
+
+    /* Top Minimal Terminal Header */
+    .app-header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding-bottom: 12px;
+      margin-bottom: 12px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .brand-logo-pill {
+      background: var(--bg-surface-sub);
+      color: var(--text-white);
+      font-weight: 700;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      padding: 2px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--border-subtle);
+      letter-spacing: 0.5px;
+    }
+    .brand-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-white);
+      letter-spacing: -0.2px;
+    }
+    .header-system-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+    .status-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--bg-surface);
+      padding: 2px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--border-subtle);
+    }
+    .status-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--text-muted);
+    }
+    .btn-refresh {
+      background: var(--bg-surface);
+      color: var(--text-muted);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--border-subtle);
+      transition: all 0.15s ease;
+    }
+    .btn-refresh:hover {
+      background: var(--border-subtle);
+      color: var(--text-white);
+    }
+
+    /* Main Navigation Tabs (Clean Segmented Bar) */
+    .main-nav-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 14px;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 8px;
+    }
+    .nav-tab-btn {
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 14px;
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-surface);
+      color: var(--text-dim);
+      cursor: pointer;
+      border-radius: 4px;
+      transition: all 0.15s ease;
+    }
+    .nav-tab-btn:hover:not(.active) {
+      color: var(--text-main);
+      border-color: var(--border-light);
+    }
+    .nav-tab-btn.active {
+      background: var(--color-primary);
+      color: var(--text-white);
+      border-color: var(--color-primary-border);
+    }
+
+    /* Live Run Banner */
+    .run-banner {
+      background: var(--bg-surface-sub);
+      border: 1px solid var(--border-light);
+      color: var(--text-white);
+      padding: 8px 12px;
+      margin-bottom: 12px;
+      font-weight: 600;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      border-radius: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Two-Zone Command Bar (Monochrome Telemetry Left + Sleek Action Right) */
+    .two-zone-bar {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      padding: 8px 14px;
+      margin-bottom: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    .zone-metrics {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+    }
+    .metric-chip {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 6px;
+    }
+    .m-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+      letter-spacing: 0.5px;
+    }
+    .m-val {
+      font-size: 15px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+    }
+    .metric-divider {
+      width: 1px;
+      height: 14px;
+      background: var(--border-subtle);
+    }
+    .zone-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    .bar-select, .bar-number {
+      font-family: inherit;
+      font-size: 12px;
+      padding: 5px 8px;
+      border: 1px solid var(--border-subtle);
+      border-radius: 4px;
+      background: var(--bg-input);
+      color: var(--text-main);
+      transition: border-color 0.15s ease;
+    }
+    .bar-select:focus, .bar-number:focus {
+      outline: none;
+      border-color: var(--border-focus);
+      color: var(--text-white);
+    }
+    .bar-number { width: 48px; text-align: center; }
+    .btn-run-action {
+      background: var(--color-primary);
+      color: var(--text-white);
+      border: 1px solid var(--color-primary-border);
+      font-weight: 600;
+      font-size: 12px;
+      font-family: var(--font-mono);
+      padding: 5px 14px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+    .btn-run-action:hover:not(:disabled) {
+      background: var(--color-primary-hover);
+      border-color: var(--text-muted);
+    }
+    .btn-run-action:disabled {
+      background: var(--bg-input);
+      border-color: var(--border-subtle);
+      color: var(--text-dim);
+      cursor: not-allowed;
+    }
+
+    .val-total { color: var(--text-white); }
+    .val-compromised { color: var(--color-rose); }
+    .val-protected { color: var(--text-muted); }
+    .val-error { color: var(--text-dim); }
+    .val-rate { color: var(--text-muted); }
+    .val-rate.has-leaks { color: var(--color-rose); }
+
+    /* Unified Security Audit Table */
+    .table-container {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      overflow-x: auto;
+      margin-bottom: 24px;
+    }
+    .table-toolbar {
+      padding: 8px 12px;
+      background: var(--bg-surface-sub);
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+    .filter-left {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    .search-input {
+      font-family: inherit;
+      font-size: 12px;
+      padding: 4px 10px;
+      width: 220px;
+      border: 1px solid var(--border-subtle);
+      border-radius: 4px;
+      background: var(--bg-input);
+      color: var(--text-white);
+      transition: border-color 0.15s ease;
+    }
+    .search-input:focus { outline: none; border-color: var(--border-focus); }
+    .filter-pills {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+    .btn-filter-pill {
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 11px;
+      padding: 3px 9px;
+      border-radius: 4px;
+      transition: all 0.15s ease;
+    }
+    .btn-filter-pill:hover { color: var(--text-white); border-color: var(--border-light); }
+    .btn-filter-pill.active {
+      background: var(--color-primary);
+      color: var(--text-white);
+      border-color: var(--color-primary-border);
+    }
+    .btn-filter-pill[data-filter="compromised"].active {
+      background: var(--color-rose-bg);
+      border-color: var(--color-rose-border);
+      color: #fca5a5;
+    }
+    .filter-right {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-secondary {
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s ease;
+    }
+    .btn-secondary:hover { color: var(--text-white); border-color: var(--border-light); }
+    .btn-secondary.active {
+      background: var(--bg-surface);
+      color: var(--text-white);
+      border-color: var(--border-focus);
+    }
+
+    /* Collapsible Secondary Filters Drawer */
+    .advanced-filters-panel {
+      padding: 8px 14px;
+      background: var(--bg-input);
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+    }
+    .filter-field {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .filter-field label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+      letter-spacing: 0.5px;
+    }
+    .compact-select {
+      font-family: inherit;
+      font-size: 11px;
+      padding: 3px 6px;
+      border: 1px solid var(--border-subtle);
+      border-radius: 3px;
+      background: var(--bg-surface);
+      color: var(--text-muted);
+      transition: border-color 0.15s ease;
+    }
+    .compact-select:focus {
+      outline: none;
+      border-color: var(--border-focus);
+      color: var(--text-white);
+    }
+    .btn-reset-filters {
+      background: transparent;
+      border: 1px dashed var(--border-subtle);
+      color: var(--text-dim);
+      font-size: 10px;
+      font-family: var(--font-mono);
+      padding: 3px 8px;
+      border-radius: 3px;
+      cursor: pointer;
+      margin-left: auto;
+      transition: all 0.15s ease;
+    }
+    .btn-reset-filters:hover {
+      color: var(--text-white);
+      border-color: var(--text-muted);
+    }
+    .filter-active-dot {
+      display: inline-block;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #38bdf8;
+    }
+
+    /* Audit Table (Monochrome / Terminal Style) */
+    .unified-audit-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 12px;
+    }
+    .unified-audit-table th {
+      background: var(--bg-surface);
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border-subtle);
+      text-align: left;
+    }
+    .case-row td {
+      padding: 8px 12px;
+      vertical-align: middle;
+      border-bottom: 1px solid var(--border-subtle);
+      background: var(--bg-surface);
+      transition: background 0.1s ease;
+    }
+    .case-row:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .row-id {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      color: var(--text-white);
+      margin-right: 4px;
+    }
+    .row-attempt {
+      font-size: 10px;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+    }
+    .tag {
+      display: inline-block;
+      padding: 1px 5px;
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-surface-sub);
+      font-size: 10px;
+      font-weight: 600;
+      font-family: var(--font-mono);
+      border-radius: 3px;
+      color: var(--text-muted);
+    }
+    .tag.red {
+      background: var(--color-rose-bg);
+      border-color: var(--color-rose-border);
+      color: #fca5a5;
+      font-weight: 700;
+    }
+    .tag.green {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: var(--border-subtle);
+      color: var(--text-muted);
+    }
+    .tag.amber {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: var(--border-subtle);
+      color: var(--text-muted);
+    }
+    .tag.blue {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: var(--border-subtle);
+      color: var(--text-muted);
+    }
+
+    .tag-plain { font-size: 11px; color: var(--text-dim); }
+    .tag-type { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); }
+    .tag-defense { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); }
+
+    .verdict-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 1px 8px;
+      border-radius: 10px;
+    }
+    .verdict-pill.breached {
+      background: var(--color-rose-bg);
+      border: 1px solid var(--color-rose-border);
+      color: #fca5a5;
+      font-weight: 700;
+    }
+    .verdict-pill.defended {
+      background: transparent;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+    }
+    .verdict-pill.error {
+      background: transparent;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-dim);
+    }
+
+    .btn-expand-row {
+      background: transparent;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-dim);
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-family: var(--font-mono);
+      transition: all 0.15s ease;
+    }
+    .btn-expand-row:hover {
+      color: var(--text-white);
+      border-color: var(--border-focus);
+    }
+
+    /* Accordion Detail Cell */
+    .case-detail-row td {
+      background: #090c13;
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 0;
+    }
+    .detail-cell {
+      padding: 12px 14px;
+      min-width: 0;
+      overflow: hidden;
+    }
+    .case-columns {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 12px;
+      margin-top: 8px;
+    }
+    @media (max-width: 850px) {
+      .case-columns { grid-template-columns: minmax(0, 1fr); }
+    }
+    .col-box {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 4px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+      overflow: hidden;
+    }
+    .col-header {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-mono);
+      color: var(--text-dim);
+    }
+    .col-header.red { color: #f87171; }
+    .col-header.blue { color: var(--text-muted); }
+    .btn-copy {
+      font-size: 10px;
+      padding: 2px 6px;
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-input);
+      color: var(--text-dim);
+      cursor: pointer;
+      border-radius: 3px;
+      font-family: var(--font-mono);
+      transition: all 0.15s ease;
+    }
+    .btn-copy:hover { color: var(--text-white); border-color: var(--border-focus); }
+    .sub-info {
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      padding: 5px 8px;
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      border-radius: 3px;
+    }
+    .sub-info b { color: var(--text-white); }
+    pre.data-text {
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      padding: 8px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--text-main);
+      min-height: 50px;
+      max-height: 280px;
+      overflow-y: auto;
+      overflow-x: auto;
+      border-radius: 3px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .canary-alert {
+      background: var(--color-rose-bg);
+      border: 1px solid var(--color-rose-border);
+      border-radius: 4px;
+      padding: 6px 10px;
+      font-size: 11px;
+      color: #fca5a5;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .canary-token {
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid var(--color-rose);
+      padding: 1px 6px;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      color: #fca5a5;
+      border-radius: 3px;
+    }
+
+    .empty-row {
+      padding: 30px;
+      text-align: center;
+      color: var(--text-dim);
+      font-style: italic;
+    }
+
+    /* Interactive Playground UI (Clean Console Style) */
+    .playground-wrapper {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      padding: 14px;
+      border-radius: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .card-panel {
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-surface-sub);
+      padding: 12px 14px;
+      border-radius: 6px;
+    }
+    .card-panel-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-white);
+      margin-bottom: 3px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .card-panel-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 10px;
+      align-items: end;
+    }
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .field-group-wide {
+      grid-column: span 2;
+    }
+    @media (max-width: 650px) {
+      .field-group-wide {
+        grid-column: span 1;
+      }
+    }
+    .field-group label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+      letter-spacing: 0.3px;
+    }
+
+    /* Live Chat Interface (Unified Console Container) */
+    .chat-console-container {
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      overflow: hidden;
+      background: var(--bg-surface);
+    }
+    .chat-header-bar {
+      background: var(--bg-surface-sub);
+      border-bottom: 1px solid var(--border-subtle);
+      color: var(--text-white);
+      padding: 8px 12px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .chat-header-info {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+    }
+    .chat-scroll-area {
+      height: 480px;
+      overflow-y: auto;
+      border-bottom: 1px solid var(--border-subtle);
+      background: var(--bg-base);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .chat-turn-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .chat-turn-header {
+      padding: 6px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-subtle);
+      font-family: var(--font-mono);
+      background: var(--bg-surface-sub);
+      color: var(--text-main);
+    }
+    .chat-turn-header.human {
+      border-left: 3px solid var(--border-focus);
+    }
+    .chat-turn-header.ai {
+      border-left: 3px solid var(--color-rose);
+    }
+    .turn-split-cols {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 10px;
+    }
+    @media (max-width: 850px) {
+      .turn-split-cols { grid-template-columns: minmax(0, 1fr); }
+    }
+    .turn-half-col {
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+      overflow: hidden;
+    }
+    .turn-half-col:first-child {
+      border-right: 1px solid var(--border-subtle);
+    }
+    @media (max-width: 850px) {
+      .turn-half-col:first-child {
+        border-right: none;
+        border-bottom: 1px solid var(--border-subtle);
+      }
+    }
+    .red-meta-box {
+      background: var(--bg-input);
+      border: 1px solid var(--color-rose-border);
+      padding: 5px 8px;
+      font-size: 11px;
+      color: #fca5a5;
+      font-family: var(--font-mono);
+      border-radius: 3px;
+    }
+    .blue-tools-box {
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      padding: 5px 8px;
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      border-radius: 3px;
+    }
+
+    /* Collapsible Security Telemetry Drawer */
+    .pipeline-bar-trigger {
+      background: var(--bg-surface-sub);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 4px 10px;
+    }
+    .btn-pipeline-toggle {
+      width: 100%;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      padding: 4px 8px;
+      border-radius: 3px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      transition: all 0.15s ease;
+    }
+    .btn-pipeline-toggle:hover {
+      border-color: var(--border-light);
+      color: var(--text-white);
+    }
+    .pipeline-status-badge {
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      font-family: var(--font-mono);
+    }
+    .pipeline-status-badge.protected {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+    }
+    .pipeline-status-badge.breached {
+      background: var(--color-rose-bg);
+      border: 1px solid var(--color-rose-border);
+      color: #fca5a5;
+    }
+    .pipeline-status-badge.warning {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-dim);
+    }
+    .pipeline-status-badge.intercepted {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+    }
+    .pipeline-drawer {
+      background: #06090e;
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 8px 10px;
+    }
+    .pipeline-stepper {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: stretch;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+    .pipeline-step {
+      flex: 1 1 115px;
+      min-width: 105px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 4px;
+      padding: 5px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      font-family: var(--font-mono);
+      min-width: 0;
+      overflow: hidden;
+    }
+    .pipeline-step .step-num { font-size: 8px; font-weight: 700; color: var(--text-dim); }
+    .pipeline-step .step-badge { font-size: 10px; font-weight: 700; color: var(--text-main); }
+    .pipeline-step .step-sub { font-size: 9px; color: var(--text-dim); }
+    .pipeline-verdict-bar {
+      padding: 4px 8px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .pipeline-verdict-bar.protected {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+    }
+    .pipeline-verdict-bar.breached {
+      background: var(--color-rose-bg);
+      border: 1px solid var(--color-rose-border);
+      color: #fca5a5;
+    }
+    .pipeline-verdict-bar.warning {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-dim);
+    }
+    .pipeline-verdict-bar.intercepted {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+    }
+
+    /* Prompt Input Panel */
+    .prompt-control-panel {
+      background: var(--bg-surface);
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      border-radius: 0 0 5px 5px;
+    }
+    .mode-switch-group {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+    .mode-pill {
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border: 1px solid var(--border-subtle);
+      border-radius: 3px;
+      background: var(--bg-surface-sub);
+      color: var(--text-dim);
+      cursor: pointer;
+    }
+    .mode-pill.active {
+      background: var(--color-primary);
+      color: var(--text-white);
+      border-color: var(--color-primary-border);
+    }
+    .visually-hidden {
+      position: absolute !important;
+      width: 1px !important;
+      height: 1px !important;
+      padding: 0 !important;
+      margin: -1px !important;
+      overflow: hidden !important;
+      clip: rect(0, 0, 0, 0) !important;
+      white-space: nowrap !important;
+      border: 0 !important;
+    }
+    .status-alert-box {
+      background: var(--bg-surface-sub);
+      border: 1px solid var(--border-light);
+      color: var(--text-white);
+      padding: 6px 10px;
+      border-radius: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .status-alert-box.leak {
+      background: var(--color-rose-bg);
+      border-color: var(--color-rose-border);
+      color: #fca5a5;
+    }
+    .status-alert-box.hit {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: var(--border-subtle);
+      color: var(--text-white);
+    }
+    .status-alert-box.info {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: var(--border-subtle);
+      color: var(--text-main);
+    }
+    .eval-matrix-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+    .eval-matrix-table th {
+      background: var(--bg-surface-sub);
+      color: var(--text-dim);
+      border: 1px solid var(--border-subtle);
+      padding: 6px 8px;
+      text-align: left;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .eval-matrix-table td {
+      border: 1px solid var(--border-subtle);
+      padding: 6px 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Clean Header -->
+  <header class="app-header">
+    <div class="brand-group">
+      <span class="brand-logo-pill">TH-LLM-Prompt-Injection</span>
+      <h1 class="brand-title">Thai Prompt Injection Security Harness</h1>
+    </div>
+    <div class="header-system-meta">
+      <div class="status-indicator">
+        <span class="status-dot"></span>
+        <span>Target: <b>university.db</b></span>
+      </div>
+      <div class="status-indicator">
+        <span>Red: <b style="color:#f87171;">{{ red_model }}</b></span>
+        <span style="color:var(--text-dim);">|</span>
+        <span>Blue: <b style="color:#38bdf8;">{{ blue_model }}</b></span>
+      </div>
+      <a href="/" class="btn-refresh">↻ รีเฟรช</a>
+    </div>
+  </header>
+
+  <!-- Main Navigation Tabs -->
+  <div class="main-nav-tabs">
+    <button type="button" class="nav-tab-btn active" id="tabBtnDashboard" onclick="switchMainTab('dashboard')">📊 ผลการทดสอบ & รันประเมิน (Evaluation)</button>
+    <button type="button" class="nav-tab-btn" id="tabBtnPlayground" onclick="switchMainTab('playground')">💬 โหมดควบคุมเอง / แชทสด (Interactive Playground)</button>
+    <button type="button" class="nav-tab-btn" id="tabBtnOwasp" onclick="switchMainTab('owasp')">🛡️ เบนช์มาร์ก OWASP (Scientific Evaluation)</button>
+  </div>
+
+  <!-- TAB 1: Evaluation Dashboard -->
+  <div id="viewDashboard">
+    <!-- Live Status Banner -->
+    <div id="live-banner" class="run-banner" {% if not run_status.is_locked %}style="display: none;"{% endif %}>
+      <span id="live-banner-text">
+        ⏳ กำลังรันการทดสอบในพื้นหลัง: เคส <b>{{ run_status.case_id }}</b> | ระดับป้องกัน: <b>{{ run_status.defense | upper }}</b> | จำนวนรอบสูงสุด: <b>{{ run_status.attempts }}</b> ...
+      </span>
+    </div>
+
+    <!-- TWO-ZONE CLEAN BAR: Metrics (Left) + Inline Execution Form (Right) -->
+    <div class="two-zone-bar">
+      <!-- Left Zone: Quiet Metrics Summary -->
+      <div class="zone-metrics">
+        <div class="metric-chip">
+          <span class="m-label">TOTAL:</span>
+          <span class="m-val val-total">{{ total_runs }}</span>
+        </div>
+        <div class="metric-divider"></div>
+        <div class="metric-chip">
+          <span class="m-label">DEFENDED:</span>
+          <span class="m-val val-protected">{{ safe_count }}</span>
+        </div>
+        <div class="metric-divider"></div>
+        <div class="metric-chip">
+          <span class="m-label">BREACHED:</span>
+          <span class="m-val val-compromised">{{ leaked_count }}</span>
+        </div>
+        <div class="metric-divider"></div>
+        <div class="metric-chip">
+          <span class="m-label">ASR:</span>
+          <span class="m-val val-rate {% if leaked_count > 0 %}has-leaks{% endif %}">{{ leak_rate }}%</span>
+        </div>
+        {% if error_count > 0 %}
+        <div class="metric-divider"></div>
+        <div class="metric-chip">
+          <span class="m-label">ERROR:</span>
+          <span class="m-val val-error">{{ error_count }}</span>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Right Zone: Inline Execution Form -->
+      <form id="eval-form" method="post" action="/run" class="zone-controls">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+        <label for="case-select" class="visually-hidden">เลือกเคสทดสอบ</label>
+        <select id="case-select" name="case_id" class="bar-select" style="max-width: 250px;">
+          <option value="ALL">ALL (รันทั้งหมด {{ test_cases | length }} เคส)</option>
+          {% for c in test_cases %}
+          <option value="{{ c.id }}">[{{ c.id }}] {{ c.language }} ({{ c.attack_type }}) - {{ c.technique[:32] }}</option>
+          {% endfor %}
+        </select>
+
+        <label for="defense-select" class="visually-hidden">Defense Level</label>
+        <select id="defense-select" name="defense" class="bar-select" style="max-width: 110px;">
+          {% for lvl in defense_levels %}
+          <option value="{{ lvl }}">{{ lvl | upper }}</option>
+          {% endfor %}
+        </select>
+
+        <label for="attempts-input" class="visually-hidden">จำนวนรอบ</label>
+        <input id="attempts-input" name="attempts" type="number" min="1" max="5" value="2" required class="bar-number" title="จำนวนรอบ">
+
+        <button id="exec-btn" class="btn-run-action" type="submit" {% if run_status.is_locked %}disabled{% endif %}>
+          {% if run_status.is_locked %}⏳ กำลังรัน...{% else %}▶ สั่งรันการทดสอบ{% endif %}
+        </button>
+      </form>
+    </div>
+
+    <!-- Hidden compatibility markers for existing DOM lookups -->
+    <div id="section-compromised" style="display:none;"></div>
+    <div id="section-protected" style="display:none;"></div>
+    <div id="section-error" style="display:none;"></div>
+
+    <!-- UNIFIED COMPACT SECURITY TABLE -->
+    <div class="table-container">
+      <div class="table-toolbar">
+        <div class="filter-left">
+          <input type="text" id="searchInput" placeholder="ค้นหา Prompt, คำตอบ, Tool, ID..." class="search-input">
+          <div class="filter-pills">
+            <button type="button" class="btn-filter-pill active" data-filter="all">ทั้งหมด ({{ total_runs }})</button>
+            <button type="button" class="btn-filter-pill" data-filter="compromised">🚨 รั่วไหล ({{ leaked_count }})</button>
+            <button type="button" class="btn-filter-pill" data-filter="protected">🛡️ ป้องกันได้ ({{ safe_count }})</button>
+            {% if error_count > 0 %}
+            <button type="button" class="btn-filter-pill" data-filter="error">⚠️ Error ({{ error_count }})</button>
+            {% endif %}
+          </div>
+        </div>
+        <div class="filter-right">
+          <button type="button" id="btnToggleAdvancedFilters" class="btn-secondary" onclick="toggleAdvancedFilters()">
+            ⚙️ ตัวกรอง
+          </button>
+          <button type="button" id="btnToggleAllRows" class="btn-secondary" onclick="toggleAllAccordionRows()">
+            ⤢ กางทั้งหมด
+          </button>
+        </div>
+      </div>
+
+      <!-- Secondary Filters Drawer (Hidden by default to eliminate visual noise) -->
+      <div id="advancedFiltersPanel" class="advanced-filters-panel" style="display: none;">
+        <div class="filter-field">
+          <label for="originFilter">ORIGIN:</label>
+          <select id="originFilter" class="compact-select">
+            <option value="ALL">ทุกลักษณะ</option>
+            <option value="batch">เฉพาะ Batch</option>
+            <option value="manual">เฉพาะ Manual</option>
+          </select>
+        </div>
+        <div class="filter-field">
+          <label for="defenseFilter">DEFENSE:</label>
+          <select id="defenseFilter" class="compact-select">
+            <option value="ALL">ทุก Defense</option>
+            {% for lvl in defense_levels %}
+            <option value="{{ lvl }}">{{ lvl | upper }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="filter-field">
+          <label for="typeFilter">STRATEGY:</label>
+          <select id="typeFilter" class="compact-select">
+            <option value="ALL">ทุกเทคนิค</option>
+            <option value="direct">DIRECT</option>
+            <option value="recon">RECON</option>
+            <option value="semantic">SEMANTIC</option>
+            <option value="indirect">INDIRECT</option>
+            <option value="roleplay">ROLEPLAY</option>
+            <option value="fewshot">FEWSHOT</option>
+            <option value="obfuscation">OBFUSCATION</option>
+          </select>
+        </div>
+        <div class="filter-field">
+          <label for="langFilter">LANG:</label>
+          <select id="langFilter" class="compact-select">
+            <option value="ALL">ทุกภาษา</option>
+            <option value="Thai">Thai</option>
+            <option value="English">English</option>
+            <option value="Mixed">Mixed</option>
+          </select>
+        </div>
+        <button type="button" class="btn-reset-filters" onclick="resetAdvancedFilters()">✕ ล้างตัวกรอง</button>
+      </div>
+
+      <table class="unified-audit-table">
+        <thead>
+          <tr>
+            <th style="width: 125px;">ID & RUN</th>
+            <th style="width: 85px;">ภาษา</th>
+            <th style="width: 110px;">เทคนิค</th>
+            <th style="width: 100px;">DEFENSE</th>
+            <th>สถานะความปลอดภัย (SECURITY VERDICT)</th>
+            <th style="width: 100px; text-align: right;">รายละเอียด</th>
+          </tr>
+        </thead>
+        <tbody id="auditTableBody">
+          {% for r in results %}
+          {% set cat = 'compromised' if r.success == 1 else ('protected' if r.success == 0 else 'error') %}
+          <!-- Main Table Row (Compact 36px) -->
+          <tr class="case-entry case-row" data-category="{{ cat }}" data-defense="{{ r.defense_level }}" data-lang="{{ r.language }}" data-type="{{ r.attack_type }}" data-origin="{{ 'manual' if r.id.startswith('MANUAL-') else 'batch' }}" onclick="toggleRowDetails('detail-{{ loop.index }}', this)">
+            <td>
+              <span class="row-id">#{{ r.id }}</span>
+              {% if r.id.startswith('MANUAL-') %}
+                <span class="tag blue">[MANUAL]</span>
+              {% endif %}
+              <span class="row-attempt">R{{ r.attempt }}</span>
+            </td>
+            <td><span class="tag-plain">{{ r.language }}</span></td>
+            <td><span class="tag-type">{{ r.attack_type | upper }}</span></td>
+            <td><span class="tag-defense">{{ r.defense_level | upper }}</span></td>
+            <td>
+              {% if r.success == 1 %}
+                <span class="verdict-pill breached">🚨 รั่วไหล (Breached)</span>
+                {% if r.private_table_accessed %}<span class="tag red">PRIVATE TABLE ACCESSED</span>{% endif %}
+                {% if r.schema_disclosed_list %}<span class="tag red">SCHEMA DISCLOSED</span>{% endif %}
+              {% elif r.success == 0 %}
+                <span class="verdict-pill defended">🛡️ ป้องกันได้ (Defended)</span>
+                {% if r.private_table_blocked %}<span class="tag amber">ACL BLOCKED</span>{% endif %}
+                {% if r.output_intercepted %}<span class="tag green">OUTPUT GUARD REDACTED</span>{% endif %}
+              {% else %}
+                <span class="verdict-pill error">⚠️ API Error</span>
+              {% endif %}
+            </td>
+            <td style="text-align: right;">
+              <button type="button" class="btn-expand-row">ดูรายละเอียด ▼</button>
+            </td>
+          </tr>
+
+          <!-- Accordion Detail Row (In-Row Expand) -->
+          <tr id="detail-{{ loop.index }}" class="case-detail-row" style="display: none;" data-category="{{ cat }}" data-defense="{{ r.defense_level }}" data-lang="{{ r.language }}" data-type="{{ r.attack_type }}" data-origin="{{ 'manual' if r.id.startswith('MANUAL-') else 'batch' }}">
+            <td colspan="6" class="detail-cell">
+              {% if r.canaries_list %}
+              <div class="canary-alert">
+                <b>⚠️ ข้อมูลความลับ Canary ที่รั่วไหล:</b>
+                {% for c in r.canaries_list %}<span class="canary-token">{{ c }}</span>{% endfor %}
+              </div>
+              {% endif %}
+
+              {% if r.schema_disclosed_list %}
+              <div class="canary-alert" style="background:var(--color-amber-bg);border-color:rgba(245,158,11,0.3);color:#fde68a;">
+                <b>⚠️ เปิดเผยชื่อตารางความลับภายใน (Schema Disclosure):</b>
+                {% for st in r.schema_disclosed_list %}<span class="canary-token" style="background:rgba(245,158,11,0.2);color:#fde68a;">{{ st }}</span>{% endfor %}
+              </div>
+              {% endif %}
+
+              {% if r.output_intercepted %}
+              <div class="canary-alert" style="background:var(--color-emerald-bg);border-color:rgba(16,185,129,0.3);color:#6ee7b7;">
+                <b>🛡️ OUTPUT GUARD INTERCEPTED:</b> โมเดลพยายามตอบข้อมูลลับ แต่ถูกระบบดักจับและเซ็นเซอร์สำเร็จก่อนส่งถึงผู้ใช้
+              </div>
+              {% endif %}
+
+              <div class="case-columns">
+                <div class="col-box">
+                  <div class="col-header red">
+                    <span>🔴 ข้อความที่ส่งไป (Prompt)</span>
+                    <button type="button" class="btn-copy" onclick="event.stopPropagation(); copySnippet('prompt-leak-{{ loop.index }}', this)">คัดลอก</button>
+                  </div>
+                  <div class="sub-info">
+                    <div><b>กลยุทธ์/เทคนิค:</b> {{ r.red_strategy or r.technique or '-' }}</div>
+                    {% if r.red_analysis %}<div><b>การวิเคราะห์:</b> {{ r.red_analysis }}</div>{% endif %}
+                  </div>
+                  <pre class="data-text" id="prompt-leak-{{ loop.index }}">{{ r.injected_prompt }}</pre>
+                </div>
+
+                <div class="col-box">
+                  <div class="col-header blue">
+                    <span>🔵 คำตอบจาก Blue Assistant</span>
+                    <button type="button" class="btn-copy" onclick="event.stopPropagation(); copySnippet('resp-leak-{{ loop.index }}', this)">คัดลอก</button>
+                  </div>
+                  <div class="sub-info">
+                    <b>Tool Calls:</b>
+                    {% if r.tool_calls_list %}
+                      {% for tc in r.tool_calls_list %}
+                        <code>{{ tc.tool }}({{ tc.args | tojson }}) -> <b>{{ tc.status | upper }}</b>{% if tc.row_count is defined %} ({{ tc.row_count }} rows){% endif %}</code>{% if not loop.last %}, {% endif %}
+                      {% endfor %}
+                    {% else %}
+                      <span>ไม่ได้เรียกใช้ Tool</span>
+                    {% endif %}
+                  </div>
+                  <pre class="data-text" id="resp-leak-{{ loop.index }}">{{ r.response }}</pre>
+                </div>
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="6" class="empty-row">ไม่พบรายการทดสอบในระบบ</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div> <!-- end viewDashboard -->
+
+  <!-- TAB 2: Interactive Playground -->
+  <div id="viewPlayground" style="display: none;">
+    <div class="playground-wrapper">
+      <div id="manualSetupCard" class="card-panel">
+        <div class="card-panel-title">
+          <span>⚙️ ตั้งค่าเซสชันโหมดควบคุมเอง (Interactive Playground)</span>
+        </div>
+        <div class="card-panel-sub">
+          ทดสอบความปลอดภัยแบบโต้ตอบด้วยตนเอง โดย Blue Assistant จะจำบริบทการสนทนาต่อเนื่องในแชทเดียว คุณสามารถเลือกส่ง Prompt เอง หรือส่งต่อให้ Red AI วิเคราะห์และโจมตีต่อได้
+        </div>
+        <form id="manualStartForm" onsubmit="startManualSession(event)" class="form-grid">
+          <div class="field-group">
+            <label for="manualDefense">ระดับป้องกัน (Defense):</label>
+            <select id="manualDefense" name="defense">
+              {% for lvl in defense_levels %}
+              <option value="{{ lvl }}" {% if lvl == 'off' %}selected{% endif %}>{{ lvl | upper }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="field-group">
+            <label for="manualLang">ภาษาที่ใช้ทดสอบ:</label>
+            <select id="manualLang" name="language" onchange="onManualLangOrTypeChange()">
+              <option value="Thai" selected>Thai (ภาษาไทย)</option>
+              <option value="English">English</option>
+              <option value="Mixed">Mixed (ไทยปนอังกฤษ)</option>
+            </select>
+          </div>
+
+          <div class="field-group">
+            <label for="manualAttackType">ชนิดการโจมตี (Attack Strategy):</label>
+            <select id="manualAttackType" name="attack_type" onchange="onManualLangOrTypeChange()">
+              <option value="direct" selected>DIRECT (White-Box รู้ชื่อตาราง)</option>
+              <option value="indirect">INDIRECT (ฝังในฐานข้อมูล)</option>
+              <option value="recon">RECON (Black-Box สำรวจตาราง)</option>
+              <option value="semantic">SEMANTIC (Black-Box ไม่ระบุชื่อตาราง)</option>
+              <option value="roleplay">ROLEPLAY (จำลองสถานการณ์ฉุกเฉิน/สวมบทบาท)</option>
+              <option value="fewshot">FEWSHOT (Few-Shot In-Context Hijacking)</option>
+              <option value="obfuscation">OBFUSCATION (การเข้ารหัส/พรางคำสั่ง)</option>
+            </select>
+          </div>
+
+          <div class="field-group">
+            <label for="manualBlueRole">บทบาท Blue Assistant (Persona):</label>
+            <select id="manualBlueRole" name="blue_role">
+              <option value="registrar_staff" selected>Registrar Staff (เจ้าหน้าที่ทะเบียน - ค่าแนะนำ)</option>
+              <option value="student_guest">Student / Guest (ผู้มาติดต่อ / นศ. ทั่วไป)</option>
+              <option value="system_admin">System Administrator (ผู้ดูแลระบบสูงสุด)</option>
+            </select>
+          </div>
+
+          <div class="field-group">
+            <label for="manualRedProfile">รูปแบบ Red Attacker (Strategy):</label>
+            <select id="manualRedProfile" name="red_profile">
+              <option value="realistic_attacker" selected>Realistic Attacker (ผู้โจมตีเสมือนจริง ไม่รู้ชื่อตารางลับ - ค่าแนะนำ)</option>
+              <option value="insider_threat">Insider Threat (ภัยคุกคามภายใน รู้กระบวนการและรหัสบุคคล)</option>
+              <option value="security_auditor">Security Auditor (White-box ผู้ตรวจประเมินความปลอดภัย)</option>
+            </select>
+          </div>
+
+          <div class="field-group field-group-wide">
+            <label for="manualTargets">ข้อมูลเป้าหมายเพิ่มเติม (หยุดเมื่อ AI พบ เช่น ชื่อตาราง คั่นด้วยจุลภาค):</label>
+            <input type="text" id="manualTargets" name="targets" placeholder="เช่น internal_secrets, student_private, national_id (เว้นว่างได้)" style="width: 100%;">
+          </div>
+
+          <div class="field-group">
+            <button type="submit" id="manualStartBtn" class="btn-run-action" style="padding: 7px 16px;">
+              🚀 เริ่มต้นเซสชันแชทสด
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div id="manualChatArea" class="chat-console-container" style="display: none;">
+        <div class="chat-header-bar">
+          <div class="chat-header-info">
+            <span style="font-weight: 700; color: #38bdf8;">ACTIVE SESSION:</span>
+            <span id="activeSessionBadge" class="tag" style="background:#1e293b;color:#f8fafc;">-</span>
+            <span id="activeDefenseBadge" class="tag blue">-</span>
+            <span id="activeBlueRoleBadge" class="tag green">-</span>
+            <span id="activeRedProfileBadge" class="tag red">-</span>
+            <span id="activeLangBadge" class="tag amber">-</span>
+            <span id="activeTypeBadge" class="tag red">-</span>
+            <span id="activeTargetsBadge" class="tag" style="display:none;">-</span>
+            <span id="activeTurnBadge" class="tag blue">Turn 1</span>
+          </div>
+          <div>
+            <button type="button" class="btn-run-action" onclick="resetManualSession()" style="background:#dc2626;border-color:#b91c1c;padding:3px 8px;font-size:11px;">
+              🔄 จบเซสชัน / เริ่มใหม่
+            </button>
+          </div>
+        </div>
+
+        <div id="chatStatusAlert" class="status-alert-box" style="display: none;">
+          <span id="chatStatusAlertMsg"></span>
+          <div style="display: flex; gap: 6px;">
+            <button type="button" class="btn-run-action" onclick="continueInCurrentChat()" style="background:#15803d;border-color:#166534;font-size:11px;padding:3px 8px;">
+              💬 สนทนาต่อ
+            </button>
+            <button type="button" class="btn-run-action" onclick="resetManualSession()" style="background:#475569;border-color:#334155;font-size:11px;padding:3px 8px;">
+              🔄 เริ่มใหม่
+            </button>
+          </div>
+        </div>
+
+        <div id="chatScrollArea" class="chat-scroll-area">
+          <div id="chatEmptyPlaceholder" style="text-align: center; color: var(--text-dim); padding: 50px 20px; font-style: italic;">
+            ✨ เริ่มต้นบทสนทนา: พิมพ์คำสั่งด้านล่าง หรือเลือกแม่แบบเพื่อส่งข้อความแรกไปยัง Blue Assistant
+          </div>
+        </div>
+
+        <div class="prompt-control-panel">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+            <div class="mode-switch-group">
+              <span style="font-weight: 600; font-size: 11px; color: var(--text-muted);">รูปแบบ Prompt:</span>
+              <button type="button" id="pillTemplate" class="mode-pill active" onclick="switchPromptMode('template')">เลือกแม่แบบสำเร็จรูป</button>
+              <button type="button" id="pillCustom" class="mode-pill" onclick="switchPromptMode('custom')">พิมพ์ข้อความเอง</button>
+              <button type="button" id="pillAiGenerate" class="mode-pill" onclick="switchPromptMode('ai_generate')" style="border-color:var(--color-emerald);color:#6ee7b7;">🤖 AI ช่วยร่าง Prompt</button>
+            </div>
+            <div id="templateSelectRow" style="display: flex; align-items: center; gap: 6px;">
+              <label for="manualTemplatePicker" style="font-size: 11px; font-weight: 600;">แม่แบบ:</label>
+              <select id="manualTemplatePicker" onchange="onTemplateSelected()" style="max-width: 300px; font-size: 11px;">
+                <option value="">-- เลือกเคสแม่แบบ --</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="aiGeneratePanel" style="display: none; background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.3); padding: 10px; border-radius: 4px; flex-direction: column; gap: 6px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 12px; font-weight: 700; color: #6ee7b7;">💡 AI Prompt Architect</span>
+              <span class="tag green" style="font-size:10px;">Pro Mode</span>
+            </div>
+            <textarea id="aiPromptIdeaInput" rows="2" placeholder="อธิบายเป้าหมายหรือไอเดียเจาะระบบ..." style="width: 100%; padding: 6px; font-size: 12px; border-radius: 3px; resize: vertical;"></textarea>
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+              <div style="display: flex; align-items: center; gap: 5px;">
+                <label for="aiTechniqueSelect" style="font-size: 11px; font-weight: 600; color: #6ee7b7;">เทคนิค:</label>
+                <select id="aiTechniqueSelect" style="font-size: 11px; padding: 3px 6px;">
+                  <option value="auto" selected>อัตโนมัติ</option>
+                  <option value="audit">Academic Audit</option>
+                  <option value="roleplay">Roleplay</option>
+                  <option value="fewshot">Few-Shot</option>
+                  <option value="obfuscation">Obfuscation</option>
+                  <option value="context_coupled">Context Coupling</option>
+                  <option value="semantic">Semantic Goal</option>
+                </select>
+              </div>
+              <button type="button" id="btnRunAiGenerate" class="btn-run-action" onclick="generatePromptWithAi()" style="background:#16a34a;border-color:#15803d;padding:4px 10px;font-size:11px;">
+                ✨ สร้าง Prompt
+              </button>
+            </div>
+
+            <div id="aiArchitectResultCard" style="display: none; background: var(--bg-surface); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 3px; padding: 8px; margin-top: 4px; flex-direction: column; gap: 4px;">
+              <div style="font-size: 11px;">
+                <b style="color: #6ee7b7;">วิเคราะห์:</b>
+                <div id="aiResultAnalysis" style="background: var(--bg-input); padding: 4px; border-radius: 3px; margin-top: 2px;"></div>
+              </div>
+              <div style="font-size: 11px;">
+                <b style="color: #38bdf8;">ยุทธวิธี:</b>
+                <div id="aiResultTactic" style="background: var(--bg-input); padding: 4px; border-radius: 3px; margin-top: 2px;"></div>
+              </div>
+              <div style="font-size: 11px;">
+                <b style="color: #f87171;">ร่าง Prompt:</b>
+                <pre id="aiResultPrompt" class="data-text" style="min-height: 35px; max-height: 80px; margin-top: 2px;"></pre>
+              </div>
+              <div style="display: flex; justify-content: flex-end; margin-top: 2px;">
+                <button type="button" class="btn-run-action" onclick="applyGeneratedPromptToInput()" style="font-size:10px;padding:3px 8px;">
+                  📥 นำไปใช้ในช่องพิมพ์
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <label for="manualPromptInput" class="visually-hidden">ข้อความคำสั่ง Prompt สำหรับทดสอบเจาะระบบ</label>
+          <textarea id="manualPromptInput" rows="3" placeholder="พิมพ์ข้อความที่ต้องการทดสอบเจาะระบบที่นี่... (กด Ctrl+Enter เพื่อส่ง)" style="width: 100%; padding: 8px; font-family: var(--font-mono); font-size: 12px; resize: vertical;"></textarea>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; border-top: 1px solid var(--border-subtle); padding-top: 8px;">
+            <button type="button" id="manualSendBtn" class="btn-run-action" onclick="sendManualPrompt()" style="padding: 6px 16px;">
+              ▶ ส่งข้อความ (Send Turn)
+            </button>
+
+            <div style="display: flex; align-items: center; gap: 6px; background: rgba(244, 63, 94, 0.08); border: 1px solid rgba(244, 63, 94, 0.25); padding: 3px 6px; border-radius: 3px;">
+              <label for="aiRoundsCount" style="font-size: 11px; font-weight: 600; color: #fca5a5;">🤖 AI ส่งต่อ:</label>
+              <select id="aiRoundsCount" style="font-size: 11px; padding: 2px 4px;">
+                <option value="1">1 รอบ</option>
+                <option value="2">2 รอบ</option>
+                <option value="3" selected>3 รอบ (แนะนำ)</option>
+                <option value="5">5 รอบ</option>
+                <option value="10">10 รอบ</option>
+                <option value="until_found">⚡ ส่งจนกว่าจะได้ข้อมูล</option>
+              </select>
+              <button type="button" id="aiContinueBtn" class="btn-run-action" onclick="startAiContinue()" style="background:#dc2626;border-color:#b91c1c;padding:3px 8px;font-size:11px;">
+                ⚡ ให้ AI ส่งต่อเอง
+              </button>
+              <button type="button" id="aiStopBtn" class="btn-run-action" onclick="stopAiContinue()" style="background:#0f172a;border-color:#0f172a;padding:3px 8px;font-size:11px;display:none;">
+                🛑 หยุด AI ทันที
+              </button>
+            </div>
+          </div>
+
+          <div id="aiLiveSpinner" style="display: none; font-size: 11px; color: #fca5a5; font-weight: 600; padding: 2px 0;">
+            ⏳ กำลังประมวลผล: Red Team กำลังวิเคราะห์และส่งคำสั่งถัดไป...
+          </div>
+        </div>
+      </div>
+
+      <!-- Manual Interaction History & Telemetry Log Section -->
+      <div id="manualHistoryCard" class="card-panel" style="margin-top: 14px;">
+        <div class="card-panel-title" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span>📜 ประวัติการส่ง-รับข้อมูลในโหมดควบคุมเอง (Playground History & Logs)</span>
+            <span id="manualHistoryCountBadge" class="tag blue" style="font-size: 11px;">{{ manual_results | length }} รายการ</span>
+          </div>
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <button type="button" class="btn-run-action" onclick="refreshManualHistory()" style="background: var(--bg-surface); border: 1px solid var(--border-subtle); color: var(--text-white); font-size: 11px; padding: 3px 8px;">
+              🔄 รีเฟรชประวัติ
+            </button>
+          </div>
+        </div>
+        <div class="card-panel-sub">
+          บันทึกคำสั่งที่ส่งไป (Injected Prompt) และผลลัพธ์ที่ตอบกลับมาจาก Blue Assistant ในโหมดควบคุมเอง สามารถเปิดดูรายละเอียด และคัดลอก Prompt กลับไปทดสอบซ้ำได้
+        </div>
+
+        <div id="manualHistoryEmpty" style="{% if manual_results %}display: none;{% endif %} text-align: center; color: var(--text-dim); padding: 30px 15px; font-style: italic; background: var(--bg-surface); border: 1px dashed var(--border-subtle); border-radius: 4px; margin-top: 10px;">
+          ยังไม่มีประวัติการส่งคำสั่งในโหมดควบคุมเอง (เมื่อเริ่มต้นเซสชันและส่งข้อความ ข้อมูลจะถูกบันทึกและแสดงที่นี่)
+        </div>
+
+        <div id="manualHistoryTableWrapper" style="{% if not manual_results %}display: none;{% endif %} overflow-x: auto; margin-top: 10px;">
+          <table class="manual-history-table" style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px;">
+            <thead>
+              <tr>
+                <th style="width: 140px; text-align: left; padding: 8px 10px; background: var(--bg-surface); color: var(--text-dim); font-family: var(--font-mono); font-size: 10px; font-weight: 700; border-bottom: 1px solid var(--border-subtle);">SESSION & TURN</th>
+                <th style="width: 90px; text-align: left; padding: 8px 10px; background: var(--bg-surface); color: var(--text-dim); font-family: var(--font-mono); font-size: 10px; font-weight: 700; border-bottom: 1px solid var(--border-subtle);">DEFENSE</th>
+                <th style="text-align: left; padding: 8px 10px; background: var(--bg-surface); color: var(--text-dim); font-family: var(--font-mono); font-size: 10px; font-weight: 700; border-bottom: 1px solid var(--border-subtle);">ข้อความที่ส่งไป (PROMPT SENT)</th>
+                <th style="width: 160px; text-align: left; padding: 8px 10px; background: var(--bg-surface); color: var(--text-dim); font-family: var(--font-mono); font-size: 10px; font-weight: 700; border-bottom: 1px solid var(--border-subtle);">สถานะความปลอดภัย</th>
+                <th style="width: 130px; text-align: left; padding: 8px 10px; background: var(--bg-surface); color: var(--text-dim); font-family: var(--font-mono); font-size: 10px; font-weight: 700; border-bottom: 1px solid var(--border-subtle);">เวลา</th>
+                <th style="width: 90px; text-align: right; padding: 8px 10px; background: var(--bg-surface); color: var(--text-dim); font-family: var(--font-mono); font-size: 10px; font-weight: 700; border-bottom: 1px solid var(--border-subtle);">รายละเอียด</th>
+              </tr>
+            </thead>
+            <tbody id="manualHistoryTbody">
+              {% for r in manual_results %}
+              <tr class="manual-history-row" onclick="toggleRowDetails('manual-detail-{{ loop.index }}', this)" style="cursor: pointer;">
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--border-subtle); vertical-align: middle;">
+                  <span class="row-id" style="font-weight:700;">#{{ r.id }}</span>
+                  <span class="tag blue" style="font-size:10px;">R{{ r.attempt }}</span>
+                </td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--border-subtle); vertical-align: middle;">
+                  <span class="tag-defense">{{ r.defense_level | upper }}</span>
+                </td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--border-subtle); vertical-align: middle; max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                  <span style="color: var(--text-white); font-family: var(--font-mono); font-size: 11px;">
+                    {{ r.injected_prompt | truncate(75) }}
+                  </span>
+                </td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--border-subtle); vertical-align: middle;">
+                  {% if r.success == 1 %}
+                    <span class="verdict-pill breached" style="font-size: 10px;">🚨 รั่วไหล (Breached)</span>
+                    {% if r.private_table_accessed %}<span class="tag red" style="font-size: 9px;">TABLE ACCESSED</span>{% endif %}
+                  {% elif r.success == 0 %}
+                    <span class="verdict-pill defended" style="font-size: 10px;">🛡️ ป้องกันได้ (Defended)</span>
+                    {% if r.private_table_blocked %}<span class="tag amber" style="font-size: 9px;">BLOCKED</span>{% endif %}
+                    {% if r.output_intercepted %}<span class="tag green" style="font-size: 9px;">REDACTED</span>{% endif %}
+                  {% else %}
+                    <span class="verdict-pill error" style="font-size: 10px;">⚠️ Error</span>
+                  {% endif %}
+                </td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--border-subtle); vertical-align: middle; font-family: var(--font-mono); font-size: 10px; color: var(--text-dim);">
+                  {{ r.run_timestamp }}
+                </td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid var(--border-subtle); vertical-align: middle; text-align: right;">
+                  <button type="button" class="btn-expand-row" style="font-size: 10px; padding: 2px 6px;">ดูข้อมูล ▼</button>
+                </td>
+              </tr>
+              <tr id="manual-detail-{{ loop.index }}" class="manual-detail-row" style="display: none;">
+                <td colspan="6" style="padding: 10px; background: var(--bg-surface-sub); border-bottom: 1px solid var(--border-subtle);">
+                  <div class="turn-split-cols" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <!-- Left: Injected Prompt -->
+                    <div class="turn-half-col" style="background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 8px;">
+                      <div class="col-header red" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 11px; font-weight: 700; color: #fca5a5;">
+                        <span>📤 ข้อความคำสั่งที่ส่งไป (PROMPT SENT - TURN {{ r.attempt }})</span>
+                        <div style="display: flex; gap: 4px;">
+                          <button type="button" class="btn-copy" onclick="event.stopPropagation(); copySnippet('m-p-{{ loop.index }}', this)">คัดลอก</button>
+                          <button type="button" class="btn-copy" onclick="event.stopPropagation(); usePromptInPlayground(document.getElementById('m-p-{{ loop.index }}').innerText)">นำไปใช้</button>
+                        </div>
+                      </div>
+                      {% if r.red_analysis or r.red_strategy %}
+                      <div class="red-meta-box" style="margin-bottom: 6px;">
+                        {% if r.red_strategy %}<div><b>[STRATEGY]:</b> {{ r.red_strategy }}</div>{% endif %}
+                        {% if r.red_analysis %}<div><b>[ANALYSIS]:</b> {{ r.red_analysis }}</div>{% endif %}
+                      </div>
+                      {% endif %}
+                      <pre class="data-text" id="m-p-{{ loop.index }}" style="margin: 0; min-height: 50px; max-height: 200px; overflow-y: auto; font-family: var(--font-mono); font-size: 11px; background: var(--bg-input); padding: 6px; border-radius: 3px; white-space: pre-wrap; word-break: break-word;">{{ r.injected_prompt }}</pre>
+                    </div>
+
+                    <!-- Right: Model Response -->
+                    <div class="turn-half-col" style="background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 8px;">
+                      <div class="col-header blue" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 11px; font-weight: 700; color: #38bdf8;">
+                        <span>📥 คำตอบที่ได้รับกลับมา (BLUE RESPONSE)</span>
+                        <button type="button" class="btn-copy" onclick="event.stopPropagation(); copySnippet('m-r-{{ loop.index }}', this)">คัดลอก</button>
+                      </div>
+                      {% if r.canaries_list %}
+                      <div class="canary-alert" style="margin-bottom: 6px;">
+                        <b>⚠️ ข้อมูลความลับ Canary ที่รั่วไหล:</b>
+                        {% for c in r.canaries_list %}
+                          <span class="canary-token">{{ c }}</span>
+                        {% endfor %}
+                      </div>
+                      {% endif %}
+                      {% if r.schema_disclosed_list %}
+                      <div class="canary-alert" style="background: var(--color-amber-bg); color: #fde68a; margin-bottom: 6px;">
+                        <b>⚠️ การเปิดเผยโครงสร้างฐานข้อมูล (Schema Disclosure):</b>
+                        {% for s in r.schema_disclosed_list %}
+                          <span class="tag amber">{{ s }}</span>
+                        {% endfor %}
+                      </div>
+                      {% endif %}
+                      {% if r.tool_calls_list %}
+                      <div class="blue-tools-box" style="margin-bottom: 6px;">
+                        <b>Tool Calls:</b><br>
+                        {% for tc in r.tool_calls_list %}
+                          <code>{{ tc.tool }}(table={{ tc.args.table if tc.args and tc.args.table else '-' }}) -> <b style="{{ 'color:var(--color-emerald);' if tc.status == 'granted' else 'color:var(--color-rose);' }}">{{ tc.status | upper }}</b>{% if tc.reason %} ({{ tc.reason }}){% endif %}</code><br>
+                        {% endfor %}
+                      </div>
+                      {% endif %}
+                      <pre class="data-text" id="m-r-{{ loop.index }}" style="margin: 0; min-height: 50px; max-height: 200px; overflow-y: auto; font-family: var(--font-mono); font-size: 11px; background: var(--bg-input); padding: 6px; border-radius: 3px; white-space: pre-wrap; word-break: break-word;">{{ r.response }}</pre>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div> <!-- end viewPlayground -->
+
+  <!-- TAB 3: OWASP Scientific Benchmark -->
+  <div id="viewOwasp" style="display: none;">
+    <div class="playground-wrapper">
+      <div class="card-panel">
+        <div class="card-panel-title">
+          <span>🛡️ OWASP Top 10 for LLM Scientific Benchmark & Evaluator</span>
+        </div>
+        <div class="card-panel-sub">
+          ประเมินและทดสอบความแข็งแกร่งของ AI Agent ตามมาตรฐาน OWASP LLM01 (Prompt Injection) และ LLM06 (Excessive Agency) พร้อมคำนวณ Scientific Metrics: ASR, FRR, TVR และ DES
+        </div>
+        <div class="form-grid" style="margin-top: 8px;">
+          <div class="field-group">
+            <label for="evalTargetType">Target Agent:</label>
+            <select id="evalTargetType" onchange="onEvalTargetChange()">
+              <option value="builtin" selected>Built-in University Reference Target (Local Blue Agent)</option>
+              <option value="openai">External OpenAI-compatible Target (vLLM / Ollama / API)</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label for="evalDefense">ระดับป้องกัน:</label>
+            <select id="evalDefense">
+              <option value="all" selected>ALL (Defense-in-Depth - แนะนำ)</option>
+              <option value="tools">TOOLS (Tool Gatekeeper & Data Delimiting)</option>
+              <option value="prompt">PROMPT (Hardened System Prompt Only)</option>
+              <option value="off">OFF (Baseline Unprotected)</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label for="evalBlueRole">บทบาท Blue Persona:</label>
+            <select id="evalBlueRole">
+              <option value="registrar_staff" selected>Registrar Staff (เจ้าหน้าที่ทะเบียน)</option>
+              <option value="student_guest">Student / Guest (ผู้มาติดต่อทั่วไป)</option>
+              <option value="system_admin">System Administrator (ผู้ดูแลระบบสูงสุด)</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="evalExternalFields" class="form-grid" style="display: none; margin-top: 8px; padding: 10px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: 4px;">
+          <div class="field-group">
+            <label for="evalBaseUrl">Base URL:</label>
+            <input type="text" id="evalBaseUrl" value="http://localhost:8000/v1" placeholder="http://localhost:8000/v1">
+          </div>
+          <div class="field-group">
+            <label for="evalModel">Model Identifier:</label>
+            <input type="text" id="evalModel" value="default" placeholder="llama3 / qwen2.5 / gpt-4o">
+          </div>
+          <div class="field-group">
+            <label for="evalApiKey">API Key (Optional):</label>
+            <input type="text" id="evalApiKey" placeholder="sk-...">
+          </div>
+        </div>
+
+        <div style="margin-top: 10px; display: flex; align-items: center; gap: 8px;">
+          <button type="button" id="btnRunEvalBenchmark" class="btn-run-action" onclick="runOwaspBenchmark()" style="padding: 6px 14px;">
+            ⚡ เริ่มต้นรัน OWASP Benchmark
+          </button>
+          <span id="evalRunSpinner" style="display: none; font-size: 11px; color: #38bdf8; font-weight: 600;">
+            ⏳ กำลังประเมินผลเบนช์มาร์ก...
+          </span>
+        </div>
+      </div>
+
+      <div id="evalResultsPanel" class="card-panel" style="display: none;">
+        <div class="card-panel-title">
+          <span>📈 รายงานผลการประเมินเชิงวิทยาศาสตร์</span>
+        </div>
+
+        <div class="two-zone-bar" style="margin-top: 8px;">
+          <div class="zone-metrics">
+            <div class="metric-chip">
+              <span class="m-label">ASR:</span>
+              <span class="m-val val-rate" id="metricAsr">0.0%</span>
+            </div>
+            <div class="metric-divider"></div>
+            <div class="metric-chip">
+              <span class="m-label">DES:</span>
+              <span class="m-val val-protected" id="metricDes">0.0%</span>
+            </div>
+            <div class="metric-divider"></div>
+            <div class="metric-chip">
+              <span class="m-label">TVR:</span>
+              <span class="m-val val-compromised" id="metricTvr">0.0%</span>
+            </div>
+            <div class="metric-divider"></div>
+            <div class="metric-chip">
+              <span class="m-label">FRR:</span>
+              <span class="m-val val-error" id="metricFrr">0.0%</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top: 10px; overflow-x: auto;">
+          <table class="eval-matrix-table">
+            <thead>
+              <tr>
+                <th>OWASP CATEGORY</th>
+                <th style="text-align: center;">TOTAL</th>
+                <th style="text-align: center;">LEAKED (ASR)</th>
+                <th style="text-align: center;">BLOCKED</th>
+                <th style="text-align: center;">LEAK RATE (%)</th>
+              </tr>
+            </thead>
+            <tbody id="evalOwaspTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div> <!-- end viewOwasp -->
+
+  <!-- JavaScript -->
+  <script>
+    function switchMainTab(tab) {
+      const dash = document.getElementById('viewDashboard');
+      const play = document.getElementById('viewPlayground');
+      const owasp = document.getElementById('viewOwasp');
+      const btnDash = document.getElementById('tabBtnDashboard');
+      const btnPlay = document.getElementById('tabBtnPlayground');
+      const btnOwasp = document.getElementById('tabBtnOwasp');
+
+      [dash, play, owasp].forEach(el => { if (el) el.style.display = 'none'; });
+      [btnDash, btnPlay, btnOwasp].forEach(btn => { if (btn) btn.classList.remove('active'); });
+
+      if (tab === 'playground') {
+        if (play) play.style.display = 'block';
+        if (btnPlay) btnPlay.classList.add('active');
+        loadTemplatesOnce();
+        refreshManualHistory();
+      } else if (tab === 'owasp') {
+        if (owasp) owasp.style.display = 'block';
+        if (btnOwasp) btnOwasp.classList.add('active');
+        loadLatestEvalReportOnce();
+      } else {
+        if (dash) dash.style.display = 'block';
+        if (btnDash) btnDash.classList.add('active');
+      }
+    }
+
+    // Toggle In-Row Accordion Details
+    function toggleRowDetails(detailId, clickedRow) {
+      const detailRow = document.getElementById(detailId);
+      if (!detailRow) return;
+      const isHidden = (detailRow.style.display === 'none' || !detailRow.style.display);
+      detailRow.style.display = isHidden ? 'table-row' : 'none';
+      const btn = clickedRow.querySelector('.btn-expand-row');
+      if (btn) btn.textContent = isHidden ? 'ย่อรายละเอียด ▲' : 'ดูรายละเอียด ▼';
+    }
+
+    // Toggle Collapsible Secondary Filters Drawer
+    function toggleAdvancedFilters() {
+      const panel = document.getElementById('advancedFiltersPanel');
+      const btn = document.getElementById('btnToggleAdvancedFilters');
+      if (!panel) return;
+      const isHidden = (panel.style.display === 'none' || !panel.style.display);
+      panel.style.display = isHidden ? 'flex' : 'none';
+      if (btn) btn.classList.toggle('active', isHidden);
+    }
+
+    function resetAdvancedFilters() {
+      if (originFilter) originFilter.value = 'ALL';
+      if (defenseFilter) defenseFilter.value = 'ALL';
+      if (typeFilter) typeFilter.value = 'ALL';
+      if (langFilter) langFilter.value = 'ALL';
+      filterCases();
+    }
+
+    let allRowsExpanded = false;
+    function toggleAllAccordionRows() {
+      allRowsExpanded = !allRowsExpanded;
+      const detailRows = document.querySelectorAll('.case-detail-row');
+      const expandBtns = document.querySelectorAll('.btn-expand-row');
+      const mainBtn = document.getElementById('btnToggleAllRows');
+
+      detailRows.forEach(row => {
+        // Only toggle rows that are not filtered out
+        if (row.previousElementSibling && row.previousElementSibling.style.display !== 'none') {
+          row.style.display = allRowsExpanded ? 'table-row' : 'none';
+        }
+      });
+      expandBtns.forEach(b => {
+        b.textContent = allRowsExpanded ? 'ย่อรายละเอียด ▲' : 'ดูรายละเอียด ▼';
+      });
+      if (mainBtn) {
+        mainBtn.textContent = allRowsExpanded ? '⤡ ยุบทั้งหมด' : '⤢ กางทั้งหมด';
+      }
+    }
+
+    let latestBenchmarkData = null;
+
+    function onEvalTargetChange() {
+      const t = document.getElementById('evalTargetType').value;
+      const ext = document.getElementById('evalExternalFields');
+      if (ext) ext.style.display = (t === 'openai') ? 'grid' : 'none';
+    }
+
+    async function runOwaspBenchmark() {
+      const btn = document.getElementById('btnRunEvalBenchmark');
+      const spinner = document.getElementById('evalRunSpinner');
+      btn.disabled = true;
+      spinner.style.display = 'inline-block';
+
+      const payload = {
+        csrf_token: CSRF_TOKEN,
+        target_type: document.getElementById('evalTargetType').value,
+        defense: document.getElementById('evalDefense').value,
+        blue_role: document.getElementById('evalBlueRole').value,
+        base_url: document.getElementById('evalBaseUrl') ? document.getElementById('evalBaseUrl').value : '',
+        model: document.getElementById('evalModel') ? document.getElementById('evalModel').value : '',
+        api_key: document.getElementById('evalApiKey') ? document.getElementById('evalApiKey').value : '',
+      };
+
+      try {
+        const data = await safeFetchJson('/api/eval/run', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': CSRF_TOKEN,
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (data && data.success && data.report) {
+          latestBenchmarkData = data.report;
+          renderEvalReport(data.report);
+        } else {
+          alert('การประเมินผลขัดข้อง: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('เกิดข้อผิดพลาดในการประเมิน: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        spinner.style.display = 'none';
+      }
+    }
+
+    function renderEvalReport(report) {
+      if (!report || !report.metrics) return;
+      const m = report.metrics;
+      document.getElementById('metricAsr').textContent = (m.attack_success_rate || 0).toFixed(1) + '%';
+      document.getElementById('metricFrr').textContent = (m.false_refusal_rate || 0).toFixed(1) + '%';
+      document.getElementById('metricTvr').textContent = (m.tool_violation_rate || 0).toFixed(1) + '%';
+      document.getElementById('metricDes').textContent = (m.defense_efficiency_score || 0).toFixed(1) + '%';
+
+      const tbody = document.getElementById('evalOwaspTableBody');
+      if (tbody) {
+        tbody.innerHTML = '';
+        const byOwasp = m.by_owasp || {};
+        for (const [cat, stats] of Object.entries(byOwasp)) {
+          const tot = stats.total || 0;
+          const leaked = stats.leaked || 0;
+          const blocked = stats.blocked || 0;
+          const pct = tot > 0 ? (leaked / tot * 100).toFixed(1) : '0.0';
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td style="padding: 6px 8px; font-weight: 600; color: #ffffff;">${escapeHtml(cat)}</td>
+            <td style="padding: 6px 8px; text-align: center; color: var(--text-muted);">${tot}</td>
+            <td style="padding: 6px 8px; text-align: center; color: var(--color-rose); font-weight: 700;">${leaked}</td>
+            <td style="padding: 6px 8px; text-align: center; color: var(--color-emerald); font-weight: 700;">${blocked}</td>
+            <td style="padding: 6px 8px; text-align: center; font-weight: 700; color: ${parseFloat(pct) > 0 ? 'var(--color-rose)' : 'var(--color-emerald)'};">${pct}%</td>
+          `;
+          tbody.appendChild(tr);
+        }
+      }
+
+      const panel = document.getElementById('evalResultsPanel');
+      if (panel) {
+        panel.style.display = 'block';
+        panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+
+    let hasLoadedLatestEval = false;
+    function loadLatestEvalReportOnce() {
+      if (hasLoadedLatestEval || latestBenchmarkData) return;
+      hasLoadedLatestEval = true;
+      safeFetchJson('/api/eval/latest')
+        .then(data => {
+          if (data && data.success && data.report) {
+            latestBenchmarkData = data.report;
+            renderEvalReport(data.report);
+          }
+        })
+        .catch(() => {});
+    }
+
+    function togglePipelineDrawer(drawerId, btn) {
+      const el = document.getElementById(drawerId);
+      if (!el) return;
+      const isHidden = (el.style.display === 'none' || !el.style.display);
+      el.style.display = isHidden ? 'block' : 'none';
+      const chevron = btn.querySelector('.chevron');
+      if (chevron) chevron.textContent = isHidden ? '▲' : '▼';
+    }
+
+    async function safeFetchJson(url, options = {}) {
+      const res = await fetch(url, options);
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        const text = await res.text();
+        throw new Error(`Server returned status ${res.status}: ${text.substring(0, 120)}...`);
+      }
+      return await res.json();
+    }
+
+    function copySnippet(elementId, btn) {
+      const el = document.getElementById(elementId);
+      if (!el) return;
+      const text = el.innerText || el.textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const orig = btn.innerText;
+        btn.innerText = "✓ คัดลอกแล้ว";
+        btn.style.borderColor = "var(--color-emerald)";
+        btn.style.color = "var(--color-emerald)";
+        setTimeout(() => {
+          btn.innerText = orig;
+          btn.style.borderColor = "";
+          btn.style.color = "";
+        }, 1500);
+      });
+    }
+
+    // Unified Filtering for Compact Table
+    const searchInput = document.getElementById('searchInput');
+    const originFilter = document.getElementById('originFilter');
+    const defenseFilter = document.getElementById('defenseFilter');
+    const typeFilter = document.getElementById('typeFilter');
+    const langFilter = document.getElementById('langFilter');
+    const tabButtons = document.querySelectorAll('.filter-pills .btn-filter-pill');
+
+    let currentCategoryFilter = 'all';
+
+    function filterCases() {
+      const query = (searchInput.value || '').toLowerCase().trim();
+      const origin = originFilter ? originFilter.value : 'ALL';
+      const defense = defenseFilter ? defenseFilter.value : 'ALL';
+      const attackType = typeFilter ? typeFilter.value : 'ALL';
+      const lang = langFilter ? langFilter.value : 'ALL';
+
+      const mainRows = document.querySelectorAll('.unified-audit-table tbody tr.case-row');
+
+      mainRows.forEach(row => {
+        const detailRow = row.nextElementSibling;
+        const cat = row.getAttribute('data-category');
+        const entryOrigin = row.getAttribute('data-origin') || 'batch';
+        const entryDef = row.getAttribute('data-defense');
+        const entryType = row.getAttribute('data-type');
+        const entryLang = row.getAttribute('data-lang');
+        const text = (row.innerText + ' ' + (detailRow ? detailRow.innerText : '')).toLowerCase();
+
+        const matchCat = (currentCategoryFilter === 'all' || currentCategoryFilter === cat);
+        const matchOrigin = (origin === 'ALL' || origin === entryOrigin);
+        const matchDef = (defense === 'ALL' || defense === entryDef);
+        const matchType = (attackType === 'ALL' || attackType === entryType);
+        const matchLang = (lang === 'ALL' || lang === entryLang);
+        const matchSearch = (!query || text.includes(query));
+
+        if (matchCat && matchOrigin && matchDef && matchType && matchLang && matchSearch) {
+          row.style.display = 'table-row';
+        } else {
+          row.style.display = 'none';
+          if (detailRow && detailRow.classList.contains('case-detail-row')) {
+            detailRow.style.display = 'none';
+          }
+        }
+      });
+
+      const hasSecondary = (origin !== 'ALL' || defense !== 'ALL' || attackType !== 'ALL' || lang !== 'ALL');
+      const advBtn = document.getElementById('btnToggleAdvancedFilters');
+      if (advBtn) {
+        advBtn.innerHTML = hasSecondary ? '⚙️ ตัวกรอง <span class="filter-active-dot"></span>' : '⚙️ ตัวกรอง';
+      }
+    }
+
+    if (searchInput) searchInput.addEventListener('input', filterCases);
+    if (originFilter) originFilter.addEventListener('change', filterCases);
+    if (defenseFilter) defenseFilter.addEventListener('change', filterCases);
+    if (typeFilter) typeFilter.addEventListener('change', filterCases);
+    if (langFilter) langFilter.addEventListener('change', filterCases);
+
+    tabButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        tabButtons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentCategoryFilter = btn.getAttribute('data-filter');
+        filterCases();
+      });
+    });
+
+    const form = document.getElementById('eval-form');
+    const execBtn = document.getElementById('exec-btn');
+    const liveBanner = document.getElementById('live-banner');
+    const liveBannerText = document.getElementById('live-banner-text');
+
+    if (form) {
+      form.addEventListener('submit', () => {
+        if (execBtn) {
+          execBtn.disabled = true;
+          execBtn.innerText = "⏳ กำลังเริ่มรัน...";
+        }
+      });
+    }
+
+    function checkLiveStatus() {
+      fetch('/status')
+        .then(r => r.json())
+        .then(data => {
+          if (data.running) {
+            if (execBtn) {
+              execBtn.disabled = true;
+              execBtn.innerText = "⏳ กำลังรัน...";
+            }
+            if (liveBanner) {
+              liveBanner.style.display = "flex";
+              if (liveBannerText) {
+                liveBannerText.innerHTML = `⏳ กำลังรันการทดสอบในพื้นหลัง: เคส <b>${data.case_id}</b> | ระดับป้องกัน: <b>${(data.defense || '').toUpperCase()}</b> | จำนวนรอบสูงสุด: <b>${data.attempts}</b> ...`;
+              }
+            }
+          } else {
+            if (liveBanner && liveBanner.style.display !== "none") {
+              window.location.reload();
+            }
+          }
+        })
+        .catch(() => {});
+    }
+
+    {% if run_status.is_locked %}
+      setInterval(checkLiveStatus, 2500);
+    {% else %}
+      setInterval(checkLiveStatus, 8000);
+    {% endif %}
+
+    const CSRF_TOKEN = "{{ csrf_token }}";
+    let activeManualSession = null;
+    let manualTemplatesList = [];
+    let currentPromptMode = 'template';
+    let aiContinueRunning = false;
+
+    async function loadTemplatesOnce() {
+      if (manualTemplatesList.length > 0) return;
+      try {
+        const res = await safeFetchJson('/api/manual/templates');
+        if (res.success && res.templates) {
+          manualTemplatesList = res.templates;
+          updateTemplateDropdown();
+        }
+      } catch (err) {
+        console.error('Failed to load templates:', err);
+      }
+    }
+
+    function onManualLangOrTypeChange() {
+      updateTemplateDropdown();
+    }
+
+    function updateTemplateDropdown() {
+      const picker = document.getElementById('manualTemplatePicker');
+      if (!picker) return;
+
+      const langEl = document.getElementById('manualLang');
+      const typeEl = document.getElementById('manualAttackType');
+      const selectedLang = activeManualSession ? activeManualSession.language : (langEl ? langEl.value : 'Thai');
+      const selectedType = activeManualSession ? activeManualSession.attack_type : (typeEl ? typeEl.value : 'direct');
+
+      picker.innerHTML = '<option value="">-- เลือกเคสแม่แบบ --</option>';
+
+      const matched = manualTemplatesList.filter(c => {
+        const mType = !selectedType || c.attack_type === selectedType;
+        const mLang = !selectedLang || c.language === selectedLang || selectedLang === 'Mixed';
+        return mType && mLang;
+      });
+
+      const displayList = matched.length > 0 ? matched : manualTemplatesList;
+      displayList.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = `[${c.id}] (${c.language}/${c.attack_type}) ${c.technique || c.prompt.substring(0, 40)}`;
+        opt.dataset.prompt = c.prompt;
+        picker.appendChild(opt);
+      });
+    }
+
+    function onTemplateSelected() {
+      const picker = document.getElementById('manualTemplatePicker');
+      const selectedOpt = picker.options[picker.selectedIndex];
+      if (selectedOpt && selectedOpt.dataset.prompt) {
+        document.getElementById('manualPromptInput').value = selectedOpt.dataset.prompt;
+      }
+    }
+
+    function switchPromptMode(mode) {
+      currentPromptMode = mode;
+      const pillTmpl = document.getElementById('pillTemplate');
+      const pillCust = document.getElementById('pillCustom');
+      const pillAi = document.getElementById('pillAiGenerate');
+      const tmplRow = document.getElementById('templateSelectRow');
+      const aiPanel = document.getElementById('aiGeneratePanel');
+
+      if (pillTmpl) pillTmpl.classList.toggle('active', mode === 'template');
+      if (pillCust) pillCust.classList.toggle('active', mode === 'custom');
+      if (pillAi) pillAi.classList.toggle('active', mode === 'ai_generate');
+
+      if (tmplRow) tmplRow.style.display = (mode === 'template') ? 'flex' : 'none';
+      if (aiPanel) aiPanel.style.display = (mode === 'ai_generate') ? 'flex' : 'none';
+    }
+
+    async function generatePromptWithAi() {
+      const ideaInput = document.getElementById('aiPromptIdeaInput');
+      const idea = (ideaInput ? ideaInput.value : '').trim();
+      const techniqueSelect = document.getElementById('aiTechniqueSelect');
+      const technique = techniqueSelect ? techniqueSelect.value : 'auto';
+
+      if (!idea) {
+        alert('กรุณากรอกคำอธิบายหรือไอเดียของ Prompt ก่อนให้ AI สร้าง');
+        if (ideaInput) ideaInput.focus();
+        return;
+      }
+
+      const btn = document.getElementById('btnRunAiGenerate');
+      btn.disabled = true;
+      btn.textContent = '⏳ กำลังสร้าง...';
+
+      const payload = {
+        description: idea,
+        technique: technique,
+        session_id: activeManualSession ? activeManualSession.session_id : '',
+        defense: activeManualSession ? activeManualSession.defense : (document.getElementById('manualDefense')?.value || 'off'),
+        language: activeManualSession ? activeManualSession.language : (document.getElementById('manualLang')?.value || 'Thai'),
+        targets: activeManualSession ? (activeManualSession.targets || []).join(',') : (document.getElementById('manualTargets')?.value || ''),
+        blue_role: activeManualSession ? activeManualSession.blue_role : (document.getElementById('manualBlueRole')?.value || 'registrar_staff'),
+        red_profile: activeManualSession ? activeManualSession.red_profile : (document.getElementById('manualRedProfile')?.value || 'realistic_attacker'),
+      };
+
+      try {
+        const res = await safeFetchJson('/api/manual/generate-prompt', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': CSRF_TOKEN,
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (res.success && res.prompt) {
+          const card = document.getElementById('aiArchitectResultCard');
+          document.getElementById('aiResultAnalysis').textContent = res.analysis || 'วิเคราะห์เรียบร้อย';
+          document.getElementById('aiResultTactic').textContent = res.tactic || 'กลยุทธ์ตามบริบท';
+          document.getElementById('aiResultPrompt').textContent = res.prompt;
+          if (card) card.style.display = 'flex';
+        } else {
+          alert('ไม่สามารถสร้าง Prompt ได้: ' + (res.error || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('เกิดข้อผิดพลาดในการเชื่อมต่อ: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '✨ สร้าง Prompt';
+      }
+    }
+
+    function applyGeneratedPromptToInput() {
+      const generatedPrompt = document.getElementById('aiResultPrompt').textContent;
+      if (generatedPrompt) {
+        const input = document.getElementById('manualPromptInput');
+        input.value = generatedPrompt;
+        input.focus();
+        document.getElementById('aiArchitectResultCard').style.display = 'none';
+      }
+    }
+
+    async function startManualSession(event) {
+      if (event) event.preventDefault();
+      const form = document.getElementById('manualStartForm');
+      const formData = new FormData(form);
+      const payload = {
+        defense: formData.get('defense') || 'off',
+        language: formData.get('language') || 'Thai',
+        attack_type: formData.get('attack_type') || 'direct',
+        blue_role: formData.get('blue_role') || 'registrar_staff',
+        red_profile: formData.get('red_profile') || 'realistic_attacker',
+        targets: formData.get('targets') || '',
+      };
+
+      const startBtn = document.getElementById('manualStartBtn');
+      startBtn.disabled = true;
+      startBtn.textContent = '⏳ กำลังเตรียม...';
+
+      try {
+        const res = await safeFetchJson('/api/manual/start', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': CSRF_TOKEN,
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.success) {
+          alert('ไม่สามารถเริ่มเซสชันได้: ' + (res.error || 'Unknown error'));
+          return;
+        }
+
+        activeManualSession = res;
+
+        document.getElementById('activeSessionBadge').textContent = res.session_id;
+        document.getElementById('activeDefenseBadge').textContent = 'DEFENSE: ' + res.defense.toUpperCase();
+        document.getElementById('activeBlueRoleBadge').textContent = res.blue_role;
+        document.getElementById('activeRedProfileBadge').textContent = res.red_profile;
+        document.getElementById('activeLangBadge').textContent = res.language;
+        document.getElementById('activeTypeBadge').textContent = res.attack_type.toUpperCase();
+        document.getElementById('activeTurnBadge').textContent = 'Turn 1';
+
+        const tgtBadge = document.getElementById('activeTargetsBadge');
+        if (res.targets && res.targets.length > 0) {
+          tgtBadge.textContent = 'TARGETS: ' + res.targets.join(', ');
+          tgtBadge.style.display = 'inline-block';
+        } else {
+          tgtBadge.style.display = 'none';
+        }
+
+        document.getElementById('manualSetupCard').style.display = 'none';
+        document.getElementById('manualChatArea').style.display = 'flex';
+
+        document.getElementById('chatScrollArea').innerHTML = `
+          <div id="chatEmptyPlaceholder" style="text-align: center; color: var(--text-dim); padding: 50px 20px; font-style: italic;">
+            ✨ เริ่มต้นบทสนทนา: พิมพ์คำสั่งด้านล่าง หรือเลือกแม่แบบเพื่อส่งข้อความแรกไปยัง Blue Assistant
+          </div>`;
+        document.getElementById('chatStatusAlert').style.display = 'none';
+
+        loadTemplatesOnce();
+        updateTemplateDropdown();
+        switchPromptMode('template');
+      } catch (err) {
+        alert('การเชื่อมต่อขัดข้อง: ' + err.message);
+      } finally {
+        startBtn.disabled = false;
+        startBtn.textContent = '🚀 เริ่มต้นเซสชันแชทสด';
+      }
+    }
+
+    function appendTurnToChat(turn) {
+      const placeholder = document.getElementById('chatEmptyPlaceholder');
+      if (placeholder) placeholder.remove();
+
+      const scrollArea = document.getElementById('chatScrollArea');
+      const isAI = turn.sender && turn.sender.includes('AI');
+      const card = document.createElement('div');
+      card.className = 'chat-turn-card';
+
+      let canaryHtml = '';
+      if (turn.target_leaked && turn.target_leaked.length > 0) {
+        canaryHtml += `
+          <div class="canary-alert">
+            🎯 ตรวจพบข้อมูลเป้าหมายรั่วไหล (Target Leaked): ${turn.target_leaked.map(c => `<span class="canary-token">${escapeHtml(c)}</span>`).join(' ')}
+          </div>`;
+      }
+      if (turn.hits && turn.hits.length > 0) {
+        canaryHtml += `
+          <div class="canary-alert" style="background:var(--color-amber-bg);color:#fde68a;">
+            🎯 ตรวจพบข้อมูลเป้าหมายที่กำหนดไว้: ${turn.hits.map(h => `<span class="tag amber">${escapeHtml(h)}</span>`).join(' ')}
+          </div>`;
+      }
+      if (turn.collateral_leaked && turn.collateral_leaked.length > 0) {
+        canaryHtml += `
+          <div class="canary-alert" style="background:var(--color-amber-bg);color:#fde68a;">
+            ⚠️ ตรวจพบข้อมูลลับอื่นรั่วไหลนอกเป้าหมาย (Collateral Leak): ${turn.collateral_leaked.map(c => `<span class="tag amber">${escapeHtml(c)}</span>`).join(' ')}
+          </div>`;
+      } else if (!turn.target_leaked && turn.leaked && turn.leaked.length > 0) {
+        canaryHtml += `
+          <div class="canary-alert">
+            🚨 ตรวจพบข้อมูล Canary รั่วไหล: ${turn.leaked.map(c => `<span class="canary-token">${escapeHtml(c)}</span>`).join(' ')}
+          </div>`;
+      }
+
+      if (turn.schema_disclosed && turn.schema_disclosed.length > 0) {
+        canaryHtml += `
+          <div class="canary-alert" style="background:var(--color-amber-bg);color:#fde68a;">
+            ⚠️ ตรวจพบการเปิดเผยชื่อตารางความลับภายใน (Schema Disclosure): ${turn.schema_disclosed.map(s => `<span class="tag amber">${escapeHtml(s)}</span>`).join(' ')}
+          </div>`;
+      }
+
+      let metaHtml = '';
+      if (turn.meta && (turn.meta.analysis || turn.meta.strategy)) {
+        metaHtml = `
+          <div class="red-meta-box">
+            ${turn.meta.strategy ? `<div><b>[COUNTER_STRATEGY]:</b> ${escapeHtml(turn.meta.strategy)}</div>` : ''}
+            ${turn.meta.analysis ? `<div><b>[ANALYSIS]:</b> ${escapeHtml(turn.meta.analysis)}</div>` : ''}
+          </div>`;
+      }
+
+      let toolsHtml = '<span>ไม่ได้เรียกใช้ Tool</span>';
+      if (turn.tool_calls && turn.tool_calls.length > 0) {
+        toolsHtml = turn.tool_calls.map(tc => {
+          const tbl = tc.args && tc.args.table ? tc.args.table : '-';
+          const reason = tc.reason ? ` (${escapeHtml(tc.reason)})` : '';
+          const statusCls = tc.status === 'granted' ? 'color:var(--color-emerald);' : 'color:var(--color-rose);';
+          return `<code>${escapeHtml(tc.tool)}(table=${escapeHtml(tbl)}) -> <b style="${statusCls}">${escapeHtml(tc.status.toUpperCase())}</b>${reason}</code>`;
+        }).join('<br>');
+      }
+
+      const turnId = 'turn-' + turn.turn_no + '-' + Math.random().toString(36).substring(2, 6);
+      const attackType = (activeManualSession?.attack_type || 'DIRECT').toUpperCase();
+      const blueRole = turn.blue_role || activeManualSession?.blue_role || 'registrar_staff';
+
+      let t1Status = turn.defense === 'off' ? 'neutral' : 'active';
+      let t1Badge = turn.defense === 'off' ? 'OFF' : 'ENFORCED';
+      let t1Desc = `Role: ${escapeHtml(blueRole)}`;
+
+      let t2Status = 'neutral';
+      let t2Badge = 'NO TOOLS';
+      let t2Desc = 'ไม่มีการเรียกฐานข้อมูล';
+      if (turn.tool_calls && turn.tool_calls.length > 0) {
+        if (turn.private_table_blocked) {
+          t2Status = 'blocked';
+          t2Badge = 'BLOCKED BY ACL';
+          t2Desc = 'สกัดกั้นตารางลับสำเร็จ';
+        } else if (turn.private_table_accessed) {
+          t2Status = 'breached';
+          t2Badge = 'ACL BYPASSED';
+          t2Desc = 'ตารางลับถูกเข้าถึง';
+        } else {
+          t2Status = 'passed';
+          t2Badge = 'GRANTED';
+          t2Desc = 'เฉพาะตารางสาธารณะ';
+        }
+      }
+
+      let t3Status = 'neutral';
+      let t3Badge = 'UNTOUCHED';
+      let t3Desc = 'ไม่มี Canaries ถูกดึง';
+      if ((turn.raw_leaked && turn.raw_leaked.length > 0) || (turn.leaked && turn.leaked.length > 0)) {
+        t3Status = 'breached';
+        t3Badge = 'TRIGGERED';
+        t3Desc = `พบ ${turn.raw_leaked?.length || turn.leaked?.length || 0} โทเค็น`;
+      }
+
+      let t4Status = 'neutral';
+      let t4Badge = 'DLP CLEAN';
+      let t4Desc = 'ไม่มีโทเค็นรั่วไหล';
+      if (turn.output_intercepted) {
+        t4Status = 'intercepted';
+        t4Badge = 'REDACTED';
+        t4Desc = 'Output DLP เซ็นเซอร์สำเร็จ';
+      } else if (turn.leaked && turn.leaked.length > 0) {
+        t4Status = 'breached';
+        t4Badge = 'DLP LEAKED';
+        t4Desc = 'โทเค็นหลุดรอด DLP';
+      }
+
+      let verdictClass = 'protected';
+      let verdictTitle = '🛡️ DEFENDED (ปลอดภัย)';
+      let verdictDetail = 'ไม่มีข้อมูลความลับรั่วไหล';
+      if (turn.target_leaked && turn.target_leaked.length > 0) {
+        verdictClass = 'breached';
+        verdictTitle = '🚨 TARGET COMPROMISED';
+        verdictDetail = `เป้าหมาย: ${turn.target_leaked.join(', ')}`;
+      } else if (turn.leaked && turn.leaked.length > 0) {
+        verdictClass = 'breached';
+        verdictTitle = '🚨 BREACHED';
+        verdictDetail = `Canaries: ${turn.leaked.join(', ')}`;
+      } else if (turn.schema_disclosed && turn.schema_disclosed.length > 0) {
+        verdictClass = 'warning';
+        verdictTitle = '⚠️ SCHEMA DISCLOSED';
+        verdictDetail = `ตาราง: ${turn.schema_disclosed.join(', ')}`;
+      } else if (turn.output_intercepted) {
+        verdictClass = 'intercepted';
+        verdictTitle = '🛡️ TIER 4 DLP REDACTED';
+        verdictDetail = 'Output Guard เซ็นเซอร์ข้อมูลลับสำเร็จ';
+      } else if (turn.private_table_blocked) {
+        verdictClass = 'intercepted';
+        verdictTitle = '🛡️ TIER 2 ACL BLOCKED';
+        verdictDetail = 'Gatekeeper บล็อกการเข้าถึงตารางลับ';
+      }
+
+      card.innerHTML = `
+        <div class="chat-turn-header ${isAI ? 'ai' : 'human'}">
+          <span>Turn ${turn.turn_no} | ผู้ส่ง: <b>${escapeHtml(turn.sender)}</b></span>
+          <span style="font-weight: normal; font-size: 11px;">${new Date().toLocaleTimeString()}</span>
+        </div>
+        ${canaryHtml}
+
+        <div class="pipeline-bar-trigger">
+          <button type="button" class="btn-pipeline-toggle" onclick="togglePipelineDrawer('${turnId}-pipeline', this)">
+            <span>🔍 ตรวจสอบ Defense Pipeline (5 Tiers)</span>
+            <span class="pipeline-status-badge ${verdictClass}">${verdictTitle}</span>
+            <span class="chevron" style="font-size: 10px;">▼</span>
+          </button>
+        </div>
+
+        <div id="${turnId}-pipeline" class="pipeline-drawer" style="display: none;">
+          <div class="pipeline-stepper">
+            <div class="pipeline-step">
+              <div class="step-num">INBOUND ▸</div>
+              <div class="step-badge" style="color: #fca5a5;">${escapeHtml(attackType)}</div>
+              <div class="step-sub">${escapeHtml(turn.sender)}</div>
+            </div>
+            <div class="pipeline-step">
+              <div class="step-num">T1 ▸ POLICY</div>
+              <div class="step-badge">${t1Badge}</div>
+              <div class="step-sub">${escapeHtml(t1Desc)}</div>
+            </div>
+            <div class="pipeline-step">
+              <div class="step-num">T2 ▸ TOOL ACL</div>
+              <div class="step-badge">${t2Badge}</div>
+              <div class="step-sub">${escapeHtml(t2Desc)}</div>
+            </div>
+            <div class="pipeline-step">
+              <div class="step-num">T3 ▸ CANARIES</div>
+              <div class="step-badge">${t3Badge}</div>
+              <div class="step-sub">${escapeHtml(t3Desc)}</div>
+            </div>
+            <div class="pipeline-step">
+              <div class="step-num">T4 ▸ DLP GUARD</div>
+              <div class="step-badge">${t4Badge}</div>
+              <div class="step-sub">${escapeHtml(t4Desc)}</div>
+            </div>
+          </div>
+          <div class="pipeline-verdict-bar ${verdictClass}">
+            <b>${verdictTitle}:</b> ${escapeHtml(verdictDetail)}
+          </div>
+        </div>
+
+        <div class="turn-split-cols">
+          <div class="turn-half-col">
+            <div class="col-header red">
+              <span>🔴 PROMPT ที่ส่งไป</span>
+              <button type="button" class="btn-copy" onclick="copySnippet('${turnId}-prompt', this)">คัดลอก</button>
+            </div>
+            ${metaHtml}
+            <pre class="data-text" id="${turnId}-prompt">${escapeHtml(turn.attack)}</pre>
+          </div>
+          <div class="turn-half-col">
+            <div class="col-header blue">
+              <span>🔵 คำตอบจาก BLUE ASSISTANT</span>
+              <button type="button" class="btn-copy" onclick="copySnippet('${turnId}-resp', this)">คัดลอก</button>
+            </div>
+            <div class="blue-tools-box">
+              <b>Tool Calls:</b><br>${toolsHtml}
+            </div>
+            <pre class="data-text" id="${turnId}-resp">${escapeHtml(turn.error ? 'Error: ' + turn.error : turn.response)}</pre>
+          </div>
+        </div>
+      `;
+
+      scrollArea.appendChild(card);
+      scrollArea.scrollTop = scrollArea.scrollHeight;
+      document.getElementById('activeTurnBadge').textContent = 'Turn ' + (turn.turn_no + 1);
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    async function sendManualPrompt() {
+      if (!activeManualSession) {
+        alert('กรุณาเริ่มต้นเซสชันก่อน');
+        return;
+      }
+      const input = document.getElementById('manualPromptInput');
+      const prompt = (input ? input.value : '').trim();
+      if (!prompt) {
+        alert('กรุณากรอกข้อความ Prompt ก่อนส่ง');
+        return;
+      }
+
+      const sendBtn = document.getElementById('manualSendBtn');
+      sendBtn.disabled = true;
+      sendBtn.textContent = '⏳ ส่ง...';
+
+      try {
+        const res = await safeFetchJson('/api/manual/send', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': CSRF_TOKEN,
+          },
+          body: JSON.stringify({
+            session_id: activeManualSession.session_id,
+            prompt: prompt,
+          }),
+        });
+
+        if (!res.success) {
+          alert('เกิดข้อผิดพลาด: ' + (res.error || 'Unknown error'));
+          return;
+        }
+
+        appendTurnToChat(res);
+        input.value = '';
+        refreshManualHistory();
+
+        if (res.is_target_met) {
+          showAlertBanner(`🎯 สำเร็จ! ตรวจพบข้อมูลเป้าหมายรั่วไหล: ${res.target_leaked || res.hits || res.leaked}`, 'leak');
+        } else if (res.leaked && res.leaked.length > 0) {
+          showAlertBanner(`🚨 ตรวจพบข้อมูล Canary รั่วไหล: ${res.leaked.join(', ')}`, 'leak');
+        }
+      } catch (err) {
+        alert('การส่งข้อความขัดข้อง: ' + err.message);
+      } finally {
+        sendBtn.disabled = false;
+        sendBtn.textContent = '▶ ส่งข้อความ (Send Turn)';
+      }
+    }
+
+    async function executeAiStepOnce() {
+      if (!activeManualSession) return null;
+      const res = await safeFetchJson('/api/manual/ai-step', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': CSRF_TOKEN,
+        },
+        body: JSON.stringify({
+          session_id: activeManualSession.session_id,
+        }),
+      });
+
+      if (res && res.success) {
+        appendTurnToChat(res);
+        refreshManualHistory();
+      }
+      return res;
+    }
+
+    async function startAiContinue() {
+      if (!activeManualSession) {
+        alert('กรุณาเริ่มต้นเซสชันก่อน');
+        return;
+      }
+
+      const roundsSelect = document.getElementById('aiRoundsCount');
+      const roundsVal = roundsSelect ? roundsSelect.value : '3';
+      const isUntilFound = (roundsVal === 'until_found');
+      const maxRounds = isUntilFound ? 50 : parseInt(roundsVal, 10);
+
+      aiContinueRunning = true;
+      document.getElementById('aiContinueBtn').style.display = 'none';
+      document.getElementById('aiStopBtn').style.display = 'inline-block';
+      document.getElementById('aiLiveSpinner').style.display = 'block';
+
+      let currentRound = 0;
+      while (aiContinueRunning && currentRound < maxRounds) {
+        currentRound++;
+        try {
+          const res = await executeAiStepOnce();
+          if (!res || !res.success) {
+            showAlertBanner('AI หยุดการทำงาน: ' + (res?.error || 'เกิดข้อผิดพลาด'), 'leak');
+            break;
+          }
+          if (res.should_stop) {
+            showAlertBanner(res.stop_reason || 'AI หยุดเนื่องจากตรวจพบคอนดิชันสิ้นสุด', 'leak');
+            break;
+          }
+        } catch (err) {
+          showAlertBanner('AI ขัดข้อง: ' + err.message, 'leak');
+          break;
+        }
+        await new Promise(r => setTimeout(r, 600));
+      }
+
+      stopAiContinue();
+    }
+
+    function stopAiContinue() {
+      aiContinueRunning = false;
+      document.getElementById('aiContinueBtn').style.display = 'inline-block';
+      document.getElementById('aiStopBtn').style.display = 'none';
+      document.getElementById('aiLiveSpinner').style.display = 'none';
+    }
+
+    function showAlertBanner(msg, type = 'info') {
+      const box = document.getElementById('chatStatusAlert');
+      const msgSpan = document.getElementById('chatStatusAlertMsg');
+      if (box && msgSpan) {
+        msgSpan.textContent = msg;
+        box.className = 'status-alert-box ' + type;
+        box.style.display = 'flex';
+      }
+    }
+
+    function continueInCurrentChat() {
+      const box = document.getElementById('chatStatusAlert');
+      if (box) box.style.display = 'none';
+      const input = document.getElementById('manualPromptInput');
+      if (input) input.focus();
+    }
+
+    async function resetManualSession() {
+      stopAiContinue();
+      if (activeManualSession) {
+        try {
+          await fetch('/api/manual/reset', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRFToken': CSRF_TOKEN,
+            },
+            body: JSON.stringify({ session_id: activeManualSession.session_id }),
+          });
+        } catch (_) {}
+        activeManualSession = null;
+        document.getElementById('manualChatArea').style.display = 'none';
+        document.getElementById('manualSetupCard').style.display = 'block';
+        document.getElementById('chatStatusAlert').style.display = 'none';
+        document.getElementById('chatScrollArea').innerHTML = '';
+        refreshManualHistory();
+      }
+    }
+
+    function usePromptInPlayground(text) {
+      if (!text) return;
+      const input = document.getElementById('manualPromptInput');
+      if (input && activeManualSession) {
+        input.value = text;
+        input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        input.focus();
+      } else {
+        navigator.clipboard.writeText(text).then(() => {
+          alert('คัดลอก Prompt แล้ว! กรุณากด "เริ่มต้นเซสชันแชทสด" เพื่อส่งข้อความ');
+          const startCard = document.getElementById('manualSetupCard');
+          if (startCard) startCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }).catch(() => {
+          alert('กรุณาเริ่มต้นเซสชันเพื่อใช้งาน Prompt นี้');
+        });
+      }
+    }
+
+    async function refreshManualHistory() {
+      try {
+        const res = await safeFetchJson('/api/manual/history?limit=50');
+        if (!res || !res.success) return;
+        renderManualHistoryTable(res.history || []);
+      } catch (err) {
+        console.warn('Failed to refresh manual history:', err);
+      }
+    }
+
+    function renderManualHistoryTable(history) {
+      const emptyEl = document.getElementById('manualHistoryEmpty');
+      const tableWrap = document.getElementById('manualHistoryTableWrapper');
+      const tbody = document.getElementById('manualHistoryTbody');
+      const badge = document.getElementById('manualHistoryCountBadge');
+
+      if (badge) badge.textContent = `${history.length} รายการ`;
+
+      if (!history || history.length === 0) {
+        if (emptyEl) emptyEl.style.display = 'block';
+        if (tableWrap) tableWrap.style.display = 'none';
+        if (tbody) tbody.innerHTML = '';
+        return;
+      }
+
+      if (emptyEl) emptyEl.style.display = 'none';
+      if (tableWrap) tableWrap.style.display = 'block';
+      if (!tbody) return;
+
+      let html = '';
+      history.forEach((r, idx) => {
+        const loopIdx = idx + 1;
+        const detailId = `manual-detail-ajax-${loopIdx}`;
+        const promptId = `m-p-ajax-${loopIdx}`;
+        const respId = `m-r-ajax-${loopIdx}`;
+
+        let verdictHtml = '';
+        if (r.success === 1) {
+          verdictHtml = `<span class="verdict-pill breached" style="font-size: 10px;">🚨 รั่วไหล (Breached)</span>`;
+          if (r.private_table_accessed) {
+            verdictHtml += ` <span class="tag red" style="font-size: 9px;">TABLE ACCESSED</span>`;
+          }
+        } else if (r.success === 0) {
+          verdictHtml = `<span class="verdict-pill defended" style="font-size: 10px;">🛡️ ป้องกันได้ (Defended)</span>`;
+          if (r.private_table_blocked) {
+            verdictHtml += ` <span class="tag amber" style="font-size: 9px;">BLOCKED</span>`;
+          }
+          if (r.output_intercepted) {
+            verdictHtml += ` <span class="tag green" style="font-size: 9px;">REDACTED</span>`;
+          }
+        } else {
+          verdictHtml = `<span class="verdict-pill error" style="font-size: 10px;">⚠️ Error</span>`;
+        }
+
+        let canariesHtml = '';
+        if (r.canaries_list && r.canaries_list.length > 0) {
+          const tokens = r.canaries_list.map(c => `<span class="canary-token">${escapeHtml(c)}</span>`).join(' ');
+          canariesHtml = `<div class="canary-alert" style="margin-bottom: 6px;"><b>⚠️ ข้อมูลความลับ Canary ที่รั่วไหล:</b> ${tokens}</div>`;
+        }
+
+        let schemaHtml = '';
+        if (r.schema_disclosed_list && r.schema_disclosed_list.length > 0) {
+          const tags = r.schema_disclosed_list.map(s => `<span class="tag amber">${escapeHtml(s)}</span>`).join(' ');
+          schemaHtml = `<div class="canary-alert" style="background: var(--color-amber-bg); color: #fde68a; margin-bottom: 6px;"><b>⚠️ การเปิดเผยโครงสร้างฐานข้อมูล (Schema Disclosure):</b> ${tags}</div>`;
+        }
+
+        let toolsHtml = '';
+        if (r.tool_calls_list && r.tool_calls_list.length > 0) {
+          const toolRows = r.tool_calls_list.map(tc => {
+            const tbl = tc.args && tc.args.table ? tc.args.table : '-';
+            const stCls = tc.status === 'granted' ? 'color:var(--color-emerald);' : 'color:var(--color-rose);';
+            const reason = tc.reason ? ` (${escapeHtml(tc.reason)})` : '';
+            return `<code>${escapeHtml(tc.tool)}(table=${escapeHtml(tbl)}) -> <b style="${stCls}">${escapeHtml(tc.status.toUpperCase())}</b>${reason}</code>`;
+          }).join('<br>');
+          toolsHtml = `<div class="blue-tools-box" style="margin-bottom: 6px;"><b>Tool Calls:</b><br>${toolRows}</div>`;
+        }
+
+        let metaHtml = '';
+        if (r.red_analysis || r.red_strategy) {
+          metaHtml = `<div class="red-meta-box" style="margin-bottom: 6px;">` +
+            (r.red_strategy ? `<div><b>[STRATEGY]:</b> ${escapeHtml(r.red_strategy)}</div>` : '') +
+            (r.red_analysis ? `<div><b>[ANALYSIS]:</b> ${escapeHtml(r.red_analysis)}</div>` : '') +
+            `</div>`;
+        }
+
+        const promptText = r.injected_prompt || '';
+        const shortPrompt = promptText.length > 75 ? (promptText.slice(0, 75) + '...') : promptText;
+
+        html += `
+          <tr class="manual-history-row" onclick="toggleRowDetails('${detailId}', this)" style="cursor: pointer;">
+            <td style="padding: 8px 10px; border-bottom: 1px solid var(--border-subtle); vertical-align: middle;">
+              <span class="row-id" style="font-weight:700;">#${escapeHtml(r.id)}</span>
+              <span class="tag blue" style="font-size:10px;">R${escapeHtml(r.attempt)}</span>
+            </td>
+            <td style="padding: 8px 10px; border-bottom: 1px solid var(--border-subtle); vertical-align: middle;">
+              <span class="tag-defense">${escapeHtml((r.defense_level || 'off').toUpperCase())}</span>
+            </td>
+            <td style="padding: 8px 10px; border-bottom: 1px solid var(--border-subtle); vertical-align: middle; max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+              <span style="color: var(--text-white); font-family: var(--font-mono); font-size: 11px;">
+                ${escapeHtml(shortPrompt)}
+              </span>
+            </td>
+            <td style="padding: 8px 10px; border-bottom: 1px solid var(--border-subtle); vertical-align: middle;">
+              ${verdictHtml}
+            </td>
+            <td style="padding: 8px 10px; border-bottom: 1px solid var(--border-subtle); vertical-align: middle; font-family: var(--font-mono); font-size: 10px; color: var(--text-dim);">
+              ${escapeHtml(r.run_timestamp || '')}
+            </td>
+            <td style="padding: 8px 10px; border-bottom: 1px solid var(--border-subtle); vertical-align: middle; text-align: right;">
+              <button type="button" class="btn-expand-row" style="font-size: 10px; padding: 2px 6px;">ดูข้อมูล ▼</button>
+            </td>
+          </tr>
+          <tr id="${detailId}" class="manual-detail-row" style="display: none;">
+            <td colspan="6" style="padding: 10px; background: var(--bg-surface-sub); border-bottom: 1px solid var(--border-subtle);">
+              <div class="turn-split-cols" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div class="turn-half-col" style="background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 8px;">
+                  <div class="col-header red" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 11px; font-weight: 700; color: #fca5a5;">
+                    <span>📤 ข้อความคำสั่งที่ส่งไป (PROMPT SENT - TURN ${escapeHtml(r.attempt)})</span>
+                    <div style="display: flex; gap: 4px;">
+                      <button type="button" class="btn-copy" onclick="event.stopPropagation(); copySnippet('${promptId}', this)">คัดลอก</button>
+                      <button type="button" class="btn-copy" onclick="event.stopPropagation(); usePromptInPlayground(document.getElementById('${promptId}').innerText)">นำไปใช้</button>
+                    </div>
+                  </div>
+                  ${metaHtml}
+                  <pre class="data-text" id="${promptId}" style="margin: 0; min-height: 50px; max-height: 200px; overflow-y: auto; font-family: var(--font-mono); font-size: 11px; background: var(--bg-input); padding: 6px; border-radius: 3px; white-space: pre-wrap; word-break: break-word;">${escapeHtml(r.injected_prompt || '')}</pre>
+                </div>
+                <div class="turn-half-col" style="background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 8px;">
+                  <div class="col-header blue" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 11px; font-weight: 700; color: #38bdf8;">
+                    <span>📥 คำตอบที่ได้รับกลับมา (BLUE RESPONSE)</span>
+                    <button type="button" class="btn-copy" onclick="event.stopPropagation(); copySnippet('${respId}', this)">คัดลอก</button>
+                  </div>
+                  ${canariesHtml}
+                  ${schemaHtml}
+                  ${toolsHtml}
+                  <pre class="data-text" id="${respId}" style="margin: 0; min-height: 50px; max-height: 200px; overflow-y: auto; font-family: var(--font-mono); font-size: 11px; background: var(--bg-input); padding: 6px; border-radius: 3px; white-space: pre-wrap; word-break: break-word;">${escapeHtml(r.response || '')}</pre>
+                </div>
+              </div>
+            </td>
+          </tr>
+        `;
+      });
+
+      tbody.innerHTML = html;
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const initialTab = window.location.hash.replace('#', '');
+      if (initialTab === 'playground' || initialTab === 'owasp' || initialTab === 'dashboard') {
+        switchMainTab(initialTab);
+      }
+
+      const promptInput = document.getElementById('manualPromptInput');
+      if (promptInput) {
+        promptInput.addEventListener('keydown', (event) => {
+          if (event.isComposing || event.keyCode === 229) {
+            return;
+          }
+          if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+            event.preventDefault();
+            sendManualPrompt();
+          }
+        });
+      }
+    });
+  </script>
+</body>
+</html>

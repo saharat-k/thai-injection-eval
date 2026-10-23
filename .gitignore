@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+*.egg-info/
+# Jupyter
+.ipynb_checkpoints/
+# OS files
+.DS_Store
+Thumbs.db
+# Secrets
+.env
+.flask_secret
+# Build artifacts
+*.log
+# Generated data and reports
+*.db
+*.db-wal
+*.db-shm
+data/*.db
+data/*.sqlite
+data/*.db-wal
+data/*.db-shm
+results.md
+
+# Scratch
+scratch/
+
+# Evaluator output (regenerate with python -m core.evaluator)
+results/
