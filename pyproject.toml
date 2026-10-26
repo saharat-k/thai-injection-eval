@@ -20,7 +20,7 @@ full = [
     "flask>=2.2.0",
     "faker>=33.0.0",
     "matplotlib>=3.8.0",
-    "scipy==1.18.1",
+    "scipy>=1.11.0",
 ]
 
 [project.scripts]
