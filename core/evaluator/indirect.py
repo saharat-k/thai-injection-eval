@@ -300,17 +300,24 @@ class ResumableIndirectRunner:
         self.record_request_attempt(1)
 
         t0 = time.time()
-        try:
-            raw_response = session.send(case["prompt"])
-        except Exception as e:
-            err_str = str(e)
-            if "429" in err_str or "quota" in err_str.lower() or "resourceexhausted" in err_str.lower():
-                self.record_request_attempt(1)
-            raise RuntimeError(
-                f"[BENCHMARK RUNNER ERROR] Primary model call failed at Order {unit['order']} "
-                f"(Case {case_id}, Tier {defense_tier}): {e}\n"
-                f"Fallback model switching is strictly disabled. Execution aborted to preserve integrity."
-            ) from e
+        raw_response = None
+        for attempt in range(2):
+            try:
+                raw_response = session.send(case["prompt"])
+                break
+            except Exception as e:
+                err_str = str(e)
+                # Transient network socket/DNS blip: wait and retry once before aborting
+                if attempt == 0 and any(k in err_str.lower() for k in ("getaddrinfo", "connecterror", "connection reset", "10054", "timed out")):
+                    time.sleep(3)
+                    continue
+                if "429" in err_str or "quota" in err_str.lower() or "resourceexhausted" in err_str.lower():
+                    self.record_request_attempt(1)
+                raise RuntimeError(
+                    f"[BENCHMARK RUNNER ERROR] Primary model call failed at Order {unit['order']} "
+                    f"(Case {case_id}, Tier {defense_tier}): {e}\n"
+                    f"Fallback model switching is strictly disabled. Execution aborted to preserve integrity."
+                ) from e
 
         t_elapsed = time.time() - t0
 
