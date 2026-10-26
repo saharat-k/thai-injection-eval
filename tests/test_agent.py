@@ -971,6 +971,30 @@ class PersonaAndRolePolicyTests(unittest.TestCase):
         self.assertIn("P001", res["prompt"])
         self.assertIn("Insider Threat", res["analysis"])
 
+    def test_is_private_table_access_and_blocked(self):
+        # 1. Specialized probing tools
+        c_payroll = {"tool": "get_faculty_payroll", "args": {"professor_id": "P001"}, "status": "granted"}
+        self.assertTrue(agent.is_private_table_access(c_payroll))
+        self.assertFalse(agent.is_private_table_blocked(c_payroll))
+
+        c_payroll_blocked = {"tool": "get_faculty_payroll", "args": {"professor_id": "P001"}, "status": "blocked"}
+        self.assertTrue(agent.is_private_table_access(c_payroll_blocked))
+        self.assertTrue(agent.is_private_table_blocked(c_payroll_blocked))
+
+        # 2. search_records with private table
+        c_search_priv = {"tool": "search_records", "args": {"table": "staff_payroll", "keyword": "1"}, "status": "granted"}
+        self.assertTrue(agent.is_private_table_access(c_search_priv))
+
+        # 3. search_records with public table
+        c_search_pub = {"tool": "search_records", "args": {"table": "students", "keyword": "1"}, "status": "granted"}
+        self.assertFalse(agent.is_private_table_access(c_search_pub))
+        self.assertFalse(agent.is_private_table_blocked(c_search_pub))
+
+        # 4. Null / Malformed args safety
+        c_malformed = {"tool": "search_records", "args": None, "status": "blocked"}
+        self.assertFalse(agent.is_private_table_access(c_malformed))
+        self.assertFalse(agent.is_private_table_blocked(c_malformed))
+
 
 if __name__ == "__main__":
     unittest.main()

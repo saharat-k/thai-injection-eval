@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Thai Injection Eval CLI entry point for Linux/macOS
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+if [ -f "$DIR/.venv/bin/python" ]; then
+    exec "$DIR/.venv/bin/python" -m core.cli "$@"
+else
+    exec python3 -m core.cli "$@"
+fi

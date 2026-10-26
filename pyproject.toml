@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "thai-injection-eval"
+version = "1.2.0"
+description = "Thai Prompt Injection Security Evaluator & Benchmark (OWASP LLM01 / LLM06)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+dependencies = [
+    "google-genai>=1.0.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+web = ["flask>=2.2.0"]
+full = [
+    "flask>=2.2.0",
+    "faker>=33.0.0",
+    "matplotlib>=3.8.0",
+    "scipy==1.18.1",
+]
+
+[project.scripts]
+thai-eval = "core.cli.app:main"
