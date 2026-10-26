@@ -146,3 +146,88 @@ class TestBenchmarkLockIntegrity(unittest.TestCase):
         self.assertIn("Test cases hash mismatch", str(ctx.exception))
         # Ensure make_client was never called and no API calls were made
         mock_make_client.assert_not_called()
+
+    @patch("agent.BlueSession")
+    def test_runner_run_batch_and_checkpoint_offline(self, mock_session_cls):
+        """Runner must process scheduled units, track requests, and persist checkpoints correctly."""
+        mock_session = MagicMock()
+        mock_session.model = "gemini-3.5-flash-lite"
+        mock_session.last_model_version = "gemini-3.5-flash-lite-v1"
+        mock_session.last_timestamp = "2026-10-26T14:00:00Z"
+        mock_session.send.return_value = "Summary of announcement with facts 15 and 28."
+        mock_session_cls.return_value = mock_session
+
+        temp_checkpoint = os.path.join(self.temp_dir, "test_cp.json")
+        runner = ResumableIndirectRunner(
+            lock_path=self.lock_path,
+            checkpoint_path=temp_checkpoint,
+            daily_quota_limit=400,
+        )
+
+        # Run 2 units
+        results = runner.run_batch(max_units=2, delay_seconds=0.0, verbose=False)
+        self.assertEqual(len(results), 2)
+        self.assertEqual(len(runner.checkpoint["completed_orders"]), 2)
+        self.assertTrue(os.path.exists(temp_checkpoint))
+
+        # Check request tracking
+        self.assertGreaterEqual(runner.get_today_requests(), 2)
+
+        # Resume run for next 1 unit
+        runner2 = ResumableIndirectRunner(
+            lock_path=self.lock_path,
+            checkpoint_path=temp_checkpoint,
+            daily_quota_limit=400,
+        )
+        self.assertEqual(len(runner2.checkpoint["completed_orders"]), 2)
+        remaining = runner2.get_remaining_units()
+        self.assertEqual(len(remaining), 538)
+
+        results2 = runner2.run_batch(max_units=1, delay_seconds=0.0, verbose=False)
+        self.assertEqual(len(results2), 1)
+        self.assertEqual(len(runner2.checkpoint["completed_orders"]), 3)
+
+    @patch("agent.BlueSession")
+    def test_runner_auto_halts_when_quota_reached(self, mock_session_cls):
+        """Runner must halt immediately when the daily quota limit is reached."""
+        mock_session = MagicMock()
+        mock_session.model = "gemini-3.5-flash-lite"
+        mock_session.last_model_version = "v1"
+        mock_session.last_timestamp = "2026-10-26T14:00:00Z"
+        mock_session.send.return_value = "Response text"
+        mock_session_cls.return_value = mock_session
+
+        temp_checkpoint = os.path.join(self.temp_dir, "quota_cp.json")
+        # Set quota limit to 2
+        runner = ResumableIndirectRunner(
+            lock_path=self.lock_path,
+            checkpoint_path=temp_checkpoint,
+            daily_quota_limit=2,
+        )
+
+        # Running 5 units should halt after quota is reached (at 2 requests)
+        results = runner.run_batch(max_units=5, delay_seconds=0.0, verbose=False)
+        self.assertLessEqual(len(results), 2)
+        self.assertTrue(runner.is_daily_quota_reached())
+
+    @patch("agent.BlueSession")
+    def test_runner_aborts_without_fallback_on_primary_model_error(self, mock_session_cls):
+        """Runner must abort immediately on primary model error and refuse silent fallback."""
+        mock_session = MagicMock()
+        mock_session.model = "gemini-3.5-flash-lite"
+        mock_session.send.side_effect = RuntimeError("503 Service Unavailable")
+        mock_session_cls.return_value = mock_session
+
+        temp_checkpoint = os.path.join(self.temp_dir, "err_cp.json")
+        runner = ResumableIndirectRunner(
+            lock_path=self.lock_path,
+            checkpoint_path=temp_checkpoint,
+            daily_quota_limit=400,
+        )
+
+        with self.assertRaises(RuntimeError) as ctx:
+            runner.run_batch(max_units=1, delay_seconds=0.0, verbose=False)
+
+        self.assertIn("Fallback model switching is strictly disabled", str(ctx.exception))
+        # Ensure completed orders did not add the failed unit
+        self.assertEqual(len(runner.checkpoint["completed_orders"]), 0)

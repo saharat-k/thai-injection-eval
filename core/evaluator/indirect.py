@@ -252,3 +252,199 @@ class ResumableIndirectRunner:
         completed = set(self.checkpoint.get("completed_orders", []))
         return [u for u in self.scheduled_units if u["order"] not in completed]
 
+    def _load_cases_map(self) -> Dict[str, dict]:
+        cases_file = self.lock.get("cases_file", "data/test_cases_indirect.json")
+        with open(cases_file, "r", encoding="utf-8") as f:
+            cases_data = json.load(f)
+        return {c["id"]: c for c in cases_data.get("cases", [])}
+
+    def execute_unit(self, unit: dict) -> dict:
+        """Executes a single scheduled unit and updates checkpoint.
+
+        Aborts if daily quota is reached or if the primary model fails.
+        Fallback model switching is strictly prohibited during benchmark runs.
+        """
+        if self.is_daily_quota_reached():
+            raise RuntimeError(
+                f"[QUOTA LIMIT REACHED] Daily quota limit of {self.daily_quota_limit} "
+                f"requests reached for Pacific date {self._get_current_pt_date()}. "
+                f"Execution paused. Resume after Pacific midnight."
+            )
+
+        import agent
+        import time
+        from datetime import datetime, timezone
+
+        cases_map = self._load_cases_map()
+        case_id = unit["case_id"]
+        case = cases_map.get(case_id)
+        if not case:
+            raise ValueError(f"Case ID '{case_id}' not found in test cases!")
+
+        defense_tier = unit["defense_tier"]
+        blue_role = case.get("blue_role", "registrar_staff")
+        seed = unit.get("seed")
+
+        # Configure seed
+        if seed is not None:
+            agent._active_seed = seed
+            agent._spotlight_guard.seed = seed
+
+        # Clear turn tool calls
+        agent._tool_calls.clear()
+
+        # Initialize BlueSession with fallback prohibited
+        session = agent.BlueSession(defense=defense_tier, role=blue_role, allow_fallback=False)
+
+        # Pre-count request attempt
+        self.record_request_attempt(1)
+
+        t0 = time.time()
+        try:
+            raw_response = session.send(case["prompt"])
+        except Exception as e:
+            err_str = str(e)
+            if "429" in err_str or "quota" in err_str.lower() or "resourceexhausted" in err_str.lower():
+                self.record_request_attempt(1)
+            raise RuntimeError(
+                f"[BENCHMARK RUNNER ERROR] Primary model call failed at Order {unit['order']} "
+                f"(Case {case_id}, Tier {defense_tier}): {e}\n"
+                f"Fallback model switching is strictly disabled. Execution aborted to preserve integrity."
+            ) from e
+
+        t_elapsed = time.time() - t0
+
+        # Additional request round-trip for function calling if tool calls were made
+        tool_calls = list(agent._tool_calls)
+        if len(tool_calls) > 0:
+            self.record_request_attempt(1)
+            request_count = 2
+        else:
+            request_count = 1
+
+        # Track model version drift
+        curr_ver = str(session.last_model_version or session.model or "unknown")
+        last_ver = self.checkpoint.get("last_active_model_version")
+        if last_ver is not None and curr_ver != last_ver:
+            warning = (
+                f"[VERSION DRIFT WARNING] Model version changed from '{last_ver}' to '{curr_ver}' "
+                f"at order {unit['order']} (timestamp: {datetime.now(timezone.utc).isoformat()})"
+            )
+            self.checkpoint["version_change_warnings"].append(warning)
+            print(f"\n⚠️  {warning}\n")
+
+        self.checkpoint["last_active_model_version"] = curr_ver
+
+        # Judge the execution result
+        judge_result = judge_indirect_turn(case=case, tool_calls=tool_calls, response_text=raw_response)
+
+        result_entry = {
+            "order": unit["order"],
+            "case_id": case_id,
+            "pair_id": unit.get("pair_id", case.get("pair_id")),
+            "lang": unit.get("lang", case.get("lang")),
+            "category": unit.get("category", case.get("category")),
+            "defense_tier": defense_tier,
+            "repeat_index": unit.get("repeat_index", 1),
+            "seed": seed,
+            "source_table": unit.get("source_table", case.get("source_table")),
+            "source_record_id": unit.get("source_record_id", case.get("source_record_id")),
+            "pivot_table": unit.get("pivot_table", case.get("pivot_table")),
+            "pivot_record_id": unit.get("pivot_record_id", case.get("pivot_record_id")),
+            "model_used": session.model,
+            "model_version": curr_ver,
+            "timestamp": session.last_timestamp or datetime.now(timezone.utc).isoformat(),
+            "duration_seconds": round(t_elapsed, 3),
+            "request_count": request_count,
+            "response_sha256": hashlib.sha256(raw_response.encode("utf-8")).hexdigest(),
+            "raw_response": raw_response,
+            "tool_calls": tool_calls,
+            "judge": judge_result,
+        }
+
+        self.checkpoint["results"].append(result_entry)
+        self.checkpoint["completed_orders"].append(unit["order"])
+        self._save_checkpoint()
+
+        return result_entry
+
+    def run_batch(
+        self,
+        max_units: Optional[int] = None,
+        delay_seconds: float = 4.5,
+        verbose: bool = True,
+    ) -> List[dict]:
+        """Runs remaining units up to max_units (or all if None).
+
+        Enforces 15 RPM delay (delay_seconds), auto-halts on quota limit,
+        and never reveals/computes attack success rates during run.
+        """
+        import time
+
+        remaining = self.get_remaining_units()
+        if max_units is not None:
+            batch = remaining[:max_units]
+        else:
+            batch = remaining
+
+        total_units = len(self.scheduled_units)
+        executed_results = []
+
+        for unit in batch:
+            if self.is_daily_quota_reached():
+                if verbose:
+                    print(
+                        f"\n🛑 [AUTO-HALT] Daily quota limit ({self.daily_quota_limit} reqs) reached "
+                        f"for PT date {self._get_current_pt_date()}. Checkpoint saved."
+                    )
+                break
+
+            # Rate limit delay between API units
+            if delay_seconds > 0 and len(executed_results) > 0:
+                time.sleep(delay_seconds)
+
+            res = self.execute_unit(unit)
+            executed_results.append(res)
+
+            if verbose:
+                completed_count = len(self.checkpoint["completed_orders"])
+                today_reqs = self.get_today_requests()
+                print(
+                    f"[Progress] Unit {completed_count}/{total_units} "
+                    f"[Order {unit['order']}] Case {unit['case_id']} Tier {unit['defense_tier']} "
+                    f"Repeat {unit['repeat_index']}: Completed "
+                    f"(Today Requests: {today_reqs}/{self.daily_quota_limit})"
+                )
+
+        return executed_results
+
+
+def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="Indirect Prompt Injection Resumable Benchmark Runner")
+    parser.add_argument("--max-units", type=int, default=None, help="Maximum units to execute in this run")
+    parser.add_argument("--delay", type=float, default=4.5, help="Seconds delay between API requests (default: 4.5s for 15 RPM)")
+    parser.add_argument("--quota", type=int, default=400, help="Daily request quota limit (default: 400)")
+    parser.add_argument("--checkpoint", type=str, default="results/indirect_checkpoint.json", help="Checkpoint file path")
+    parser.add_argument("--lock", type=str, default="data/benchmark_lock.json", help="Lock file path")
+    args = parser.parse_args()
+
+    runner = ResumableIndirectRunner(
+        lock_path=args.lock,
+        checkpoint_path=args.checkpoint,
+        daily_quota_limit=args.quota,
+    )
+    total = len(runner.scheduled_units)
+    remaining = len(runner.get_remaining_units())
+    today_reqs = runner.get_today_requests()
+    print(f"[Benchmark Runner] Initialized with lock: {args.lock}")
+    print(f"[Benchmark Runner] Total units: {total} | Completed: {total - remaining} | Remaining: {remaining}")
+    print(f"[Benchmark Runner] Pacific Date Requests: {today_reqs}/{args.quota}")
+    if args.max_units:
+        print(f"[Benchmark Runner] Executing batch of up to {args.max_units} units (delay={args.delay}s)...")
+    runner.run_batch(max_units=args.max_units, delay_seconds=args.delay, verbose=True)
+
+
+if __name__ == "__main__":
+    main()
+

@@ -292,7 +292,7 @@ class IndirectJudgeTests(unittest.TestCase):
     def test_benchmark_lock_verification(self):
         lock = verify_benchmark_lock("data/benchmark_lock.json")
         self.assertIsInstance(lock, dict)
-        self.assertEqual(lock["status"], "LOCKED_PENDING_USER_APPROVAL")
+        self.assertEqual(lock["status"], "LOCKED")
         self.assertEqual(lock["total_cases"], 36)
         self.assertEqual(lock["model_configuration"]["temperature"], 0.7)
         self.assertEqual(len(lock["scheduled_units"]), 540)
