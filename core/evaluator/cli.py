@@ -26,17 +26,26 @@ from core.evaluator.probing import (
     validate_probing_document,
 )
 
-ALL_DEFENSES = ("off", "prompt", "tools", "all")
+PARALLEL_DEFENSES = ("off", "prompt", "tools", "all")
+ALL_DEFENSES = ("off", "prompt", "tools", "all", "spotlight")
 
 
-def _estimate_requests(n_cases: int, n_defenses: int, repeats: int) -> dict:
-    """Rough LLM API request estimate for a parallel run (no network access).
+def _estimate_requests(n_cases: int, n_defenses: int, repeats: int, buffer_multiplier: float = 1.5) -> dict:
+    """LLM API request estimate including tool calls and 1.5x buffer (no network access).
 
-    Each case is one Blue chat. With automatic function calling every tool call adds one more
-    model request, so the lower bound is 1 request per case and a typical run is 2-3.
+    Each case is one Blue chat. With function calling each tool call adds one more model request,
+    so lower bound is 1 request per turn and typical run is 2-3 requests. A 1.5x safety buffer is applied.
     """
     chats = n_cases * n_defenses * repeats
-    return {"chats": chats, "min_requests": chats, "typical_low": chats * 2, "typical_high": chats * 3}
+    typical_low = chats * 2
+    typical_high = int(chats * 3 * buffer_multiplier)
+    return {
+        "chats": chats,
+        "min_requests": chats,
+        "typical_low": typical_low,
+        "typical_high": typical_high,
+        "buffer_multiplier": buffer_multiplier,
+    }
 
 
 def main(argv=None):
@@ -56,7 +65,7 @@ def main(argv=None):
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--target", choices=["builtin", "openai", "callable"], default="builtin", help="Target system under test")
-    parser.add_argument("--defense", choices=["off", "prompt", "tools", "all"], default="off", help="Defense configuration for target")
+    parser.add_argument("--defense", choices=list(ALL_DEFENSES), default="off", help="Defense configuration for target")
     parser.add_argument("--role", "--blue-role", dest="role", choices=["student_guest", "registrar_staff", "system_admin"], default="registrar_staff", help="Blue Assistant persona role")
     parser.add_argument("--base-url", default="http://localhost:8000/v1", help="Base URL for OpenAI-compatible target")
     parser.add_argument("--model", default="default", help="Model name for external target")
@@ -66,7 +75,7 @@ def main(argv=None):
     parser.add_argument("--export-name", default="owasp_evaluation_report", help="Filename prefix for reports")
     parser.add_argument("--quiet", action="store_true", help="Suppress individual test progress")
     parser.add_argument("--parallel", action="store_true", help="Run the parallel TH/EN/MIX set (test_cases_parallel.json) across defense tiers")
-    parser.add_argument("--defenses", default=",".join(ALL_DEFENSES), help="Comma-separated defense tiers for --parallel")
+    parser.add_argument("--defenses", default=",".join(PARALLEL_DEFENSES), help="Comma-separated defense tiers for --parallel")
     parser.add_argument("--repeats", type=int, default=1, help="Repetitions per case/tier for --parallel")
     parser.add_argument("--parallel-cases", default=DEFAULT_PARALLEL_PATH, help="Path to the parallel cases file")
     parser.add_argument("--probing", action="store_true", help="Run the Item 7 probing suite (test_cases_probing.json) for tools/all tiers")
@@ -76,6 +85,10 @@ def main(argv=None):
     parser.add_argument("--publish", action="store_true", help="Also export sanitized summary/CSV/Markdown (without raw responses) to results/published/")
 
     args = parser.parse_args(argv)
+
+    if not args.quiet:
+        print("[DEPRECATION NOTICE] 'python -m core.evaluator.cli' is preserved for backward compatibility.")
+        print("  Canonical CLI: use 'thai-eval' (e.g., 'thai-eval eval run --parallel', 'thai-eval probe run', 'thai-eval dlp audit').\n")
 
     print("\n" + "=" * 65)
     print("[OWASP LLM SECURITY EVALUATOR & BENCHMARK HARNESS]")

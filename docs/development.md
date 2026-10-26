@@ -31,7 +31,7 @@ copy .env.example .env
 
 ## 2. การรันชุดทดสอบออฟไลน์ (Zero-Cost Verification Suite)
 
-ระบบมีชุดทดสอบอัตโนมัติ **114 รายการ** ที่ออกแบบให้รันแบบออฟไลน์ 100% ไม่เสียค่า API ไม่ต้องใช้อินเทอร์เน็ต และไม่มีการส่งข้อมูลออกภายนอก:
+ระบบมีชุดทดสอบอัตโนมัติ **136 รายการ** ที่ออกแบบให้รันแบบออฟไลน์ ไม่เสียค่า API ไม่ต้องใช้อินเทอร์เน็ต และไม่มีการส่งข้อมูลออกภายนอก:
 
 ```powershell
 # รันชุดทดสอบทั้งหมด
@@ -42,6 +42,9 @@ copy .env.example .env
 ### โครงสร้างชุดทดสอบใน `tests/`:
 * [`tests/test_parallel.py`](../tests/test_parallel.py): ทดสอบความสมดุลของชุดทดสอบคู่ขนาน 3 ภาษา, ตัวตัดสินแบบกฎตายตัว (Rule-based Judge), และการคำนวณ Wilson Confidence Interval
 * [`tests/test_probing.py`](../tests/test_probing.py): ทดสอบชุดเจาะจุดบอด Probing Suite, การ Audit กลไกถอดรหัส DLP ขาออก (ROT13, URL-percent, Tilde, HTML entities)
+* [`tests/test_indirect_judge.py`](../tests/test_indirect_judge.py): ทดสอบตัวตัดสิน Rule-based Judge สำหรับ Indirect Injection (Manipulation, Disclosure, Benign Validation, Benchmark Lock Verification)
+* [`tests/test_spotlight.py`](../tests/test_spotlight.py): ทดสอบกลไก Spotlighting Guard (Delimiters, Data Framing, Collision Neutralization, Tool Ceiling)
+* [`tests/test_statistics.py`](../tests/test_statistics.py): ทดสอบสถิติแบบจับคู่ Exact McNemar Test (`binomtest`), Newcombe Paired CI, และ Majority-vote Aggregation
 * [`tests/test_evaluator.py`](../tests/test_evaluator.py): ทดสอบ Target Adapters (Builtin, OpenAI-like), การคำนวณเมทริกซ์ ASR/FRR, และการสร้างรายงาน
 * [`tests/test_agent.py`](../tests/test_agent.py): ทดสอบการแยกฐานข้อมูล SQLite, การควบคุมสิทธิ์ตามบทบาท (RBAC), และตัวตรวจจับ Canary Tokens
 * [`tests/test_web_ui.py`](../tests/test_web_ui.py): ทดสอบ REST API, ความปลอดภัย CSRF, และการเชื่อมต่อฐานข้อมูลแบบมัลติเธรด

@@ -39,14 +39,17 @@ flowchart TD
 
 ---
 
-## 2. กลไกการป้องกันความปลอดภัย 4 ระดับ (4-Tier Defense-in-Depth)
+## 2. ระดับการป้องกันความปลอดภัย (Defense Levels & Spotlighting)
+
+ระบบรองรับระดับการป้องกัน 5 ระดับ (`DEFENSE_LEVELS = ("off", "prompt", "tools", "all", "spotlight")`):
 
 | ระดับการป้องกัน (Tier) | การควบคุมระดับนโยบาย (Policy) | การควบคุมระดับโค้ด (Tool ACL) | กลไกตรวจจับขาออก (Output DLP) | ลักษณะผลลัพธ์ที่คาดหวัง |
 |---|---|---|---|---|
 | **`off`** (Baseline) | Prompt พื้นฐาน พร้อมเปิดเผยชื่อตารางทั้งหมดใน Schema | ให้อนุญาตทุกตาราง ไม่มีการกลั่นกรอง | ปิด | Baseline ไม่มีการป้องกัน สำหรับวัดความเปราะบางพื้นฐานของโมเดล |
 | **`prompt`** (Policy-only) | Hardened Anti-leak System Prompt ห้ามเปิดเผยข้อมูลลับ | ให้อนุญาตทุกตาราง (พึ่งพาคำสั่งของโมเดล) | ปิด | วัดว่าโมเดลเชื่อฟังคำสั่งเชิงนโยบายเพียงใดเมื่อไม่มี Guardrail ฝั่งโค้ด |
 | **`tools`** (Deterministic) | Prompt พื้นฐาน | ล็อกสิทธิ์เฉพาะ `PUBLIC_TABLES` เท่านั้น บล็อก SQL Wildcard (`%`, `_`) | ปิด | ปิดช่องทางเข้าถึงตารางลับโดยโครงสร้างการออกแบบ (`blocked by construction`) แต่อาจมีช่องโหว่บนตารางสาธารณะ (ดู [LIMITATIONS.md](../LIMITATIONS.md)) |
-| **`all`** (Layered) | Hardened Prompt + ขอบเขตสิทธิ์ตามบทบาท | ล็อกสิทธิ์เฉพาะ `PUBLIC_TABLES` + Sanitization | เปิด (ดักจับ Canary, เลขไทย, Base64, Hex) | ผสานการป้องกันทุกชั้น เพิ่ม DLP ขาออกเพื่อดักจับข้อมูลลับที่อาจหลุดรอด |
+| **`all`** (Layered) | Hardened Prompt + ขอบเขตสิทธิ์ตามบทบาท | ล็อกสิทธิ์เฉพาะ `PUBLIC_TABLES` + Sanitization | เปิด (ดักจับ Canary, เลขไทย, Base64, Hex) | ผสานการป้องกันเชิงโครงสร้างและ DLP ขาออก *(หมายเหตุ: ระดับ `all` ไม่รวม `spotlight` เพื่อรักษาความคงเส้นคงวาของการวัดผลแบบดั้งเดิม)* |
+| **`spotlight`** (Data Framing) | Prompt พื้นฐาน | ให้อนุญาตทุกตาราง (ไม่มี Tool ACL เพื่อวัดผลอิสระ) | ปิด | การตีกรอบข้อมูลภายนอก (Data Framing & Delimiters per Hines et al., 2024) พร้อมกลไกลบล้าง Collision เพื่อศึกษา Ablation เปรียบเทียบกับ `off` และ `prompt` โดยตรง |
 
 ---
 
@@ -80,6 +83,7 @@ thai-injection-eval/
 ├── data/                   # ชุดทดสอบและฐานข้อมูลจำลอง
 │   ├── test_cases_parallel.json  # ชุดทดสอบหลัก 3 ภาษาคู่ขนาน (45 เคส)
 │   ├── test_cases_probing.json   # ชุดทดสอบเจาะจุดบอดที่ไม่ถูกบล็อกโดยโครงสร้าง (24 เคส)
+│   ├── test_cases_indirect.json  # ชุดทดสอบ Indirect Injection & Spotlighting (36 เคส)
 │   ├── test_cases.json           # ชุดทดสอบดั้งเดิม (Legacy Baseline, 36 เคส)
 │   ├── schema.sql                # DDL สำหรับ data/results.db
 │   ├── university_schema.sql     # DDL สำหรับ data/university.db (ตารางสาธารณะ)
@@ -97,15 +101,19 @@ thai-injection-eval/
 │   └── published/          # รายงานผลที่เป็นทางการและทำซ้ำได้ (PUBLISHED_REPORT.md)
 │
 ├── scripts/                # สคริปต์สนับสนุน
+│   ├── analyze.py          # สคริปต์วิเคราะห์ผลสถิติแบบจับคู่ (Exact McNemar & Newcombe CI)
 │   ├── check_secrets.py    # สคริปต์สแกนหา Secret และไฟล์ต้องห้ามก่อน Commit
 │   ├── make_report.py      # สคริปต์ประมวลผลและสร้างกราฟสรุป
 │   └── seed_db.py          # สคริปต์สุ่มสร้างฐานข้อมูลจำลองด้วย Faker
 │
-├── tests/                  # ชุดทดสอบอัตโนมัติแบบออฟไลน์ 100% (114 ข้อสอบ)
+├── tests/                  # ชุดทดสอบอัตโนมัติแบบออฟไลน์ (136 ข้อสอบ)
 │   ├── test_agent.py
 │   ├── test_evaluator.py
+│   ├── test_indirect_judge.py
 │   ├── test_parallel.py
 │   ├── test_probing.py
+│   ├── test_spotlight.py
+│   ├── test_statistics.py
 │   └── test_web_ui.py
 │
 ├── agent.py                # Standalone Single-probe CLI & Reference Blue Agent

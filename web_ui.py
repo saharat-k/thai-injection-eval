@@ -405,9 +405,10 @@ def manual_send():
     if len(prompt) > MAX_PROMPT_LENGTH:
         return jsonify({"success": False, "error": f"ความยาวข้อความ Prompt ต้องไม่เกิน {MAX_PROMPT_LENGTH:,} ตัวอักษร"}), 400
 
-    sess = _manual_sessions[session_id]
-    sess["case"]["prompt"] = sess["case"]["prompt"] or prompt
-    turn_no = sess["turn_no"]
+    with _manual_lock:
+        sess = _manual_sessions[session_id]
+        sess["case"]["prompt"] = sess["case"]["prompt"] or prompt
+        turn_no = sess["turn_no"]
 
     res = agent.execute_manual_turn(
         session=sess["blue_session"],
@@ -423,9 +424,10 @@ def manual_send():
         red_profile=sess.get("red_profile", "realistic_attacker"),
     )
 
-    if not res.get("error"):
-        sess["history"].append((prompt, res.get("response", "")))
-    sess["turn_no"] += 1
+    with _manual_lock:
+        if not res.get("error"):
+            sess["history"].append((prompt, res.get("response", "")))
+        sess["turn_no"] += 1
 
     return jsonify({
         "success": True,
@@ -467,10 +469,11 @@ def manual_ai_step():
             "error": "ยังไม่มีคำตอบในบทสนทนาให้ AI วิเคราะห์ กรุณาส่ง Prompt แรกก่อนเริ่มให้ AI ทำงาน",
         }), 400
 
-    turn_no = sess["turn_no"]
-    last_resp = sess["history"][-1][1] if sess["history"] else ""
-    blue_role = sess.get("blue_role", "registrar_staff")
-    red_profile = sess.get("red_profile", "realistic_attacker")
+    with _manual_lock:
+        turn_no = sess["turn_no"]
+        last_resp = sess["history"][-1][1] if sess["history"] else ""
+        blue_role = sess.get("blue_role", "registrar_staff")
+        red_profile = sess.get("red_profile", "realistic_attacker")
 
     try:
         attack, meta = agent.ask_red(sess["case"], sess["history"], turn_no, red_profile=red_profile, blue_role=blue_role)
@@ -492,9 +495,10 @@ def manual_ai_step():
         red_profile=red_profile,
     )
 
-    if not res.get("error"):
-        sess["history"].append((attack, res.get("response", "")))
-    sess["turn_no"] += 1
+    with _manual_lock:
+        if not res.get("error"):
+            sess["history"].append((attack, res.get("response", "")))
+        sess["turn_no"] += 1
 
     has_targets = bool(sess["case"].get("targets"))
     is_target_met = res.get("is_target_met", False)

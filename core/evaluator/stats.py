@@ -1,10 +1,20 @@
-"""Small statistics helpers (no third-party dependencies)."""
+"""Statistical evaluation helpers.
+
+Includes:
+- Wilson 95% score interval for single proportions.
+- Exact McNemar test (binomtest on discordant pairs) for paired comparisons.
+- Newcombe paired difference confidence interval (Method 10).
+- Aggregation helper (majority vote >= 2 of 3 repeats).
+"""
+from __future__ import annotations
+
 import math
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 Z_95 = 1.959963984540054  # two-sided 95% normal quantile
 
 
-def wilson_interval(successes: int, n: int, z: float = Z_95):
+def wilson_interval(successes: int, n: int, z: float = Z_95) -> Tuple[Optional[float], Optional[float]]:
     """Wilson score interval for a binomial proportion.
 
     Returns (low, high) as proportions in [0, 1], or (None, None) when n == 0.
@@ -44,3 +54,109 @@ def format_rate(stat: dict) -> str:
         f"{stat['k']}/{stat['n']} = {stat['rate']:.1f}% "
         f"[95% CI {stat['ci95_low']:.1f}-{stat['ci95_high']:.1f}%]"
     )
+
+
+def exact_mcnemar_test(
+    y1: Sequence[int],
+    y2: Sequence[int],
+) -> Dict[str, Any]:
+    """Perform exact McNemar test for paired binary data using scipy.stats.binomtest.
+
+    Discordant pairs:
+      b = number of pairs where y1=1 and y2=0
+      c = number of pairs where y1=0 and y2=1
+    Under H0: b ~ Binomial(n=b+c, p=0.5).
+    """
+    if len(y1) != len(y2):
+        raise ValueError(f"Lengths must match for paired test: len(y1)={len(y1)}, len(y2)={len(y2)}")
+    n = len(y1)
+    if n == 0:
+        return {"n": 0, "a": 0, "b": 0, "c": 0, "d": 0, "p_value": 1.0, "discordant_total": 0}
+
+    a = sum(1 for a_i, b_i in zip(y1, y2) if a_i == 1 and b_i == 1)
+    b = sum(1 for a_i, b_i in zip(y1, y2) if a_i == 1 and b_i == 0)
+    c = sum(1 for a_i, b_i in zip(y1, y2) if a_i == 0 and b_i == 1)
+    d = sum(1 for a_i, b_i in zip(y1, y2) if a_i == 0 and b_i == 0)
+
+    discordant = b + c
+    if discordant == 0:
+        p_val = 1.0
+    else:
+        from scipy.stats import binomtest
+        res = binomtest(b, discordant, 0.5, alternative="two-sided")
+        p_val = float(res.pvalue)
+
+    return {
+        "n": n,
+        "a": a,
+        "b": b,
+        "c": c,
+        "d": d,
+        "discordant_total": discordant,
+        "p_value": p_val,
+    }
+
+
+def newcombe_paired_ci(
+    y1: Sequence[int],
+    y2: Sequence[int],
+    z: float = Z_95,
+) -> Dict[str, Any]:
+    """Calculate Newcombe paired confidence interval for difference in proportions (Method 10).
+
+    Returns difference (p1 - p2) and 95% confidence interval bounds.
+    """
+    if len(y1) != len(y2):
+        raise ValueError(f"Lengths must match: len(y1)={len(y1)}, len(y2)={len(y2)}")
+    n = len(y1)
+    if n == 0:
+        return {"diff": 0.0, "ci95_low": 0.0, "ci95_high": 0.0}
+
+    a = sum(1 for a_i, b_i in zip(y1, y2) if a_i == 1 and b_i == 1)
+    b = sum(1 for a_i, b_i in zip(y1, y2) if a_i == 1 and b_i == 0)
+    c = sum(1 for a_i, b_i in zip(y1, y2) if a_i == 0 and b_i == 1)
+    d = sum(1 for a_i, b_i in zip(y1, y2) if a_i == 0 and b_i == 0)
+
+    p1 = (a + b) / n
+    p2 = (a + c) / n
+    diff = p1 - p2
+
+    l1, u1 = wilson_interval(a + b, n, z)
+    l2, u2 = wilson_interval(a + c, n, z)
+    if l1 is None or l2 is None or u1 is None or u2 is None:
+        return {"diff": diff, "ci95_low": None, "ci95_high": None}
+
+    # Denominator for phi correlation coefficient
+    prod = (a + b) * (c + d) * (a + c) * (b + d)
+    if prod <= 0:
+        phi = 0.0
+    else:
+        phi = (a * d - b * c) / math.sqrt(prod)
+
+    # Newcombe lower & upper limits
+    var_low = (p1 - l1) ** 2 - 2 * phi * (p1 - l1) * (u2 - p2) + (u2 - p2) ** 2
+    var_high = (u1 - p1) ** 2 - 2 * phi * (u1 - p1) * (p2 - l2) + (p2 - l2) ** 2
+
+    # Guard against float rounding precision issues
+    var_low = max(0.0, var_low)
+    var_high = max(0.0, var_high)
+
+    low = max(-1.0, diff - math.sqrt(var_low))
+    high = min(1.0, diff + math.sqrt(var_high))
+
+    return {
+        "diff": round(diff * 100.0, 2),
+        "ci95_low": round(low * 100.0, 2),
+        "ci95_high": round(high * 100.0, 2),
+        "phi": round(phi, 4),
+    }
+
+
+def aggregate_case_repeats(repeat_scores: Sequence[int], threshold: int = 2) -> int:
+    """Aggregate per-case repeat runs using pre-defined majority vote rule (>= threshold of repeats).
+
+    For example, with 3 repeats: succeeds (1) if >= 2 out of 3 are 1, else 0.
+    """
+    if not repeat_scores:
+        return 0
+    return 1 if sum(repeat_scores) >= threshold else 0

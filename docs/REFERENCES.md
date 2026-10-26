@@ -20,4 +20,10 @@
 ## 4. OWASP Top 10 for LLM Applications (2025) - LLM01: Prompt Injection
 มาตรฐาน [OWASP GenAI Top 10 - LLM01](https://owasp.org/www-project-top-10-for-large-language-model-applications/) แบ่งช่องโหว่ Prompt Injection ออกเป็น Direct Injection และ Indirect Injection พร้อมแนะนำการป้องกันแบบหลายชั้น (Defense-in-Depth) ได้แก่ การจำกัดสิทธิ์ของเครื่องมือ (Least Privilege), การแยกข้อมูลที่ไม่น่าเชื่อถือออกจากคำสั่งระบบ และการตรวจสอบผลลัพธ์ก่อนส่งกลับให้ผู้ใช้
 
-โครงสร้างระดับการป้องกันทั้ง 4 โหมดของโปรเจกต์ (`off`, `prompt`, `tools`, `all`) ออกแบบตามแนวทางของ OWASP เพื่อให้เปรียบเทียบผลลัพธ์ได้ชัดเจนว่าแต่ละชั้นช่วยลดความเสี่ยงได้เพียงใด
+โครงสร้างระดับการป้องกันของโปรเจกต์ (`off`, `prompt`, `tools`, `all`, `spotlight`) ออกแบบตามแนวทางของ OWASP เพื่อให้เปรียบเทียบผลลัพธ์ได้ชัดเจนว่าแต่ละชั้นช่วยลดความเสี่ยงได้เพียงใด
+
+## 5. Spotlighting (Microsoft Research, 2024)
+งานวิจัย *Defending Against Indirect Prompt Injection Attacks With Spotlighting* โดย Keegan Hines, Gary Lopez, Matthew Hall, Federico Zarfati, Roshan Ramprasad, และ Blake Bullwinkel ([arXiv:2403.14720](https://arxiv.org/abs/2403.14720)) เสนอแนวทางการแยกข้อมูลที่ไม่ได้ผ่านการรับรอง (Untrusted Data) ออกจากคำสั่งประมวลผลของโมเดล โดยการสุ่มค่า Delimiter ที่ไม่ซ้ำกันในแต่ละคำขอ พร้อมกับการตีกรอบบริบทข้อมูล (Context Framing) เพื่อกำกับให้โมเดลประมวลผลข้อความภายในขอบเขตดังกล่าวเป็นข้อมูลอ้างอิงเท่านั้น (Passive Data) และไม่ปฏิบัติตามคำสั่งใด ๆ ที่แฝงอยู่
+
+โปรเจกต์นี้นำเทคนิค Spotlighting มาพัฒนาเป็นระดับการป้องกัน `spotlight` (Isolated Spotlighting Tier) ใน [core/defenses/spotlight.py](../core/defenses/spotlight.py) และ [agent.py](../agent.py) โดยใช้ PRNG แบบกำหนด seed เพื่อการทำซ้ำผลลัพธ์ พร้อมกลไกตรวจจับและลบล้างค่า Delimiter ที่ชนกัน (Collision Neutralization) เพื่อทดสอบการป้องกันต่อ Indirect Injection อย่างเป็นระบบ
+

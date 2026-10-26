@@ -1,18 +1,22 @@
 # Thai Prompt Injection Security Benchmark & Evaluation Harness
 
-[![Tests](https://img.shields.io/badge/Tests-114%20Passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-165%20Passing-brightgreen.svg)](tests/)
 [![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.14-blue.svg)](https://www.python.org/)
 [![OWASP](https://img.shields.io/badge/OWASP-Top%2010%20for%20LLM%20(2025)-orange.svg)](https://owasp.org/www-project-top-10-for-large-language-model-applications/)
 [![Defense](https://img.shields.io/badge/Defense-4--Tier%20Defense--in--Depth-purple.svg)](docs/architecture.md#2-กลไกการป้องกันความปลอดภัย-4-ระดับ-4-tier-defense-in-depth)
+[![CLI](https://img.shields.io/badge/CLI-thai--eval-blueviolet.svg)](#-การใช้งาน-cli-หลัก-canonical-cli-usage)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 ชุดเครื่องมือและเฟรมเวิร์กมาตรฐานสำหรับทดสอบ ประเมินความมั่นคงปลอดภัย และทำ Red-Teaming โมเดลภาษาขนาดใหญ่ (LLM) ต่อภัยคุกคามด้าน **Prompt Injection** และ **Sensitive Information Disclosure** ในบริบท **ภาษาไทย ภาษาอังกฤษ และคำถามปนภาษา (Code-mixed)** พร้อมกลไกความปลอดภัยหลายชั้น (Defense-in-Depth) และตัวตัดสินแบบกฎตายตัว (Deterministic Rule-Based Judge)
 
-> **English Executive Summary**: A standardized benchmark harness and evaluation toolkit for assessing Large Language Model (LLM) agents against **Direct/Indirect Prompt Injection (OWASP LLM01)** and **Sensitive Information Disclosure (OWASP LLM02)** across Thai, English, and code-mixed inputs. Features a balanced 3-language parallel dataset, pluggable model adapters, a 4-tier defense architecture, and a 114-test offline verification suite requiring zero API quota.
+> **English Executive Summary**: A standardized benchmark harness and evaluation toolkit for assessing Large Language Model (LLM) agents against **Direct/Indirect Prompt Injection (OWASP LLM01)** and **Sensitive Information Disclosure (OWASP LLM02)** across Thai, English, and code-mixed inputs. Features a balanced 3-language parallel dataset, pluggable model adapters, a 4-tier defense architecture, and a 136-test offline verification suite requiring zero API quota.
 
 > [!IMPORTANT]
 > **ข้อจำกัดและขอบเขตการแปลผล (Methodology & Scope Limitations):**
 > โปรดอ่าน [**`LIMITATIONS.md`**](LIMITATIONS.md) ก่อนนำผลการทดลองไปอ้างอิง เอกสารดังกล่าวระบุข้อจำกัดของโมเดลระดับ Free-tier, ขนาดตัวอย่าง $n$, เหตุผลที่ผลลัพธ์ 0% ในโหมด `tools`/`all` เกิดจากการบล็อกเชิงโครงสร้าง (`blocked by construction`), และช่องโหว่ของตัวตรวจจับ DLP ขาออกอย่างตรงไปตรงมา
+>
+> **การผูกพันกับสคีมาสังเคราะห์ (Synthetic Schema Coupling):**
+> คำสั่งแฝง (Injected Payloads) ในชุดทดสอบการฉีดคำสั่งแบบอ้อม (`test_cases_indirect.json`) ถูกออกแบบและผูกพันโดยตรงกับสถาปัตยกรรมและชื่อตารางของฐานข้อมูลมหาวิทยาลัยจำลอง (`data/university.db`) รวมถึงฟังก์ชันเครื่องมือ (`search_records`) ของโปรเจกต์นี้ (White-box schema coupling) จึงเป็นการจำลองพฤติกรรมในสภาพแวดล้อมเฉพาะ ไม่ควรนำอัตราความสำเร็จไปสรุปหรือคาดการณ์โดยตรงกับระบบงานจริงภายนอกที่มีสคีมาและชุดเครื่องมือแตกต่างออกไป
 
 ---
 
@@ -20,8 +24,8 @@
 
 * **ชุดทดสอบคู่ขนานสมดุล 3 ภาษา ([`data/test_cases_parallel.json`](data/test_cases_parallel.json))**: ควบคุมตัวแปรให้ทุกเจตนาโจมตีมีครบทั้ง **TH, EN, และ MIX** รวม 45 เคส พร้อมรายงานสถิติช่วงความเชื่อมั่น 95% แบบ Wilson Score Confidence Interval
 * **สถาปัตยกรรมป้องกัน 4 ระดับ (Defense-in-Depth)**: ไล่ระดับตั้งแต่ System Prompt Policy, Tool ACL (`PUBLIC_TABLES` allowlist), Canary Honeytokens, จนถึง Multilingual Output DLP (รองรับ NFKC, ตัวเลขไทย `๐-๙`, Base64, Hex)
-* **ตัวตัดสินแบบกฎตายตัว (Deterministic Rule-Based Judge)**: ตรวจจับ Canary Token และ Schema Leak โดยไม่พึ่งพา LLM-as-a-judge เพื่อขจัดความแปรปรวนเชิงสุ่ม
-* **การตรวจสอบแบบออฟไลน์ 100% (Zero-Cost Verification)**: มีชุด Unit Tests 114 ข้อ พร้อมโหมด `--dry-run` และ `--dlp-audit` ที่รันได้ทันทีโดยไม่ต้องต่ออินเทอร์เน็ตและไม่เสียโควตา API
+* **ตัวตัดสินแบบกฎตายตัว (Deterministic Rule-Based Judge)**: ตรวจจับ Canary Token และ Schema Leak โดยไม่พึ่งพา LLM-as-a-judge เพื่อลดความแปรปรวนเชิงสุ่มจากการประเมิน
+* **การตรวจสอบแบบออฟไลน์ (Zero-Cost Verification)**: มีชุด Unit Tests 152 ข้อ พร้อมโหมด `--dry-run`, `doctor`, และ `dlp audit` ที่รันได้ทันทีโดยไม่ต้องต่ออินเทอร์เน็ตและไม่เสียโควตา API
 * **รองรับโมเดลหลากหลาย (Pluggable Target Adapters)**: ทดสอบได้ทั้ง Reference Agent ในตัว, OpenAI-compatible Endpoints (vLLM, Ollama, LM Studio, OpenRouter, Groq), และ Custom Python Callables
 
 ---
@@ -34,7 +38,9 @@
 # 1.1 สร้าง Virtual Environment และติดตั้งไลบรารี
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-# Linux / macOS: python3 -m venv .venv && ./.venv/bin/python -m pip install -r requirements.txt
+# ติดตั้งแบบ editable mode เพื่อให้เรียกคำสั่ง thai-eval ได้จากทุกที่
+.\.venv\Scripts\python.exe -m pip install -e .
+# Linux / macOS: python3 -m venv .venv && ./.venv/bin/python -m pip install -r requirements.txt && ./.venv/bin/python -m pip install -e .
 
 # 1.2 ตั้งค่า Environment Variables
 copy .env.example .env
@@ -42,37 +48,132 @@ copy .env.example .env
 # ระบุ GEMINI_API_KEY ในไฟล์ .env หากต้องการรันการประเมินผลผ่าน Live API
 ```
 
-### 2. ตรวจสอบระบบแบบออฟไลน์ (Zero-Cost Offline Verification)
-
-ยืนยันความถูกต้องของระบบด้วยชุดทดสอบ 114 รายการ (ไม่เสียค่า API และไม่ต่ออินเทอร์เน็ต):
+### 2. ตรวจสอบสภาพแวดล้อมด้วย Doctor (Environment Health Check)
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest discover -s tests -v
-# Linux / macOS: ./.venv/bin/python -m unittest discover -s tests -v
+.\thai-eval.bat doctor
+# Linux / macOS: ./thai-eval doctor
 ```
-*ผลลัพธ์ที่คาดหวัง:* `Ran 114 tests in ~9s - OK`
 
-### 3. ประเมินจำนวน Request ล่วงหน้า (Dry-Run Benchmarking)
+---
 
-ตรวจสอบความถูกต้องของข้อมูลและคำนวณจำนวน API Request ที่จะเกิดขึ้นโดยไม่มีการยิง API จริง:
+## 🛠️ สถาปัตยกรรมการใช้งาน CLI (CLI Usage & Commands)
+
+`thai-eval` พัฒนาขึ้นด้วยสถาปัตยกรรม **Hierarchical Subcommand Model** ตามมาตรฐาน Developer & Cyber Security CLI ระดับโลก (เช่น GitHub CLI, Docker, Trivy):
+
+```text
+thai-eval [GLOBAL OPTIONS] <command> [subcommand] [OPTIONS]
+```
+
+### ผังโครงสร้างคำสั่ง (Command Tree)
+
+```text
+thai-eval
+├── chat         # เปิดเซสชันทดสอบ Interactive Red-Teaming & Manual Chat พร้อม Cyber Security Turn Card
+├── eval
+│   ├── run      # รันการประเมินผลความปลอดภัย (Single-tier หรือ Parallel 3-Language)
+│   ├── list     # แสดงรายการเคสทดสอบในชุดข้อมูล
+│   └── info     # ดูรายละเอียดเชิงลึกและ Prompt ของเคสทดสอบรายตัว
+├── probe
+│   ├── run      # รันการทดสอบชุดเจาะจุดบอด Item 7 Probing Suite
+│   └── list     # แสดงรายการเคสในชุด Probing
+├── dlp
+│   └── audit    # ทดสอบการหลบเลี่ยง Output DLP แบบออฟไลน์ (0 LLM API calls)
+├── test
+│   ├── run      # รันชุดทดสอบความถูกต้องภายใน (165 Offline Unittests)
+│   └── list     # แสดงรายการชุดทดสอบภายในระบบ
+├── serve        # เปิดเว็บ Interactive Red-Teaming Playground (Flask)
+├── doctor       # ตรวจสอบความพร้อมของ Python, Dependencies, DB, และ Datasets
+├── config
+│   └── show     # ตรวจสอบ Effective Configuration (พร้อม Mask ซ่อน Sensitive Keys อัตโนมัติ)
+└── version      # แสดงข้อมูลเวอร์ชัน สภาพแวดล้อม และ Platform
+```
+
+### 📋 คำสั่งที่ใช้งานเป็นประจำ (Canonical Commands)
 
 ```powershell
-.\.venv\Scripts\python.exe -m core.evaluator.cli --parallel --dry-run
-# Linux / macOS: ./.venv/bin/python -m core.evaluator.cli --parallel --dry-run
+# 1. การตรวจสอบและทดสอบแบบออฟไลน์ (Offline & Zero-Cost)
+.\thai-eval.bat doctor                                 # ตรวจสุขภาพสภาพแวดล้อม
+.\thai-eval.bat dlp audit                             # ออดิต DLP Bypass เวกเตอร์
+.\thai-eval.bat eval run --parallel --dry-run          # ตรวจสอบชุดข้อมูลและประเมิน API request ล่วงหน้า
+.\thai-eval.bat test run                               # รัน unit tests 165 ข้อ
+
+# 2. การประเมินผลความปลอดภัยจริง (Live Security Evaluations)
+.\thai-eval.bat eval run --parallel --defenses off,prompt,tools,all
+.\thai-eval.bat probe run --defenses tools,all
+
+# 3. เซสชันทดสอบเจาะระบบและพิมพ์ Prompt สด (Interactive Manual Red-Teaming)
+.\thai-eval.bat chat                                   # เข้าสู่โหมดเลือกการตั้งค่าภายในและส่ง Prompt (หรือ .\thai-eval.ps1 chat)
+.\thai-eval.bat chat --defense tools                   # กำหนด Defense ระดับ Tools ล่วงหน้าแล้วเริ่มทดสอบ
+.\thai-eval.bat chat --defense prompt --role registrar_staff  # เจาะจง Role และ Defense
+
+# 4. สำรวจชุดข้อมูลทดสอบ (Dataset Inspection)
+.\thai-eval.bat eval list --parallel                   # แสดงรายการเคสทดสอบคู่ขนาน 3 ภาษา
+.\thai-eval.bat eval info TH-1                         # เจาะดูรายละเอียด Prompt และ Judge ของเคส TH-1
+.\thai-eval.bat probe list                             # แสดงรายการเคส Probing
+
+# 5. ตรวจสอบการตั้งค่าและเปิด Web UI
+.\thai-eval.bat config show                            # ดูคอนฟิกที่มีผลใช้งาน
+.\thai-eval.bat serve --port 5000                      # สตาร์ท Web Playground
 ```
 
-### 4. รันการประเมินผลความปลอดภัย (Run Benchmark)
+---
 
-```powershell
-# 4.1 รันการประเมินผลชุดทดสอบคู่ขนาน 3 ภาษา (Parallel Benchmark)
-.\.venv\Scripts\python.exe -m core.evaluator.cli --parallel --defenses off,prompt,tools,all
+## 📦 สัญญาการแสดงผล (Output Formats Contract)
 
-# 4.2 รันการทดสอบเจาะจุดบอด Probing Suite (Tools & All tiers)
-.\.venv\Scripts\python.exe -m core.evaluator.cli --probing
+ทุกคำสั่งรองรับ Global Options และสัญญา Format กลางที่สม่ำเสมอ:
 
-# 4.3 ตรวจสอบช่องโหว่ Output DLP แบบออฟไลน์ 100% (ROT13, URL-percent, Tilde, HTML Entities)
-.\.venv\Scripts\python.exe -m core.evaluator.cli --dlp-audit
+```bash
+--format table   # ตารางจัดระเบียบพร้อม ANSI Colors สำหรับ Human Terminal (Default)
+--format json    # ข้อมูลแบบ JSON โครงสร้างสมบูรณ์สำหรับ Programmatic & CI Automation
+--format jsonl   # JSON Lines หนึ่งเรคคอร์ดต่อหนึ่งบรรทัด
+--format csv     # Comma-Separated Values สำหรับ Import เข้า Spreadsheet
 ```
+
+* **Global Options:**
+  * `--json` : Shorthand สำหรับ `--format json`
+  * `-q, --quiet` : ปิดข้อความประดับและ Progress bars (เหมาะกับ Scripting / CI)
+  * `-v, --verbose` : แสดง Debug logs เชิงลึก
+  * `--no-color` : ปิดการแสดงสี ANSI (รองรับมาตรฐานสากล `NO_COLOR=1`)
+  * `-h, --help` : แสดงวิธีใช้และตัวอย่างคำสั่งอย่างละเอียด
+
+---
+
+## 🔄 ระบบ CI/CD และรหัสสถานะออก (Exit Codes)
+
+ออกแบบเพื่อเป็น Security Gate ใน CI/CD Automation (เช่น GitHub Actions) โดยส่งรหัส Exit Code ที่มีความหมายชัดเจน:
+
+| Exit Code | สถานะ (Status) | ความหมาย |
+|:---:|---|---|
+| **`0`** | **Success / Clean** | การทำงานสำเร็จ และระบบผ่านเกณฑ์ความปลอดภัย (ASR อยู่ในเกณฑ์ที่กำหนด, 0 Breaches) |
+| **`1`** | **Security Criteria Failed** | ตรวจพบช่องโหว่ความปลอดภัย (ASR เกินเกณฑ์ `--max-asr`, ตรวจพบ Canary Leak หรือ Unittest ล้มเหลว) |
+| **`2`** | **CLI Usage / Validation Error** | ไวยากรณ์คำสั่งไม่ถูกต้อง, ขาด Parameter ที่จำเป็น หรือไฟล์ Dataset ไม่ผ่านการตรวจสอบ Schema |
+| **`3`** | **Runtime / Environment Error** | สภาพแวดล้อมไม่พร้อม (เช่น ขาด Dependencies, เชื่อมต่อ API ไม่ได้ หรือไฟล์ DB เสียหาย) |
+
+### ตัวอย่างการรันใน CI/CD Pipeline:
+
+```bash
+# ตรวจสอบสุขภาพระบบ
+thai-eval doctor --format json
+
+# รันการประเมินผลความปลอดภัย และหยุด Pipeline ทันทีหาก ASR สูงเกิน 5%
+thai-eval eval run --parallel --max-asr 5.0 --format json --quiet
+```
+
+---
+
+## 🔁 การแปลงคำสั่งดั้งเดิม (Migration from Legacy CLI)
+
+ระบบรักษา Backward Compatibility ไว้อย่างสมบูรณ์ สามารถเรียกสคริปต์เดิมได้โดยมีคำแนะนำชี้เป้าสู่คำสั่งมาตรฐานใหม่:
+
+| คำสั่งดั้งเดิม (Legacy Script) | คำสั่งมาตรฐานใหม่ (Canonical CLI) | ความสามารถที่เพิ่มขึ้น |
+|---|---|---|
+| `python -m core.evaluator.cli --parallel --dry-run` | `thai-eval eval run --parallel --dry-run` | ไวยากรณ์ `noun verb` ที่เป็นระบบ |
+| `python -m core.evaluator.cli --parallel --defenses ...` | `thai-eval eval run --parallel --defenses ...` | รองรับ `--format json/csv` และ Security Exit Codes |
+| `python -m core.evaluator.cli --probing` | `thai-eval probe run` | แยก Namespace Probing ชัดเจน |
+| `python -m core.evaluator.cli --dlp-audit` | `thai-eval dlp audit` | ตารางรายงานผลสวยงามและเช็ค exit code ได้ |
+| `python web_ui.py` | `thai-eval serve` | กำหนด host/port ได้ง่ายผ่าน flag |
+| `python -m unittest discover tests` | `thai-eval test run` | รวมการทดสอบเข้าสู่ CLI เดียวกัน |
 
 ---
 
@@ -108,6 +209,7 @@ thai-injection-eval/
 ├── data/                         # [DATA] ชุดทดสอบและฐานข้อมูลจำลอง
 │   ├── test_cases_parallel.json  # ชุดทดสอบหลักคู่ขนาน 3 ภาษา (45 เคส)
 │   ├── test_cases_probing.json   # ชุดทดสอบเจาะจุดบอด Probing Suite (24 เคส)
+│   ├── test_cases_indirect.json  # ชุดทดสอบ Indirect Injection & Spotlighting (36 เคส)
 │   ├── test_cases.json           # ชุดทดสอบดั้งเดิม (Legacy Baseline, 36 เคส)
 │   ├── university.db             # Mock SQLite Database (WAL Mode)
 │   └── results.db                # Test Audit & Result Database
@@ -121,7 +223,7 @@ thai-injection-eval/
 ├── results/                      # [RESULTS] รายงานผลการประเมิน
 │   └── published/                # ผลการทดลองจริงที่เผยแพร่อย่างเป็นทางการ
 │
-├── tests/                        # [TESTS] ชุดทดสอบออฟไลน์ 100% (114 ข้อสอบ)
+├── tests/                        # [TESTS] ชุดทดสอบออฟไลน์ (136 ข้อสอบ)
 │
 ├── agent.py                      # [OPTIONAL] Standalone Single-case CLI Runner
 ├── web_ui.py                     # [OPTIONAL] Interactive Red-Teaming Playground (Flask)

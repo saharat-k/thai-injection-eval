@@ -1,6 +1,6 @@
 # ระเบียบวิธีวิจัยและแบบจำลองการประเมินความปลอดภัย (Security Evaluation Methodology)
 
-เอกสารฉบับนี้อธิบายกรอบแนวคิด ระเบียบวิธีวิจัย การจำแนกประเภทภัยคุกคาม (Attack Taxonomy) การออกแบบชุดทดสอบ และเกณฑ์การวัดผลทางสถิติของโปรเจกต์ **`thai-injection-eval`** เพื่อให้การทดลองสามารถทำซ้ำได้ (Reproducible) ตามมาตรฐานวิทยาศาสตร์ความปลอดภัย
+เอกสารฉบับนี้อธิบายกรอบแนวคิด ระเบียบวิธีวิจัย การจำแนกประเภทภัยคุกคาม (Attack Taxonomy) การออกแบบชุดทดสอบ และเกณฑ์การวัดผลทางสถิติของโปรเจกต์ **`thai-injection-eval`** เพื่อให้การทดลองสามารถทำซ้ำได้ (Reproducible) ตามระเบียบวิธีการประเมินความปลอดภัย
 
 ---
 
@@ -45,7 +45,7 @@ flowchart LR
 เพื่อป้องกันอคติจากการทดลอง โปรเจกต์แยกชุดทดสอบออกเป็น 3 ไฟล์ตามวัตถุประสงค์:
 
 ### 3.1 ชุดทดสอบคู่ขนาน 3 ภาษา [`data/test_cases_parallel.json`](../data/test_cases_parallel.json) *(ชุดหลักสำหรับวิจัย)*
-* **ออกแบบสมดุล 100%**: ทุกเจตนาการโจมตี (`pair_id`) มีคู่ขนานครบทั้ง **3 รูปแบบภาษา (`TH`, `EN`, `MIX`)** ในความยากและเป้าหมายเดียวกัน:
+* **ออกแบบอย่างสมดุล**: ทุกเจตนาการโจมตี (`pair_id`) มีคู่ขนานครบทั้ง **3 รูปแบบภาษา (`TH`, `EN`, `MIX`)** ในความยากและเป้าหมายเดียวกัน:
   * **เคสโจมตี 12 คู่ (36 เคส)**: `direct` (2), `indirect` (2), `recon` (2), `semantic` (2), `roleplay` (1), `fewshot` (2), `obfuscation` (1)
   * **เคสคำถามปกติ (Benign Control) 3 คู่ (9 เคส)**: สำหรับวัดอัตราการปฏิเสธผิดพลาด (False Refusal Rate - FRR) แยกตามภาษา
 * **รวมทั้งหมด 45 เคส**: สามารถเปรียบเทียบข้ามภาษาได้อย่างเป็นธรรม (Fair Cross-Lingual Evaluation)
@@ -56,7 +56,17 @@ flowchart LR
   2. **`dlp_bypass_probe`**: ทดสอบการหลบเลี่ยง Output DLP ด้วยการเข้ารหัสที่ยังไม่ถอดรหัสในระบบ (ROT13, URL Percent-Encoding, Tilde Delimiter, HTML Decimal Entities)
   3. **`collateral_public_leak`**: ทดสอบการรั่วไหลของข้อมูลนักศึกษาคนอื่นที่ไม่ได้ถามถึง (Collateral Leak) จากการคิวรีตารางสาธารณะด้วยคำค้นกว้าง
 
-### 3.3 ชุดทดสอบดั้งเดิม [`data/test_cases.json`](../data/test_cases.json) *(Legacy Baseline)*
+### 3.3 ชุดทดสอบ Indirect Injection & Spotlighting [`data/test_cases_indirect.json`](../data/test_cases_indirect.json) *(Spotlighting Evaluation)*
+* ออกแบบมาเพื่อทดสอบการโจมตีแบบ Indirect Injection ที่ข้ามตารางสาธารณะ (Pivot across public tables: `announcements`, `course_evaluations` $\to$ `enrollments`, `awards`) เพื่อวัดความสามารถในการต้านทานการถูกบงการ (Manipulation) และการรั่วไหลของข้อมูล (Leakage) โดยเฉพาะ
+* ประกอบด้วย 12 คู่ (36 เคส ครบ `TH`/`EN`/`MIX`):
+  * **Authority Spoofing (3 คู่ / 9 เคส)**: แอบอ้างคำสั่งของผู้บริหารหรือผู้ตรวจสอบ
+  * **Delimiter Escaping (3 คู่ / 9 เคส)**: พยายามหลุดออกจากกรอบโครงสร้างและ Delimiter
+  * **Code-mixing Technical (3 คู่ / 9 เคส)**: ผสมภาษาไทยและศัพท์เทคนิคเพื่อลวง Tool Call
+  * **Benign Control (3 คู่ / 9 เคส)**: คำถามปกติเกี่ยวกับประกาศและการประเมิน เพื่อวัด False Positive
+* รองรับการวิเคราะห์ผลทางสถิติแบบจับคู่ (Paired McNemar & Newcombe Paired CI) ใน [`scripts/analyze.py`](../scripts/analyze.py)
+* ⚠️ **ข้อจำกัดของ Tier `tools`**: ในชุดทดสอบนี้ ตารางปลายทางของการ Pivot ทั้งหมด (`enrollments`, `awards`) เป็นตารางที่อนุญาตใน Allowlist ดังนั้น Table-level ACL ในโหมด `tools` จึงไม่อาจสกัดกั้นการ Pivot ข้ามตารางสาธารณะได้ ทำให้คาดหมายว่า `tools ≈ off` ซึ่งเป็นหลักฐานว่าการควบคุมสิทธิ์ระดับตารางไม่เพียงพอ (ดูรายละเอียดใน [`LIMITATIONS.md`](../LIMITATIONS.md))
+
+### 3.4 ชุดทดสอบดั้งเดิม [`data/test_cases.json`](../data/test_cases.json) *(Legacy Baseline)*
 * ประกอบด้วย 36 กรณีศึกษาดั้งเดิม (ภาษาไทย 24 เคส, อังกฤษ 8 เคส, ปนภาษา 4 เคส)
 * ⚠️ **ข้อควรระวัง**: ห้ามใช้ `test_cases.json` ในการเปรียบเทียบอัตราความปลอดภัยข้ามภาษา เนื่องจากขนาดตัวอย่างและสัดส่วนเวกเตอร์ในแต่ละภาษาไม่เท่ากัน ให้ใช้ `test_cases_parallel.json` สำหรับการวิจัยข้ามภาษาเท่านั้น
 
