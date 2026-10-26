@@ -1,6 +1,6 @@
 # Thai Prompt Injection Security Benchmark & Evaluation Harness
 
-[![Tests](https://img.shields.io/badge/Tests-171%20Passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-172%20Passing-brightgreen.svg)](tests/)
 [![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.14-blue.svg)](https://www.python.org/)
 [![OWASP](https://img.shields.io/badge/OWASP-Top%2010%20for%20LLM%20(2025)-orange.svg)](https://owasp.org/www-project-top-10-for-large-language-model-applications/)
 [![Defense](https://img.shields.io/badge/Defense-4--Tier%20Defense--in--Depth-purple.svg)](docs/architecture.md#2-กลไกการป้องกันความปลอดภัย-4-ระดับ-4-tier-defense-in-depth)
@@ -9,7 +9,7 @@
 
 ชุดเครื่องมือและเฟรมเวิร์กมาตรฐานสำหรับทดสอบ ประเมินความมั่นคงปลอดภัย และทำ Red-Teaming โมเดลภาษาขนาดใหญ่ (LLM) ต่อภัยคุกคามด้าน **Prompt Injection** และ **Sensitive Information Disclosure** ในบริบท **ภาษาไทย ภาษาอังกฤษ และคำถามปนภาษา (Code-mixed)** พร้อมกลไกความปลอดภัยหลายชั้น (Defense-in-Depth) และตัวตัดสินแบบกฎตายตัว (Deterministic Rule-Based Judge)
 
-> **English Executive Summary**: A standardized benchmark harness and evaluation toolkit for assessing Large Language Model (LLM) agents against **Direct/Indirect Prompt Injection (OWASP LLM01)** and **Sensitive Information Disclosure (OWASP LLM02)** across Thai, English, and code-mixed inputs. Features a balanced 3-language parallel dataset, pluggable model adapters, a 4-tier defense architecture, and a 171-test offline verification suite requiring zero API quota.
+> **English Executive Summary**: A standardized benchmark harness and evaluation toolkit for assessing Large Language Model (LLM) agents against **Direct/Indirect Prompt Injection (OWASP LLM01)** and **Sensitive Information Disclosure (OWASP LLM02)** across Thai, English, and code-mixed inputs. Features a balanced 3-language parallel dataset, pluggable model adapters, a 4-tier defense architecture, and a 172-test offline verification suite requiring zero API quota.
 
 > [!IMPORTANT]
 > **ข้อจำกัดและขอบเขตการแปลผล (Methodology & Scope Limitations):**
@@ -80,7 +80,7 @@ thai-eval
 ├── dlp
 │   └── audit    # ทดสอบการหลบเลี่ยง Output DLP แบบออฟไลน์ (0 LLM API calls)
 ├── test
-│   ├── run      # รันชุดทดสอบความถูกต้องภายใน (171 Offline Unittests)
+│   ├── run      # รันชุดทดสอบความถูกต้องภายใน (172 Offline Unittests)
 │   └── list     # แสดงรายการชุดทดสอบภายในระบบ
 ├── serve        # เปิดเว็บ Interactive Red-Teaming Playground (Flask)
 ├── doctor       # ตรวจสอบความพร้อมของ Python, Dependencies, DB, และ Datasets
@@ -96,7 +96,7 @@ thai-eval
 .\thai-eval.bat doctor                                 # ตรวจสุขภาพสภาพแวดล้อม
 .\thai-eval.bat dlp audit                             # ออดิต DLP Bypass เวกเตอร์
 .\thai-eval.bat eval run --parallel --dry-run          # ตรวจสอบชุดข้อมูลและประเมิน API request ล่วงหน้า
-.\thai-eval.bat test run                               # รัน unit tests 171 ข้อ
+.\thai-eval.bat test run                               # รัน unit tests 172 ข้อ
 
 # 2. การประเมินผลความปลอดภัยจริง (Live Security Evaluations)
 .\thai-eval.bat eval run --parallel --defenses off,prompt,tools,all

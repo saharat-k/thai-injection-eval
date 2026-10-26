@@ -31,6 +31,22 @@ def compute_seed_db_hash(seed_path: str = "scripts/seed_db.py") -> str:
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
+def compute_test_cases_hash(cases_path: str = "data/test_cases_indirect.json") -> str:
+    """Compute deterministic SHA-256 hash of test cases file with line-ending normalization.
+    
+    Normalizes all CRLF and CR line endings to LF before hashing to ensure
+    cross-platform stability (Windows vs Linux vs Git checkout).
+    """
+    if not os.path.exists(cases_path):
+        raise FileNotFoundError(f"[BENCHMARK LOCK ERROR] Cases file not found at: {cases_path}")
+
+    with open(cases_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    normalized = content.replace("\r\n", "\n").replace("\r", "\n")
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
 def dump_benchmark_payload_records(
     db_path: str = "data/university.db",
     cases_path: str = "data/test_cases_indirect.json",
@@ -167,8 +183,7 @@ def verify_benchmark_lock(
     if not os.path.exists(cases_file):
         raise RuntimeError(f"[BENCHMARK LOCK ERROR] Cases file not found at: {cases_file}")
 
-    with open(cases_file, "rb") as f:
-        actual_cases_hash = hashlib.sha256(f.read()).hexdigest()
+    actual_cases_hash = compute_test_cases_hash(cases_file)
     expected_cases_hash = lock.get("cases_sha256")
     if actual_cases_hash != expected_cases_hash:
         raise RuntimeError(

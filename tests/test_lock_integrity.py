@@ -16,6 +16,7 @@ from unittest.mock import patch, MagicMock
 
 from core.evaluator.lock import (
     compute_seed_db_hash,
+    compute_test_cases_hash,
     compute_payload_records_hash,
     dump_benchmark_payload_records,
     verify_benchmark_lock,
@@ -107,6 +108,28 @@ class TestBenchmarkLockIntegrity(unittest.TestCase):
         lf_hash = compute_seed_db_hash(lf_file)
 
         self.assertEqual(crlf_hash, lf_hash)
+
+    def test_test_cases_crlf_vs_lf_line_endings_match(self):
+        """Test cases file hash must be completely invariant to Windows CRLF vs Linux LF line endings."""
+        crlf_file = os.path.join(self.temp_dir, "cases_crlf.json")
+        lf_file = os.path.join(self.temp_dir, "cases_lf.json")
+
+        with open(self.cases_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        normalized_lf = content.replace("\r\n", "\n").replace("\r", "\n")
+        crlf_content = normalized_lf.replace("\n", "\r\n")
+
+        with open(crlf_file, "wb") as f:
+            f.write(crlf_content.encode("utf-8"))
+        with open(lf_file, "wb") as f:
+            f.write(normalized_lf.encode("utf-8"))
+
+        crlf_hash = compute_test_cases_hash(crlf_file)
+        lf_hash = compute_test_cases_hash(lf_file)
+
+        self.assertEqual(crlf_hash, lf_hash)
+        self.assertEqual(lf_hash, "d4b298ad2e8833f45f499dc9357e3a8a36504bb1ca8d0cccc8ad3b5ab9133a83")
 
     def test_changing_test_cases_fails_verification(self):
         """Mutating test_cases_indirect.json must fail with test cases hash mismatch."""

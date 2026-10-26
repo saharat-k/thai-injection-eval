@@ -12,7 +12,7 @@
     "base_prng_seed": 42
   },
   "cases_file": "data/test_cases_indirect.json",
-  "cases_sha256": "8be70d9702bb8a6e1359b86340f8d124d865e1f7f2d47962d77ec44afe500e44",
+  "cases_sha256": "d4b298ad2e8833f45f499dc9357e3a8a36504bb1ca8d0cccc8ad3b5ab9133a83",
   "total_cases": 36,
   "total_pairs": 12,
   "languages": [
