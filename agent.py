@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import argparse
 import atexit
 import base64
@@ -12,6 +14,7 @@ import unicodedata
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Tuple
 
 from dotenv import load_dotenv
 from google import genai
