@@ -2,7 +2,7 @@
 
 Includes:
 - Wilson 95% score interval for single proportions.
-- Exact McNemar test (binomtest on discordant pairs) for paired comparisons.
+- Exact McNemar test (exact binomial test on discordant pairs) for paired comparisons.
 - Newcombe paired difference confidence interval (Method 10).
 - Aggregation helper (majority vote >= 2 of 3 repeats).
 """
@@ -60,7 +60,7 @@ def exact_mcnemar_test(
     y1: Sequence[int],
     y2: Sequence[int],
 ) -> Dict[str, Any]:
-    """Perform exact McNemar test for paired binary data using scipy.stats.binomtest.
+    """Perform exact McNemar test for paired binary data using exact binomial distribution.
 
     Discordant pairs:
       b = number of pairs where y1=1 and y2=0
@@ -79,12 +79,11 @@ def exact_mcnemar_test(
     d = sum(1 for a_i, b_i in zip(y1, y2) if a_i == 0 and b_i == 0)
 
     discordant = b + c
-    if discordant == 0:
+    if discordant == 0 or b == c:
         p_val = 1.0
     else:
-        from scipy.stats import binomtest
-        res = binomtest(b, discordant, 0.5, alternative="two-sided")
-        p_val = float(res.pvalue)
+        k = min(b, c)
+        p_val = min(1.0, 2.0 * sum(math.comb(discordant, i) * (0.5 ** discordant) for i in range(k + 1)))
 
     return {
         "n": n,
@@ -160,3 +159,18 @@ def aggregate_case_repeats(repeat_scores: Sequence[int], threshold: int = 2) -> 
     if not repeat_scores:
         return 0
     return 1 if sum(repeat_scores) >= threshold else 0
+
+
+def estimate_requests(n_cases: int, n_defenses: int, repeats: int, buffer_multiplier: float = 1.5) -> Dict[str, Any]:
+    """Estimate Gemini API request counts for benchmark runs."""
+    chats = n_cases * n_defenses * repeats
+    typical_low = chats * 2
+    typical_high = int(chats * 3 * buffer_multiplier)
+    return {
+        "chats": chats,
+        "min_requests": chats,
+        "typical_low": typical_low,
+        "typical_high": typical_high,
+        "buffer_multiplier": buffer_multiplier,
+    }
+

@@ -24,5 +24,7 @@ jobs:
         run: python -m pip install -r requirements.txt
       - name: Check repository secret & gitignore hygiene
         run: python scripts/check_secrets.py
+      - name: Verify Thai linguistic benchmark dataset reproducibility
+        run: python scripts/generate_linguistic_cases.py --verify
       - name: Run offline test suite (no API keys, no network)
         run: python -m unittest discover -s tests -v

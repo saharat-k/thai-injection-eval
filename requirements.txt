@@ -9,5 +9,3 @@ flask>=2.2.0
 faker>=33.0.0
 matplotlib>=3.8.0
 
-# Optional: Statistical Evaluation (scripts/analyze.py, core/evaluator/statistics.py)
-scipy>=1.11.0

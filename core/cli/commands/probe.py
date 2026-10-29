@@ -13,22 +13,10 @@ from core.evaluator.probing import (
 )
 from core.evaluator.parallel import file_sha256
 from core.evaluator.reporter import export_published_files
+from core.evaluator.stats import estimate_requests
 from core.cli.output.common import render_output
 from core.cli.terminal.colors import bold, status_badge, green, red, yellow
 from core.cli.terminal.progress import ProgressReporter
-
-
-def _estimate_requests(n_cases: int, n_defenses: int, repeats: int, buffer_multiplier: float = 1.5) -> dict:
-    chats = n_cases * n_defenses * repeats
-    typical_low = chats * 2
-    typical_high = int(chats * 3 * buffer_multiplier)
-    return {
-        "chats": chats,
-        "min_requests": chats,
-        "typical_low": typical_low,
-        "typical_high": typical_high,
-        "buffer_multiplier": buffer_multiplier,
-    }
 
 
 def run_probe_list(args) -> int:
@@ -107,7 +95,7 @@ def run_probe_run(args) -> int:
         return 2
 
     cases = doc["cases"]
-    est = _estimate_requests(len(cases), len(defenses), repeats)
+    est = estimate_requests(len(cases), len(defenses), repeats)
 
     if not quiet and fmt == "table":
         print("\n" + bold("[OWASP LLM SECURITY PROBING BENCHMARK]", enabled=not no_color))

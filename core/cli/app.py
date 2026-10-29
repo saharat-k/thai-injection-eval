@@ -75,8 +75,11 @@ Exit Codes:
     eval_run.add_argument("--defense", choices=list(ALL_DEFENSES), default="off", help="Defense configuration tier")
     eval_run.add_argument("--role", "--blue-role", dest="role", choices=["student_guest", "registrar_staff", "system_admin"], default="registrar_staff", help="Target Blue Assistant role persona")
     eval_run.add_argument("--parallel", action="store_true", help="Run parallel 3-language benchmark (test_cases_parallel.json)")
+    eval_run.add_argument("--linguistic", action="store_true", help="Run Thai linguistic & direct DLP evasion benchmark (test_cases_linguistic.json)")
     eval_run.add_argument("--defenses", default=",".join(PARALLEL_DEFENSES), help="Comma-separated defense tiers for parallel run")
     eval_run.add_argument("--repeats", type=int, default=1, help="Repetitions per case/tier")
+    eval_run.add_argument("--limit", type=int, default=None, help="Limit total cases to evaluate (cost control)")
+    eval_run.add_argument("--sample-per-vector", type=int, default=None, help="Sample N cases per attack vector (cost control)")
     eval_run.add_argument("--cases", default=None, help="Custom test cases JSON file")
     eval_run.add_argument("--parallel-cases", default="data/test_cases_parallel.json", help="Path to parallel cases file")
     eval_run.add_argument("--dry-run", action="store_true", help="Validate inputs and estimate API calls without live execution")
@@ -93,6 +96,7 @@ Exit Codes:
     eval_list = eval_subs.add_parser("list", parents=[common_parser], help="List evaluation test cases")
     eval_list.add_argument("--cases", default=None, help="Custom test cases JSON file")
     eval_list.add_argument("--parallel", action="store_true", help="List parallel 3-language cases")
+    eval_list.add_argument("--linguistic", action="store_true", help="List linguistic benchmark cases")
 
     # eval info
     eval_info = eval_subs.add_parser("info", parents=[common_parser], help="Inspect detailed specification of a test case")
@@ -173,6 +177,18 @@ Exit Codes:
 
 def main(argv: Optional[List[str]] = None) -> int:
     """Main CLI entry point."""
+    # Ensure stdout/stderr handle UTF-8 cleanly without crashing on Windows cp1252
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+    if hasattr(sys.stderr, "reconfigure"):
+        try:
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
     if argv is None:
         argv = sys.argv[1:]
 

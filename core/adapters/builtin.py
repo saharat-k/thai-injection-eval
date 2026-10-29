@@ -54,4 +54,4 @@ class BuiltinTargetAdapter(BaseTargetAdapter):
             )
 
     def reset(self):
-        self.session = agent.BlueSession(defense=self.defense, role=self.role)
+        self.session = agent.BlueSession(defense=self.defense, role=self.role, allow_fallback=self.allow_fallback)

@@ -50,7 +50,6 @@ def run_diagnostics() -> Dict[str, Any]:
         ("flask", "flask"),
         ("faker", "faker"),
         ("matplotlib", "matplotlib"),
-        ("scipy", "scipy"),
     ]
     missing_opt = []
     for pkg_name, mod_name in optional_deps:
@@ -70,6 +69,8 @@ def run_diagnostics() -> Dict[str, Any]:
         ("Probing Cases", ["data/test_cases_probing.json", "test_cases_probing.json"]),
         ("Baseline Cases", ["test_cases.json", "data/test_cases.json"]),
         ("Indirect Cases", ["data/test_cases_indirect.json", "test_cases_indirect.json"]),
+        ("Linguistic Cases", ["data/test_cases_linguistic.json", "test_cases_linguistic.json"]),
+        ("Linguistic Seeds", ["data/linguistic_seeds.json", "linguistic_seeds.json"]),
     ]
     missing_data = []
     for label, paths in datasets:

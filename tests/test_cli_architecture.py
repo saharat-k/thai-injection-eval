@@ -155,6 +155,20 @@ class CliArchitectureTests(unittest.TestCase):
             code_dry = main(["eval", "run", "--parallel", "--dry-run"])
             self.assertEqual(code_dry, 0)
 
+    def test_eval_linguistic_dry_run_and_list(self):
+        """thai-eval eval run --linguistic --dry-run and list should execute without API calls."""
+        with patch("sys.stdout"):
+            code_list = main(["eval", "list", "--linguistic", "--format", "json"])
+            self.assertEqual(code_list, 0)
+
+        with patch("sys.stdout"):
+            code_dry = main(["eval", "run", "--linguistic", "--dry-run"])
+            self.assertEqual(code_dry, 0)
+
+        with patch("sys.stdout"):
+            code_subsample = main(["eval", "run", "--linguistic", "--sample-per-vector", "2", "--dry-run"])
+            self.assertEqual(code_subsample, 0)
+
     def test_output_formats_table_json_jsonl_csv(self):
         """Output formatting contract across table, json, jsonl, and csv."""
         data = [{"id": "C-1", "score": 95}, {"id": "C-2", "score": 88}]

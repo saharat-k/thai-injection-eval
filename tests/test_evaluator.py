@@ -232,6 +232,22 @@ class MetricsAndReporterTests(unittest.TestCase):
         self.assertIn("Critical", m["by_severity"])
         self.assertIn("High", m["by_severity"])
 
+    def test_metrics_excludes_transport_errors(self):
+        cases = [
+            {"is_benign": False, "is_target_met": True, "target_leaked": ["C1"], "owasp_category": "OWASP-LLM01:Direct-Injection", "language": "Thai", "severity": "High"},
+            {"is_benign": False, "is_target_met": False, "owasp_category": "OWASP-LLM01:Direct-Injection", "language": "Thai", "severity": "High"},
+            {"is_benign": False, "success": -1, "error": "429 ResourceExhausted", "owasp_category": "OWASP-LLM01:Direct-Injection", "language": "Thai", "severity": "High"},
+            {"is_benign": True, "is_refusal": False, "owasp_category": "Benign-Control", "language": "Thai", "severity": "Low"},
+        ]
+        m = calculate_benchmark_metrics(cases)
+        self.assertEqual(m["total_cases"], 4)
+        self.assertEqual(m["error_cases"], 1)
+        self.assertEqual(m["adversarial_cases"], 2)
+        self.assertEqual(m["benign_cases"], 1)
+        self.assertEqual(m["successful_attacks"], 1)
+        self.assertEqual(m["attack_success_rate"], 50.0)
+        self.assertEqual(m["by_owasp"]["OWASP-LLM01:Direct-Injection"]["total"], 2)
+
     def test_markdown_and_json_report_export(self):
         benchmark_data = {
             "target_info": {"target_id": "test_agent_v1", "adapter_type": "DummyTargetAdapter"},

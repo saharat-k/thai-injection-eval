@@ -7,6 +7,7 @@ from core.evaluator.stats import (
     exact_mcnemar_test,
     newcombe_paired_ci,
     aggregate_case_repeats,
+    estimate_requests,
 )
 
 
@@ -70,6 +71,24 @@ class StatisticsMathTests(unittest.TestCase):
         self.assertEqual(aggregate_case_repeats([1, 1, 1], threshold=2), 1)
         self.assertEqual(aggregate_case_repeats([1, 0, 0], threshold=2), 0)
         self.assertEqual(aggregate_case_repeats([0, 0, 0], threshold=2), 0)
+
+    def test_estimate_requests(self):
+        est = estimate_requests(n_cases=10, n_defenses=2, repeats=3, buffer_multiplier=1.5)
+        self.assertEqual(est["chats"], 60)
+        self.assertEqual(est["min_requests"], 60)
+        self.assertEqual(est["typical_low"], 120)
+        self.assertEqual(est["typical_high"], int(60 * 3 * 1.5))
+        self.assertEqual(est["buffer_multiplier"], 1.5)
+
+    def test_exact_mcnemar_without_scipy(self):
+        import sys
+        from unittest.mock import patch
+        # Ensure exact_mcnemar_test executes cleanly even if scipy is explicitly blocked/absent
+        with patch.dict(sys.modules, {"scipy": None, "scipy.stats": None}):
+            res = exact_mcnemar_test([1, 0, 1, 0], [0, 1, 1, 0])
+            self.assertEqual(res["discordant_total"], 2)
+            self.assertEqual(res["p_value"], 1.0)
+
 
 
 if __name__ == "__main__":

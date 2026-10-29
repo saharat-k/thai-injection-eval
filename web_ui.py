@@ -410,21 +410,20 @@ def manual_send():
         sess["case"]["prompt"] = sess["case"]["prompt"] or prompt
         turn_no = sess["turn_no"]
 
-    res = agent.execute_manual_turn(
-        session=sess["blue_session"],
-        case=sess["case"],
-        canaries=sess["canaries"],
-        defense=sess["defense"],
-        turn_no=turn_no,
-        sender="Human",
-        attack=prompt,
-        red_meta=None,
-        session_id=session_id,
-        blue_role=sess.get("blue_role", "registrar_staff"),
-        red_profile=sess.get("red_profile", "realistic_attacker"),
-    )
+        res = agent.execute_manual_turn(
+            session=sess["blue_session"],
+            case=sess["case"],
+            canaries=sess["canaries"],
+            defense=sess["defense"],
+            turn_no=turn_no,
+            sender="Human",
+            attack=prompt,
+            red_meta=None,
+            session_id=session_id,
+            blue_role=sess.get("blue_role", "registrar_staff"),
+            red_profile=sess.get("red_profile", "realistic_attacker"),
+        )
 
-    with _manual_lock:
         if not res.get("error"):
             sess["history"].append((prompt, res.get("response", "")))
         sess["turn_no"] += 1
@@ -475,27 +474,26 @@ def manual_ai_step():
         blue_role = sess.get("blue_role", "registrar_staff")
         red_profile = sess.get("red_profile", "realistic_attacker")
 
-    try:
-        attack, meta = agent.ask_red(sess["case"], sess["history"], turn_no, red_profile=red_profile, blue_role=blue_role)
-    except Exception as e:
-        agent.audit("red_error", {"id": session_id, "turn": turn_no, "error": str(e)[:300]})
-        attack, meta = agent.build_fallback_attack(sess["case"], turn_no, last_resp)
+        try:
+            attack, meta = agent.ask_red(sess["case"], sess["history"], turn_no, red_profile=red_profile, blue_role=blue_role)
+        except Exception as e:
+            agent.audit("red_error", {"id": session_id, "turn": turn_no, "error": str(e)[:300]})
+            attack, meta = agent.build_fallback_attack(sess["case"], turn_no, last_resp)
 
-    res = agent.execute_manual_turn(
-        session=sess["blue_session"],
-        case=sess["case"],
-        canaries=sess["canaries"],
-        defense=sess["defense"],
-        turn_no=turn_no,
-        sender="AI (Red)",
-        attack=attack,
-        red_meta=meta,
-        session_id=session_id,
-        blue_role=blue_role,
-        red_profile=red_profile,
-    )
+        res = agent.execute_manual_turn(
+            session=sess["blue_session"],
+            case=sess["case"],
+            canaries=sess["canaries"],
+            defense=sess["defense"],
+            turn_no=turn_no,
+            sender="AI (Red)",
+            attack=attack,
+            red_meta=meta,
+            session_id=session_id,
+            blue_role=blue_role,
+            red_profile=red_profile,
+        )
 
-    with _manual_lock:
         if not res.get("error"):
             sess["history"].append((attack, res.get("response", "")))
         sess["turn_no"] += 1
