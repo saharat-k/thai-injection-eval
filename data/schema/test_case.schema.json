@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://raw.githubusercontent.com/saharat-k/thai-injection-eval/main/data/schema/test_case.schema.json",
   "title": "ThaiInjectionTestCase",
-  "description": "Unified JSON schema for prompt injection evaluation test cases in Thai and Code-Mixed LLM interactions.",
+  "description": "Canonical JSON schema for prompt injection evaluation test cases in Thai and Code-Mixed LLM interactions.",
   "type": "object",
   "required": [
     "id",
@@ -18,12 +18,34 @@
   "properties": {
     "id": {
       "type": "string",
-      "description": "Unique identifier for the test case (e.g., PI-TH-001, IND-MIX-002, BENIGN-001).",
+      "description": "Unique identifier for the test case (e.g., PI-TH-001, TH-1, PAR-01-TH, LING-CS-01-V1).",
       "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "owasp_category": {
+      "type": "string",
+      "description": "OWASP Top 10 for LLMs mapping.",
+      "enum": [
+        "OWASP-LLM01:Prompt-Injection",
+        "OWASP-LLM02:Sensitive-Information-Disclosure",
+        "OWASP-LLM06:Excessive-Agency",
+        "BENIGN:Control-Baseline"
+      ]
     },
     "category": {
       "type": "string",
-      "description": "Primary attack or evaluation category classified per the project taxonomy (docs/taxonomy.md).",
+      "description": "Macro attack or evaluation classification per project taxonomy.",
+      "enum": [
+        "direct_injection",
+        "indirect_injection",
+        "linguistic_evasion",
+        "sensitive_information_disclosure",
+        "excessive_agency",
+        "benign_control"
+      ]
+    },
+    "technique": {
+      "type": "string",
+      "description": "Tactical technique identifier per project taxonomy.",
       "enum": [
         "instruction_override",
         "delimiter_escaping",
@@ -37,35 +59,27 @@
         "code_switching_dilution",
         "canary_extraction",
         "collateral_leak",
-        "collateral_public_leak",
         "dlp_bypass",
-        "dlp_bypass_probe",
         "schema_recon",
         "tool_acl_violation",
-        "indirect_public_tools",
         "privilege_escalation",
-        "benign_control"
+        "benign_thai",
+        "benign_mixed",
+        "benign_indirect"
       ]
-    },
-    "technique": {
-      "type": "string",
-      "description": "Specific tactical technique or scenario title describing the vector."
     },
     "language": {
       "type": "string",
-      "description": "Language or linguistic environment. Note: 'en' is included strictly as a comparative baseline/control to scientifically isolate language-specific degradation, not as a primary research target.",
+      "description": "Canonical language identifier: 'th' (Thai), 'th-en' (Code-mixed), or 'en' (English baseline control).",
       "enum": [
         "th",
-        "en",
         "th-en",
-        "TH",
-        "EN",
-        "MIX"
+        "en"
       ]
     },
     "difficulty": {
       "type": "string",
-      "description": "Subjective cognitive and engineering complexity of the injection vector.",
+      "description": "Cognitive and engineering complexity required to craft or bypass defenses.",
       "enum": [
         "easy",
         "medium",
@@ -79,11 +93,7 @@
         "low",
         "medium",
         "high",
-        "critical",
-        "Low",
-        "Medium",
-        "High",
-        "Critical"
+        "critical"
       ]
     },
     "is_benign": {
@@ -92,12 +102,36 @@
     },
     "prompt": {
       "type": "string",
-      "description": "The verbatim user prompt or attack payload delivered to the target model or agent.",
+      "description": "The user input prompt delivered to the target model or agent.",
       "minLength": 1
+    },
+    "injected_content": {
+      "type": "string",
+      "description": "For indirect injection: the adversarial payload embedded within external data (database row, document, or third-party content)."
+    },
+    "source_type": {
+      "type": "string",
+      "description": "For indirect injection: the medium hosting the injected content (e.g., database_record, document, email)."
+    },
+    "source_table": {
+      "type": "string",
+      "description": "Database table name hosting the poisoned record in indirect injection."
+    },
+    "source_record_id": {
+      "type": "string",
+      "description": "Record identifier hosting the poisoned content in indirect injection."
+    },
+    "pivot_table": {
+      "type": "string",
+      "description": "Target database table coerced during indirect pivot attacks."
+    },
+    "pivot_record_id": {
+      "type": "string",
+      "description": "Target record identifier coerced during indirect pivot attacks."
     },
     "expected_behavior": {
       "type": "string",
-      "description": "Expected security or utility behavior of the model under defense ('refusal' for attacks, 'fulfillment' for benign/safe tasks, 'redaction' for masked output).",
+      "description": "Expected security or utility behavior of the model under defense ('refusal' for attacks, 'fulfillment' for benign tasks, 'redaction' for masked output).",
       "enum": [
         "refusal",
         "fulfillment",
@@ -117,7 +151,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "description": "Rule-based scoring algorithm applied to the interaction logs.",
+          "description": "Deterministic rule-based scoring algorithm applied to interaction logs.",
           "enum": [
             "canary",
             "forbidden_tools",
@@ -137,7 +171,7 @@
         },
         "expected_markers": {
           "type": "array",
-          "description": "Expected keywords or factual markers verifying legitimate fulfillment in benign queries.",
+          "description": "Expected factual keywords or strings verifying legitimate fulfillment in benign queries.",
           "items": {
             "type": "string"
           }
@@ -156,16 +190,305 @@
         },
         "metadata": {
           "type": "object",
-          "description": "Arbitrary contextual details (e.g. source_table, pivot_record_id, seed_id, target_defense).",
+          "description": "Contextual details (e.g. source_table, pivot_record_id, seed_id, target_defense).",
           "additionalProperties": true
         }
       },
       "additionalProperties": false
     },
+    "source_reference": {
+      "type": "string",
+      "description": "Academic citation, benchmark provenance, or origin reference for the test case."
+    },
     "notes": {
       "type": "string",
-      "description": "Optional research notes, academic citations, or experimental context."
+      "description": "Optional research notes, semantic equivalence explanation, or experimental context."
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "category": {
+            "const": "direct_injection"
+          }
+        },
+        "required": [
+          "category"
+        ]
+      },
+      "then": {
+        "properties": {
+          "owasp_category": {
+            "const": "OWASP-LLM01:Prompt-Injection"
+          },
+          "technique": {
+            "enum": [
+              "instruction_override",
+              "delimiter_escaping",
+              "authority_spoofing",
+              "fewshot_hijack"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "category": {
+            "const": "indirect_injection"
+          }
+        },
+        "required": [
+          "category"
+        ]
+      },
+      "then": {
+        "properties": {
+          "owasp_category": {
+            "const": "OWASP-LLM01:Prompt-Injection"
+          },
+          "technique": {
+            "enum": [
+              "data_layer_poisoning",
+              "pivot_injection"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "category": {
+            "const": "linguistic_evasion"
+          }
+        },
+        "required": [
+          "category"
+        ]
+      },
+      "then": {
+        "properties": {
+          "owasp_category": {
+            "const": "OWASP-LLM01:Prompt-Injection"
+          },
+          "technique": {
+            "enum": [
+              "zero_width_space",
+              "vowel_tone_homoglyph",
+              "word_segmentation",
+              "code_switching_dilution"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "category": {
+            "const": "sensitive_information_disclosure"
+          }
+        },
+        "required": [
+          "category"
+        ]
+      },
+      "then": {
+        "properties": {
+          "owasp_category": {
+            "const": "OWASP-LLM02:Sensitive-Information-Disclosure"
+          },
+          "technique": {
+            "enum": [
+              "canary_extraction",
+              "collateral_leak",
+              "dlp_bypass",
+              "schema_recon"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "category": {
+            "const": "excessive_agency"
+          }
+        },
+        "required": [
+          "category"
+        ]
+      },
+      "then": {
+        "properties": {
+          "technique": {
+            "enum": [
+              "tool_acl_violation",
+              "privilege_escalation"
+            ]
+          },
+          "owasp_category": {
+            "const": "OWASP-LLM06:Excessive-Agency"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "category": {
+            "const": "benign_control"
+          }
+        },
+        "required": [
+          "category"
+        ]
+      },
+      "then": {
+        "properties": {
+          "owasp_category": {
+            "const": "BENIGN:Control-Baseline"
+          },
+          "technique": {
+            "enum": [
+              "benign_thai",
+              "benign_mixed",
+              "benign_indirect"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "is_benign": {
+            "const": true
+          }
+        },
+        "required": [
+          "is_benign"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "const": "benign_control"
+          },
+          "expected_behavior": {
+            "const": "fulfillment"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "is_benign": {
+            "const": false
+          }
+        },
+        "required": [
+          "is_benign"
+        ]
+      },
+      "then": {
+        "properties": {
+          "category": {
+            "not": {
+              "const": "benign_control"
+            }
+          },
+          "expected_behavior": {
+            "enum": [
+              "refusal",
+              "redaction"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "technique": {
+            "const": "benign_thai"
+          }
+        },
+        "required": [
+          "technique"
+        ]
+      },
+      "then": {
+        "properties": {
+          "language": {
+            "const": "th"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "technique": {
+            "const": "benign_mixed"
+          }
+        },
+        "required": [
+          "technique"
+        ]
+      },
+      "then": {
+        "properties": {
+          "language": {
+            "const": "th-en"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "technique": {
+            "const": "data_layer_poisoning"
+          }
+        },
+        "required": [
+          "technique"
+        ]
+      },
+      "then": {
+        "required": [
+          "injected_content",
+          "source_type"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "technique": {
+            "const": "pivot_injection"
+          }
+        },
+        "required": [
+          "technique"
+        ]
+      },
+      "then": {
+        "required": [
+          "injected_content",
+          "source_type",
+          "source_table",
+          "source_record_id",
+          "pivot_table"
+        ]
+      }
+    }
+  ],
   "additionalProperties": true
 }
