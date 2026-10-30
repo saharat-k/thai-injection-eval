@@ -31,7 +31,6 @@ results.md
 scratch/
 GEMINI.md
 
-# Evaluator output (raw responses stay ignored; sanitized published summaries are tracked)
-results/*
-!results/published/
+# Evaluator output
+results/
 
