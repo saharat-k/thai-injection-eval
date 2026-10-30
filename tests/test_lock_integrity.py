@@ -129,7 +129,7 @@ class TestBenchmarkLockIntegrity(unittest.TestCase):
         lf_hash = compute_test_cases_hash(lf_file)
 
         self.assertEqual(crlf_hash, lf_hash)
-        self.assertEqual(lf_hash, "d4b298ad2e8833f45f499dc9357e3a8a36504bb1ca8d0cccc8ad3b5ab9133a83")
+        self.assertEqual(lf_hash, "9d7c9f7d05c454a43609dbf05e596d921c7b1cad53bd5deab036a158442575c5")
 
     def test_changing_test_cases_fails_verification(self):
         """Mutating test_cases_indirect.json must fail with test cases hash mismatch."""

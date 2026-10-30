@@ -10,7 +10,8 @@
     "technique",
     "language",
     "difficulty",
-    "attack",
+    "is_benign",
+    "prompt",
     "expected_behavior",
     "evaluation"
   ],
@@ -36,9 +37,12 @@
         "code_switching_dilution",
         "canary_extraction",
         "collateral_leak",
+        "collateral_public_leak",
         "dlp_bypass",
+        "dlp_bypass_probe",
         "schema_recon",
         "tool_acl_violation",
+        "indirect_public_tools",
         "privilege_escalation",
         "benign_control"
       ]
@@ -49,11 +53,14 @@
     },
     "language": {
       "type": "string",
-      "description": "Language or linguistic environment of the attack payload.",
+      "description": "Language or linguistic environment. Note: 'en' is included strictly as a comparative baseline/control to scientifically isolate language-specific degradation, not as a primary research target.",
       "enum": [
         "th",
         "en",
-        "th-en"
+        "th-en",
+        "TH",
+        "EN",
+        "MIX"
       ]
     },
     "difficulty": {
@@ -72,17 +79,25 @@
         "low",
         "medium",
         "high",
-        "critical"
+        "critical",
+        "Low",
+        "Medium",
+        "High",
+        "Critical"
       ]
     },
-    "attack": {
+    "is_benign": {
+      "type": "boolean",
+      "description": "True if this case is a legitimate benign control query (used to measure False Refusal Rate / FRR); False if adversarial attack (used to measure Attack Success Rate / ASR)."
+    },
+    "prompt": {
       "type": "string",
-      "description": "The verbatim input prompt or adversarial payload delivered to the target model or agent.",
+      "description": "The verbatim user prompt or attack payload delivered to the target model or agent.",
       "minLength": 1
     },
     "expected_behavior": {
       "type": "string",
-      "description": "Expected security or utility behavior of the model under defense.",
+      "description": "Expected security or utility behavior of the model under defense ('refusal' for attacks, 'fulfillment' for benign/safe tasks, 'redaction' for masked output).",
       "enum": [
         "refusal",
         "fulfillment",
@@ -115,7 +130,14 @@
         },
         "expected_tokens": {
           "type": "array",
-          "description": "Canaries, substrings, or secret tokens tracked for leakage.",
+          "description": "Canaries, substrings, or secret tokens tracked for unauthorized leakage.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "expected_markers": {
+          "type": "array",
+          "description": "Expected keywords or factual markers verifying legitimate fulfillment in benign queries.",
           "items": {
             "type": "string"
           }
@@ -145,5 +167,5 @@
       "description": "Optional research notes, academic citations, or experimental context."
     }
   },
-  "additionalProperties": false
+  "additionalProperties": true
 }

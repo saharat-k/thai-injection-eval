@@ -5,6 +5,7 @@ import os
 import sys
 from typing import List, Dict, Any, Optional
 
+import agent
 from core.adapters.factory import create_target_adapter
 from core.evaluator.engine import SecurityEvaluator
 from core.evaluator.reporter import (
@@ -177,7 +178,6 @@ def run_eval_run(args) -> int:
     # 2. Interactive Wizard fallback if no arguments in TTY and explicitly requested
     if getattr(args, "interactive", False) or (is_tty() and defense is None and not getattr(args, "cases", None)):
         try:
-            import agent
             agent.interactive_menu()
             return 0
         except Exception as e:
@@ -196,6 +196,12 @@ def run_eval_run(args) -> int:
         except Exception as e:
             print(f"[-] Error loading custom cases {cases_file}: {e}", file=sys.stderr)
             return 2
+    else:
+        cases = agent.load_test_cases()
+
+    limit = getattr(args, "limit", None)
+    if limit and cases and len(cases) > limit:
+        cases = cases[:limit]
 
     # Handle dry-run for single tier
     if dry_run:
@@ -300,6 +306,9 @@ def _run_eval_parallel(args) -> int:
         return 2
 
     cases = doc["cases"]
+    limit = getattr(args, "limit", None)
+    if limit and cases and len(cases) > limit:
+        cases = cases[:limit]
     est = estimate_requests(len(cases), len(defenses), repeats)
 
     if not quiet and fmt == "table":

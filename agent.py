@@ -2756,7 +2756,13 @@ def manual_mode(defense=None, blue_role=None, red_profile=None, lang=None, attac
         configure_defense(defense, blue_role=blue_role)
         session = BlueSession(defense, role=blue_role)  # one chat only for this whole run
         session_id = f"MANUAL-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
-        templates = [c for c in load_test_cases() if c.get("language") == lang and c.get("attack_type", "direct") == attack_type]
+        def _match_lang(c_lang, req_lang):
+            c_l = str(c_lang or "").strip().lower()
+            r_l = str(req_lang or "").strip().lower()
+            norm = {"thai": "th", "english": "en", "mixed": "th-en"}
+            return c_l == r_l or norm.get(r_l, r_l) == c_l or norm.get(c_l, c_l) == r_l
+
+        templates = [c for c in load_test_cases() if _match_lang(c.get("language") or c.get("lang"), lang) and c.get("attack_type", "direct") == attack_type]
         case = {"id": session_id, "language": lang, "attack_type": attack_type, "prompt": "", "source_reference": "manual", "targets": targets}
         history, turn_no = [], 1
         audit("manual_start", {
