@@ -132,8 +132,9 @@ For full research disclosure, see [**`LIMITATIONS.md`**](LIMITATIONS.md).
 ## Roadmap
 
 - [x] Initial project structure
-- [ ] Taxonomy
-- [ ] Dataset schema
+- [x] Initial experimental datasets
+- [ ] Standardized taxonomy
+- [ ] Standardized dataset schema
 - [ ] Dataset validation
 - [ ] Evaluation methodology
 - [ ] Evaluator

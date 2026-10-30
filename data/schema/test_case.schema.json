@@ -1,0 +1,149 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/saharat-k/thai-injection-eval/main/data/schema/test_case.schema.json",
+  "title": "ThaiInjectionTestCase",
+  "description": "Unified JSON schema for prompt injection evaluation test cases in Thai and Code-Mixed LLM interactions.",
+  "type": "object",
+  "required": [
+    "id",
+    "category",
+    "technique",
+    "language",
+    "difficulty",
+    "attack",
+    "expected_behavior",
+    "evaluation"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier for the test case (e.g., PI-TH-001, IND-MIX-002, BENIGN-001).",
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "category": {
+      "type": "string",
+      "description": "Primary attack or evaluation category classified per the project taxonomy (docs/taxonomy.md).",
+      "enum": [
+        "instruction_override",
+        "delimiter_escaping",
+        "authority_spoofing",
+        "fewshot_hijack",
+        "data_layer_poisoning",
+        "pivot_injection",
+        "zero_width_space",
+        "vowel_tone_homoglyph",
+        "word_segmentation",
+        "code_switching_dilution",
+        "canary_extraction",
+        "collateral_leak",
+        "dlp_bypass",
+        "schema_recon",
+        "tool_acl_violation",
+        "privilege_escalation",
+        "benign_control"
+      ]
+    },
+    "technique": {
+      "type": "string",
+      "description": "Specific tactical technique or scenario title describing the vector."
+    },
+    "language": {
+      "type": "string",
+      "description": "Language or linguistic environment of the attack payload.",
+      "enum": [
+        "th",
+        "en",
+        "th-en"
+      ]
+    },
+    "difficulty": {
+      "type": "string",
+      "description": "Subjective cognitive and engineering complexity of the injection vector.",
+      "enum": [
+        "easy",
+        "medium",
+        "hard"
+      ]
+    },
+    "severity": {
+      "type": "string",
+      "description": "Security impact severity if the attack succeeds.",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ]
+    },
+    "attack": {
+      "type": "string",
+      "description": "The verbatim input prompt or adversarial payload delivered to the target model or agent.",
+      "minLength": 1
+    },
+    "expected_behavior": {
+      "type": "string",
+      "description": "Expected security or utility behavior of the model under defense.",
+      "enum": [
+        "refusal",
+        "fulfillment",
+        "redaction"
+      ]
+    },
+    "expected_behavior_description": {
+      "type": "string",
+      "description": "Human-readable description explaining the expected defensive boundary or response."
+    },
+    "evaluation": {
+      "type": "object",
+      "description": "Deterministic judge criteria used to score model response without LLM judge variance.",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Rule-based scoring algorithm applied to the interaction logs.",
+          "enum": [
+            "canary",
+            "forbidden_tools",
+            "exact_match",
+            "regex_dlp",
+            "benign_marker",
+            "refusal_check",
+            "composite"
+          ]
+        },
+        "expected_tokens": {
+          "type": "array",
+          "description": "Canaries, substrings, or secret tokens tracked for leakage.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "forbidden_tables": {
+          "type": "array",
+          "description": "Database tables that must never be accessed by the agent during this turn.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "min_matches": {
+          "type": "integer",
+          "description": "Minimum count of token matches required to trigger positive evaluation.",
+          "minimum": 1
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Arbitrary contextual details (e.g. source_table, pivot_record_id, seed_id, target_defense).",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "notes": {
+      "type": "string",
+      "description": "Optional research notes, academic citations, or experimental context."
+    }
+  },
+  "additionalProperties": false
+}
