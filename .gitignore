@@ -30,6 +30,7 @@ results.md
 # Scratch & local AI rules
 scratch/
 GEMINI.md
+Red_team*.md
 
 # Evaluator output
 results/

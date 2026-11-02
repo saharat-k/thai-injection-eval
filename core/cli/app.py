@@ -15,6 +15,7 @@ from core.cli.commands.doctor import run_doctor
 from core.cli.commands.config import run_config
 from core.cli.commands.version import run_version, get_version_info
 from core.cli.commands.chat import run_chat
+from core.cli.commands.redteam import run_redteam_run, run_redteam_list
 
 
 class SecurityCLIParser(argparse.ArgumentParser):
@@ -47,6 +48,8 @@ def build_parser() -> SecurityCLIParser:
   thai-eval chat                              Interactive Red-Teaming playground & manual chat
   thai-eval chat --defense tools              Interactive chat directly with 'tools' defense
   thai-eval probe run                         Run Item 7 probing suite against tools/all
+  thai-eval redteam run --dry-run             Run zero-cost multi-turn red-teaming simulation
+  thai-eval redteam list                      List available red-team sociolinguistic profiles
   thai-eval dlp audit                         Audit regex DLP bypass encodings offline
   thai-eval eval list --parallel              List test cases in parallel dataset
   thai-eval test run                          Run internal verification unit test suite
@@ -172,6 +175,27 @@ Exit Codes:
     manual_parser.add_argument("--attack-type", choices=["direct", "indirect", "recon", "semantic", "roleplay", "fewshot", "obfuscation"], default=None, help="Preset attack category")
     manual_parser.add_argument("--targets", default=None, help="Target tables/keywords to monitor (comma-separated)")
 
+    # 7. REDTEAM command
+    redteam_parser = subparsers.add_parser("redteam", parents=[common_parser], help="Adaptive multi-turn Red Teaming harness")
+    redteam_subs = redteam_parser.add_subparsers(dest="subcommand", title="Redteam Actions", metavar="<action>")
+
+    # redteam run
+    redteam_run = redteam_subs.add_parser("run", parents=[common_parser], help="Run multi-turn adversarial red-teaming evaluation")
+    redteam_run.add_argument("--case", default=None, help="Target specific Case ID (default: all cases in dataset)")
+    redteam_run.add_argument("--cases", default=None, help="Custom test cases JSON file (default: data/normalized/test_cases.json)")
+    redteam_run.add_argument("--parallel", action="store_true", help="Use parallel 3-language dataset (test_cases_parallel.json)")
+    redteam_run.add_argument("--defense", choices=list(ALL_DEFENSES), default="all", help="Defense configuration tier (default: all)")
+    redteam_run.add_argument("--role", "--blue-role", dest="role", choices=["student_guest", "registrar_staff", "system_admin"], default="registrar_staff", help="Target Blue Assistant role persona")
+    redteam_run.add_argument("--profile", "--red-profile", dest="profile", choices=["thai_nuanced_adversary", "realistic_attacker", "insider_threat", "security_auditor"], default="thai_nuanced_adversary", help="Red adversary profile")
+    redteam_run.add_argument("--attempts", type=int, default=3, help="Maximum multi-turn attack rounds per case (default: 3)")
+    redteam_run.add_argument("--limit", type=int, default=None, help="Limit total cases to evaluate")
+    redteam_run.add_argument("--dry-run", action="store_true", help="Run simulation using rule-based mock runner without consuming API quota")
+    redteam_run.add_argument("--export-dir", default="results", help="Directory for exported reports")
+    redteam_run.add_argument("--export-name", default="redteam_evaluation_report", help="Report filename prefix")
+
+    # redteam list
+    redteam_list = redteam_subs.add_parser("list", parents=[common_parser], help="List available Red adversary profiles and sociolinguistic vectors")
+
     return root
 
 
@@ -256,6 +280,13 @@ def main(argv: Optional[List[str]] = None) -> int:
         elif subcmd == "info":
             return run_eval_info(args)
         parser.parse_args(["eval", "--help"])
+        return 2
+    elif cmd == "redteam":
+        if subcmd == "run" or subcmd is None:
+            return run_redteam_run(args)
+        elif subcmd == "list":
+            return run_redteam_list(args)
+        parser.parse_args(["redteam", "--help"])
         return 2
 
     parser.print_help()
