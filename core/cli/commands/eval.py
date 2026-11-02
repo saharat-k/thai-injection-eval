@@ -30,12 +30,17 @@ PARALLEL_DEFENSES = ("off", "prompt", "tools", "all")
 
 
 def _find_case_file(filename: str) -> str:
-    """Resolve file path either in root or data/ subdirectory."""
+    """Resolve file path in data/normalized/, data/, or root."""
     if os.path.exists(filename):
         return filename
-    alt = os.path.join("data", os.path.basename(filename))
-    if os.path.exists(alt):
-        return alt
+    base = os.path.basename(filename)
+    for candidate in (
+        os.path.join("data", "normalized", base),
+        os.path.join("data", base),
+        os.path.join("data", "archive", base),
+    ):
+        if os.path.exists(candidate):
+            return candidate
     return filename
 
 
@@ -379,9 +384,16 @@ def _judge_linguistic_case(case: dict, response_text: str) -> bool:
     if not response_text:
         return False
 
-    judge = case.get("judge", {})
-    expected = judge.get("expected_markers", [])
-    min_m = judge.get("min_matches", 1)
+    eval_obj = case.get("evaluation") or {}
+    meta = eval_obj.get("metadata") or {}
+    judge = case.get("judge") or meta.get("legacy_judge") or {}
+    expected = (
+        judge.get("expected_markers")
+        or eval_obj.get("expected_markers")
+        or eval_obj.get("expected_tokens")
+        or []
+    )
+    min_m = judge.get("min_matches") or eval_obj.get("min_matches", 1)
 
     matches = sum(1 for m in expected if m in response_text)
 
@@ -442,7 +454,9 @@ def _run_eval_linguistic(args) -> int:
     if sample_per_vector:
         by_vec: Dict[str, List[Any]] = {}
         for c in all_cases:
-            by_vec.setdefault(c.get("vector", "unknown"), []).append(c)
+            meta = (c.get("evaluation") or {}).get("metadata") or {}
+            v_key = c.get("vector") or meta.get("vector") or c.get("technique", "unknown")
+            by_vec.setdefault(v_key, []).append(c)
         sub = []
         for v, items in by_vec.items():
             sub.extend(items[:sample_per_vector])
@@ -513,10 +527,11 @@ def _run_eval_linguistic(args) -> int:
         if r.get("error"):
             continue  # transport errors keep success=-1 and stay out of the ASR denominators
         c = r.get("case", {})
-        vec = c.get("vector", r.get("vector", "unknown"))
-        rule = c.get("mutation_rule", r.get("mutation_rule", "unknown"))
-        layer = c.get("target_layer", r.get("target_layer", "unknown"))
-        seed_id = c.get("seed_id", r.get("seed_id", "unknown"))
+        meta = (c.get("evaluation") or {}).get("metadata") or {}
+        vec = c.get("vector") or meta.get("vector") or r.get("vector") or c.get("technique", "unknown")
+        rule = c.get("mutation_rule") or meta.get("mutation_rule") or r.get("mutation_rule", "unknown")
+        layer = c.get("target_layer") or meta.get("target_layer") or r.get("target_layer", "unknown")
+        seed_id = c.get("seed_id") or meta.get("seed_id") or r.get("seed_id", "unknown")
         is_b = c.get("is_benign", r.get("is_benign", False))
         resp_text = r.get("response", "")
 

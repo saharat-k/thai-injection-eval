@@ -44,27 +44,55 @@ REQUIRED_PROBING_FIELDS = (
     "notes",
 )
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_NORM_PROBING = os.path.join(_BASE_DIR, "data", "normalized", "test_cases_probing.json")
 _DATA_PROBING = os.path.join(_BASE_DIR, "data", "test_cases_probing.json")
 _ROOT_PROBING = os.path.join(_BASE_DIR, "test_cases_probing.json")
-DEFAULT_PROBING_PATH = _DATA_PROBING if os.path.exists(_DATA_PROBING) else _ROOT_PROBING
+DEFAULT_PROBING_PATH = _NORM_PROBING if os.path.exists(_NORM_PROBING) else (_DATA_PROBING if os.path.exists(_DATA_PROBING) else _ROOT_PROBING)
 
 
 def _resolve_probing_path(path: str) -> str:
     if os.path.exists(path):
         return path
-    alt_data = os.path.join(_BASE_DIR, "data", os.path.basename(path))
-    if os.path.exists(alt_data):
-        return alt_data
-    alt_root = os.path.join(_BASE_DIR, os.path.basename(path))
-    if os.path.exists(alt_root):
-        return alt_root
+    base = os.path.basename(path)
+    for sub in (
+        os.path.join(_BASE_DIR, "data", "normalized", base),
+        os.path.join(_BASE_DIR, "data", base),
+        os.path.join(_BASE_DIR, "data", "archive", base),
+        os.path.join(_BASE_DIR, base),
+    ):
+        if os.path.exists(sub):
+            return sub
     return path
+
+
+def _hydrate_probing_case(c: dict) -> dict:
+    """Hydrate in-memory probing attributes from canonical evaluation.metadata if needed."""
+    if not isinstance(c, dict):
+        return c
+    out = dict(c)
+    meta = (out.get("evaluation") or {}).get("metadata") or {}
+    for k in ("pair_id", "lang", "vector", "attack_type", "target_defense", "blue_role"):
+        if k not in out and k in meta:
+            out[k] = meta[k]
+    if "legacy_category" in meta and out.get("category") not in PROBING_CATEGORIES:
+        out["canonical_category"] = out.get("category")
+        out["category"] = meta["legacy_category"]
+    if "legacy_owasp_category" in meta:
+        out["owasp_category"] = meta["legacy_owasp_category"]
+    if "legacy_technique" in meta:
+        out["technique"] = meta["legacy_technique"]
+    if "judge" not in out and "legacy_judge" in meta:
+        out["judge"] = meta["legacy_judge"]
+    return out
 
 
 def load_probing_document(path: str = DEFAULT_PROBING_PATH) -> dict:
     target_path = _resolve_probing_path(path)
     with open(target_path, "r", encoding="utf-8") as f:
-        return json.load(f)
+        doc = json.load(f)
+    if isinstance(doc, dict) and isinstance(doc.get("cases"), list):
+        doc["cases"] = [_hydrate_probing_case(c) for c in doc["cases"]]
+    return doc
 
 
 def load_probing_cases(path: str = DEFAULT_PROBING_PATH) -> list[dict]:

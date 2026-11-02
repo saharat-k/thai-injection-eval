@@ -11,8 +11,8 @@
     "temperature_validation": "Temperature > 0 ensures stochastic sampling across repeated runs.",
     "base_prng_seed": 42
   },
-  "cases_file": "data/test_cases_indirect.json",
-  "cases_sha256": "9d7c9f7d05c454a43609dbf05e596d921c7b1cad53bd5deab036a158442575c5",
+  "cases_file": "data/normalized/test_cases_indirect.json",
+  "cases_sha256": "437aed95ec03b6060b1583b2c050818e328bcd94b75c2e5b7572883478347ba8",
   "total_cases": 36,
   "total_pairs": 12,
   "languages": [

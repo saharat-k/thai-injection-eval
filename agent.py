@@ -2166,11 +2166,23 @@ def generate_attack_prompt(
 def load_test_cases(path="test_cases.json"):
     target_path = path
     if not os.path.exists(target_path):
-        alt_data = os.path.join("data", os.path.basename(path))
-        if os.path.exists(alt_data):
-            target_path = alt_data
+        base = os.path.basename(path)
+        for sub in (os.path.join("data", "normalized", base), os.path.join("data", base), os.path.join("data", "archive", base)):
+            if os.path.exists(sub):
+                target_path = sub
+                break
     with open(target_path, "r", encoding="utf-8") as f:
-        return json.load(f)
+        data = json.load(f)
+    cases = data.get("cases", data) if isinstance(data, dict) else data
+    for c in cases:
+        if isinstance(c, dict):
+            meta = (c.get("evaluation") or {}).get("metadata") or {}
+            for k in ("attack_type", "lang", "vector", "pair_id", "blue_role"):
+                if k not in c and k in meta:
+                    c[k] = meta[k]
+            if "judge" not in c and "legacy_judge" in meta:
+                c["judge"] = meta["legacy_judge"]
+    return cases
 
 
 def configure_defense(defense, blue_role=None, seed=None):

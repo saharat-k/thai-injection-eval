@@ -31,7 +31,7 @@ def compute_seed_db_hash(seed_path: str = "scripts/seed_db.py") -> str:
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
-def compute_test_cases_hash(cases_path: str = "data/test_cases_indirect.json") -> str:
+def compute_test_cases_hash(cases_path: str = "data/normalized/test_cases_indirect.json") -> str:
     """Compute deterministic SHA-256 hash of test cases file with line-ending normalization.
     
     Normalizes all CRLF and CR line endings to LF before hashing to ensure
@@ -49,7 +49,7 @@ def compute_test_cases_hash(cases_path: str = "data/test_cases_indirect.json") -
 
 def dump_benchmark_payload_records(
     db_path: str = "data/university.db",
-    cases_path: str = "data/test_cases_indirect.json",
+    cases_path: str = "data/normalized/test_cases_indirect.json",
 ) -> Dict[str, Any]:
     """Extract a canonical dictionary of all 63 benchmark records across the 4 relevant tables.
     
@@ -134,7 +134,7 @@ def dump_benchmark_payload_records(
 
 def compute_payload_records_hash(
     db_path: str = "data/university.db",
-    cases_path: str = "data/test_cases_indirect.json",
+    cases_path: str = "data/normalized/test_cases_indirect.json",
 ) -> Tuple[str, Dict[str, Any]]:
     """Compute deterministic SHA-256 hash of canonical JSON dump of benchmark database records."""
     dump = dump_benchmark_payload_records(db_path, cases_path)
@@ -179,7 +179,7 @@ def verify_benchmark_lock(
         lock = json.load(f)
 
     # 1. Verify test cases file hash
-    cases_file = cases_path or lock.get("cases_file", "data/test_cases_indirect.json")
+    cases_file = cases_path or lock.get("cases_file", "data/normalized/test_cases_indirect.json")
     if not os.path.exists(cases_file):
         raise RuntimeError(f"[BENCHMARK LOCK ERROR] Cases file not found at: {cases_file}")
 

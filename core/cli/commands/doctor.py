@@ -65,11 +65,11 @@ def run_diagnostics() -> Dict[str, Any]:
 
     # 4. Benchmark & Test Data
     datasets = [
-        ("Parallel Cases", ["data/test_cases_parallel.json", "test_cases_parallel.json"]),
-        ("Probing Cases", ["data/test_cases_probing.json", "test_cases_probing.json"]),
-        ("Baseline Cases", ["test_cases.json", "data/test_cases.json"]),
-        ("Indirect Cases", ["data/test_cases_indirect.json", "test_cases_indirect.json"]),
-        ("Linguistic Cases", ["data/test_cases_linguistic.json", "test_cases_linguistic.json"]),
+        ("Parallel Cases", ["data/normalized/test_cases_parallel.json", "data/test_cases_parallel.json"]),
+        ("Probing Cases", ["data/normalized/test_cases_probing.json", "data/test_cases_probing.json"]),
+        ("Baseline Cases", ["data/normalized/test_cases.json", "data/test_cases.json"]),
+        ("Indirect Cases", ["data/normalized/test_cases_indirect.json", "data/test_cases_indirect.json"]),
+        ("Linguistic Cases", ["data/normalized/test_cases_linguistic.json", "data/test_cases_linguistic.json"]),
         ("Linguistic Seeds", ["data/linguistic_seeds.json", "linguistic_seeds.json"]),
     ]
     missing_data = []

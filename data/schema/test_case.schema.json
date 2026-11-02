@@ -65,6 +65,7 @@
         "privilege_escalation",
         "benign_thai",
         "benign_mixed",
+        "benign_english",
         "benign_indirect"
       ]
     },
@@ -357,6 +358,7 @@
             "enum": [
               "benign_thai",
               "benign_mixed",
+              "benign_english",
               "benign_indirect"
             ]
           }
@@ -454,6 +456,25 @@
       "if": {
         "properties": {
           "technique": {
+            "const": "benign_english"
+          }
+        },
+        "required": [
+          "technique"
+        ]
+      },
+      "then": {
+        "properties": {
+          "language": {
+            "const": "en"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "technique": {
             "const": "data_layer_poisoning"
           }
         },
@@ -490,5 +511,5 @@
       }
     }
   ],
-  "additionalProperties": true
+  "additionalProperties": false
 }

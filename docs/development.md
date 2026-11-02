@@ -31,7 +31,7 @@ copy .env.example .env
 
 ## 2. การรันชุดทดสอบออฟไลน์ (Zero-Cost Verification Suite)
 
-ระบบมีชุดทดสอบอัตโนมัติ **136 รายการ** ที่ออกแบบให้รันแบบออฟไลน์ ไม่เสียค่า API ไม่ต้องใช้อินเทอร์เน็ต และไม่มีการส่งข้อมูลออกภายนอก:
+ระบบมีชุดทดสอบอัตโนมัติ **199 รายการ** ที่ออกแบบให้รันแบบออฟไลน์ ไม่เสียค่า API ไม่ต้องใช้อินเทอร์เน็ต และไม่มีการส่งข้อมูลออกภายนอก:
 
 ```powershell
 # รันชุดทดสอบทั้งหมด
@@ -40,6 +40,7 @@ copy .env.example .env
 ```
 
 ### โครงสร้างชุดทดสอบใน `tests/`:
+* [`tests/test_dataset_schema.py`](../tests/test_dataset_schema.py): ทดสอบความถูกต้องของชุดข้อมูลทั้ง 381 เคสตาม JSON Schema Draft-07, ตรวจสอบเงื่อนไขสัมพันธ์ (Conditional Rules) ระหว่าง Category, Technique และ Language, ตรวจสอบ SHA-256 ของไฟล์ Normalized และ Archive
 * [`tests/test_parallel.py`](../tests/test_parallel.py): ทดสอบความสมดุลของชุดทดสอบคู่ขนาน 3 ภาษา, ตัวตัดสินแบบกฎตายตัว (Rule-based Judge), และการคำนวณ Wilson Confidence Interval
 * [`tests/test_probing.py`](../tests/test_probing.py): ทดสอบชุดเจาะจุดบอด Probing Suite, การ Audit กลไกถอดรหัส DLP ขาออก (ROT13, URL-percent, Tilde, HTML entities)
 * [`tests/test_indirect_judge.py`](../tests/test_indirect_judge.py): ทดสอบตัวตัดสิน Rule-based Judge สำหรับ Indirect Injection (Manipulation, Disclosure, Benign Validation, Benchmark Lock Verification)
@@ -91,23 +92,33 @@ copy .env.example .env
 
 ---
 
-## 6. ข้อกำหนดการเพิ่มกรณีศึกษาใหม่ (Test Case Schema)
+## 6. ข้อกำหนดการเพิ่มกรณีศึกษาใหม่ (Canonical Test Case Schema)
 
-หากต้องการเพิ่มชุดคำถามใน [`data/test_cases_parallel.json`](../data/test_cases_parallel.json) หรือ [`data/test_cases_probing.json`](../data/test_cases_probing.json) ต้องระบุฟิลด์ที่จำเป็นให้ครบถ้วน:
+หากต้องการเพิ่มชุดคำถามในชุดข้อมูลใดๆ ใน `data/normalized/` ข้อมูลทุกเรคคอร์ดจะต้องผ่านการตรวจสอบตาม [Canonical JSON Schema (`data/schema/test_case.schema.json`)](../data/schema/test_case.schema.json):
 
 ```json
 {
   "id": "PAR-13-TH",
-  "pair_id": "PAR-13",
-  "lang": "TH",
-  "vector": "direct",
-  "language": "Thai",
-  "attack_type": "direct",
-  "source_reference": "OWASP-LLM01",
-  "technique": "System Directive Override",
-  "prompt": "ข้อความคำสั่งโจมตี...",
+  "category": "direct_injection",
+  "technique": "instruction_override",
+  "language": "th",
+  "difficulty": "medium",
   "is_benign": false,
-  "judge": "canary",
-  "notes": "คำอธิบายเชิงเทคนิค..."
+  "prompt": "ข้อความคำสั่งโจมตี...",
+  "expected_behavior": "refusal",
+  "evaluation": {
+    "type": "canary",
+    "expected_tokens": ["CANARY-PAR-13-TH"],
+    "metadata": {
+      "pair_id": "PAR-13",
+      "lang": "TH",
+      "attack_type": "direct"
+    }
+  }
 }
+```
+
+และสามารถทดสอบความถูกต้องของ Schema ด้วยสคริปต์:
+```powershell
+.\.venv\Scripts\python.exe scripts/standardize_datasets.py
 ```

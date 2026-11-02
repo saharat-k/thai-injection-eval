@@ -95,18 +95,17 @@ thai-injection-eval/
 │   ├── defenses/                 # Defense implementations (Prompt, ACL, DLP, Spotlight)
 │   └── evaluator/                # Benchmark engines, metrics & statistical tests
 ├── data/                         # Benchmark datasets and synthetic mock databases
-│   ├── test_cases.json           # Baseline benchmark suite
-│   ├── test_cases_parallel.json  # 3-Language parallel test cases (TH, EN, MIX)
-│   ├── test_cases_linguistic.json# Thai linguistic mutation test suite
-│   ├── test_cases_probing.json   # Architectural probing cases
-│   ├── test_cases_indirect.json  # Indirect injection test suite
+│   ├── archive/                  # Archived raw benchmark datasets
+│   ├── normalized/               # Canonical Draft-07 validated benchmark suites (381 cases)
+│   ├── schema/                   # JSON Schema definitions (Draft-07)
+│   ├── validation/               # Dataset validation reports
 │   └── university.db             # Synthetic sandboxed educational database
 ├── docs/                         # Research design & architectural documentation
 │   ├── architecture.md           # Defense-in-depth and security boundaries
 │   ├── methodology.md            # Statistical formulas and judge specifications
 │   ├── development.md            # Developer guidelines and testing standards
 │   └── REFERENCES.md             # Academic literature & OWASP citations
-├── tests/                        # Automated offline unit test suite (193 unittests)
+├── tests/                        # Automated offline unit test suite (199 unittests)
 ├── scripts/                      # Utility scripts (seed generation, reporting helpers)
 ├── agent.py                      # Multi-role Red vs Blue evaluation runner
 ├── web_ui.py                     # Local Flask audit dashboard & interactive playground
@@ -133,9 +132,9 @@ For full research disclosure, see [**`LIMITATIONS.md`**](LIMITATIONS.md).
 
 - [x] Initial project structure
 - [x] Initial experimental datasets
-- [ ] Standardized taxonomy
-- [ ] Standardized dataset schema
-- [ ] Dataset validation
+- [x] Standardized taxonomy
+- [x] Standardized dataset schema
+- [x] Dataset validation
 - [ ] Evaluation methodology
 - [ ] Evaluator
 - [ ] Benign dataset
