@@ -2950,9 +2950,13 @@ def interactive_menu():
     """Step-by-step interactive CLI Wizard shown when starting agent.py without flags."""
     global RED_MODEL, BLUE_MODEL, MODEL_NAME
 
-    print("\n" + "=" * 70)
-    print("  THAI PROMPT INJECTION SECURITY TEST BENCH & EVALUATOR (CLI WIZARD)")
-    print("=" * 70)
+    try:
+        from core.cli.terminal.banner import print_banner
+        print_banner(subtitle="Interactive CLI Wizard")
+    except Exception:
+        print("\n" + "=" * 70)
+        print("  THAI PROMPT INJECTION SECURITY TEST BENCH & EVALUATOR (CLI WIZARD)")
+        print("=" * 70)
     api_status = "Available" if os.getenv("GEMINI_API_KEY") else "Missing (.env)"
     print(f"  [System] Blue Model: {BLUE_MODEL} | Red Model: {RED_MODEL}")
     print(f"  [Status] GEMINI_API_KEY: {api_status} | DB: {os.path.basename(UNIVERSITY_DB_PATH)}")

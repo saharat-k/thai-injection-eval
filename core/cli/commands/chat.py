@@ -7,20 +7,24 @@ from typing import Optional, List, Dict, Any
 from core.cli.terminal.colors import (
     bold, dim, red, green, yellow, cyan, blue, style, status_badge
 )
-from core.cli.terminal.tty import get_terminal_width, is_tty, should_color
+from core.cli.terminal.tty import get_terminal_width, is_tty, should_color, get_rule_line, get_glyph, safe_print
+from core.cli.terminal.banner import print_banner
 from core.cli.output.table import format_table
+
+print = safe_print
 
 
 def print_security_turn_card(turn_no: int, sender: str, attack: str, res: dict, red_meta: Optional[dict] = None, no_color: bool = False):
     """Render a comprehensive Cyber Security Inspection Card for a chat turn."""
     color_enabled = not no_color
     width = min(80, max(60, get_terminal_width()))
-    line = "─" * width
-    double_line = "═" * width
+    line = get_rule_line(width, double=False)
+    double_line = get_rule_line(width, double=True)
+    bullet = get_glyph("■", "*")
 
     print("\n" + double_line)
     header = f" TURN {turn_no} | SENDER: {sender.upper()} "
-    print(bold(header.center(width, "■"), enabled=color_enabled))
+    print(bold(header.center(width, bullet), enabled=color_enabled))
     print(double_line)
 
     if red_meta and (red_meta.get("analysis") or red_meta.get("strategy")):
@@ -110,8 +114,10 @@ def print_preflight_briefing_card(
     import agent
     color_enabled = not no_color
     width = min(80, max(60, get_terminal_width()))
-    line = "─" * width
-    double_line = "═" * width
+    line = get_rule_line(width, double=False)
+    double_line = get_rule_line(width, double=True)
+    bullet = get_glyph("■", "*")
+    check = get_glyph("✔", "[x]")
 
     blue_meta = agent.get_blue_role(blue_role)
     red_meta = agent.get_red_profile(red_profile)
@@ -120,7 +126,7 @@ def print_preflight_briefing_card(
     r_name = red_meta.get("name", red_profile)
 
     print("\n" + double_line)
-    header = "■ SESSION PRE-FLIGHT BRIEFING ■"
+    header = f"{bullet} SESSION PRE-FLIGHT BRIEFING {bullet}"
     print(bold(header.center(width), enabled=color_enabled))
     print(double_line)
 
@@ -136,7 +142,7 @@ def print_preflight_briefing_card(
 
     canary_cnt = len(canaries) if canaries else 0
     canary_status = f"{canary_cnt} Active Canary Traps Loaded" if canary_cnt > 0 else "No active canaries"
-    print(f"  {bold('Defense Canaries', enabled=color_enabled):<20} : {green(f'✔ {canary_status}', enabled=color_enabled)}")
+    print(f"  {bold('Defense Canaries', enabled=color_enabled):<20} : {green(f'{check} {canary_status}', enabled=color_enabled)}")
 
     print(line)
     print(dim("  Console ready. Select a delivery method below to begin red-teaming.", enabled=color_enabled))
@@ -153,8 +159,8 @@ def review_payload_card(
     import agent
     color_enabled = not no_color
     width = min(80, max(60, get_terminal_width()))
-    line = "─" * width
-    double_line = "═" * width
+    line = get_rule_line(width, double=False)
+    double_line = get_rule_line(width, double=True)
 
     curr_attack = attack
 
@@ -248,6 +254,9 @@ def run_chat(args) -> int:
     no_color = getattr(args, "no_color", False)
 
     # Check API key before entering chat
+    if not getattr(args, "quiet", False):
+        print_banner(stream=sys.stdout, color_enabled=not no_color, subtitle="Interactive Red-Teaming Playground")
+
     if not os.getenv("GEMINI_API_KEY"):
         print(yellow("\n[!] Warning: GEMINI_API_KEY is not set in environment or .env file.", enabled=not no_color))
         print("    Live model calls require an API key unless using a mock or external provider.\n")

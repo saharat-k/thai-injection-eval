@@ -8,6 +8,7 @@ from typing import Dict, Any, List
 
 from core.cli.output.common import render_output
 from core.cli.terminal.colors import bold, status_badge, green, red, yellow
+from core.cli.terminal.banner import print_banner
 
 
 def run_diagnostics() -> Dict[str, Any]:
@@ -129,7 +130,10 @@ def run_doctor(args) -> int:
     no_color = getattr(args, "no_color", False)
 
     if fmt == "table":
-        print("\n" + bold("Thai Injection Eval - Environment Check", enabled=not no_color))
+        if not getattr(args, "quiet", False):
+            print_banner(stream=sys.stdout, color_enabled=not no_color, subtitle="Environment Diagnostics")
+        else:
+            print("\n" + bold("Thai Injection Eval - Environment Check", enabled=not no_color))
         print("=" * 60)
         table_rows = []
         for c in diag["checks"]:

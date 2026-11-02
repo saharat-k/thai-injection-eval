@@ -11,13 +11,16 @@ from core.cli.output.common import render_output
 from core.cli.terminal.colors import (
     blue, bold, cyan, dim, green, red, status_badge, yellow
 )
-from core.cli.terminal.tty import get_terminal_width, should_color
+from core.cli.terminal.tty import get_terminal_width, should_color, get_rule_line, get_glyph, safe_print
+from core.cli.terminal.banner import print_banner
 from core.evaluator.redteam import (
     MultiTurnRedTeamRunner,
     RedTeamBenchmarkReport,
     RedTeamCaseResult,
     RedTeamTurnResult,
 )
+
+print = safe_print
 
 
 def _resolve_case_file(filename: Optional[str] = None, parallel: bool = False) -> str:
@@ -43,11 +46,15 @@ def print_preflight_card(args, total_cases: int, cases_path: str, no_color: bool
     """Render pre-flight configuration briefing before starting multi-turn red-teaming."""
     color_enabled = not no_color
     width = min(80, max(60, get_terminal_width()))
-    line = "─" * width
-    double_line = "═" * width
+    line = get_rule_line(width, double=False)
+    double_line = get_rule_line(width, double=True)
+    bullet = get_glyph("■", "*")
+
+    if not getattr(args, "quiet", False):
+        print_banner(stream=sys.stdout, color_enabled=color_enabled, subtitle="Adaptive Multi-Turn Red Team")
 
     print("\n" + double_line)
-    header = "■ ADAPTIVE MULTI-TURN RED TEAMING SESSION ■"
+    header = f"{bullet} ADAPTIVE MULTI-TURN RED TEAMING SESSION {bullet}"
     print(bold(header.center(width), enabled=color_enabled))
     print(double_line)
 
@@ -69,8 +76,8 @@ def print_breach_alert_card(case: dict, turn: RedTeamTurnResult, max_attempts: i
     """Render a prominent, high-visibility Cyber Security Breach Alert Card."""
     color_enabled = not no_color
     width = min(80, max(60, get_terminal_width()))
-    line = "─" * width
-    double_line = "═" * width
+    line = get_rule_line(width, double=False)
+    double_line = get_rule_line(width, double=True)
 
     cid = case.get("id", "UNKNOWN")
     print("\n" + double_line)
@@ -224,9 +231,13 @@ def run_redteam_run(args) -> int:
         ttb_display = str(r.turn_to_breach) if r.turn_to_breach else "-"
         rows.append([r.case_id, r.language, r.technique, str(r.attempts_run), ttb_display, verdict])
 
-    print(bold("\n" + "═" * 70, enabled=not no_color))
-    print(bold("■ MULTI-TURN RED TEAMING BENCHMARK RESULTS ■".center(70), enabled=not no_color))
-    print(bold("═" * 70 + "\n", enabled=not no_color))
+    double_70 = get_rule_line(70, double=True)
+    bullet = get_glyph("■", "*")
+    bullet_dot = get_glyph("•", "*")
+
+    print(bold("\n" + double_70, enabled=not no_color))
+    print(bold(f"{bullet} MULTI-TURN RED TEAMING BENCHMARK RESULTS {bullet}".center(70), enabled=not no_color))
+    print(bold(double_70 + "\n", enabled=not no_color))
 
     render_output(
         [r.to_dict() for r in report.results],
@@ -238,16 +249,16 @@ def run_redteam_run(args) -> int:
     )
 
     print("\n" + bold("Summary Metrics:", enabled=not no_color))
-    print(f"  • Total Cases Evaluated   : {report.total_cases}")
-    print(f"  • Defended Cases          : {green(str(report.defended_cases), enabled=not no_color)}")
-    print(f"  • Breached Cases          : {red(str(report.breached_cases), enabled=not no_color)}")
-    print(f"  • Overall Multi-Turn ASR  : {bold(f'{report.overall_asr}%', enabled=not no_color)}")
+    print(f"  {bullet_dot} Total Cases Evaluated   : {report.total_cases}")
+    print(f"  {bullet_dot} Defended Cases          : {green(str(report.defended_cases), enabled=not no_color)}")
+    print(f"  {bullet_dot} Breached Cases          : {red(str(report.breached_cases), enabled=not no_color)}")
+    print(f"  {bullet_dot} Overall Multi-Turn ASR  : {bold(f'{report.overall_asr}%', enabled=not no_color)}")
     if report.average_ttb:
-        print(f"  • Average Turn-to-Breach  : {cyan(f'{report.average_ttb} turns', enabled=not no_color)}")
+        print(f"  {bullet_dot} Average Turn-to-Breach  : {cyan(f'{report.average_ttb} turns', enabled=not no_color)}")
 
     print(bold("\nCumulative ASR Progression:", enabled=not no_color))
     for t_idx, asr_val in report.cumulative_asr.items():
-        print(f"  • ASR @ Turn {t_idx} : {asr_val}%")
+        print(f"  {bullet_dot} ASR @ Turn {t_idx} : {asr_val}%")
 
     export_dir = getattr(args, "export_dir", "results")
     export_name = getattr(args, "export_name", "redteam_evaluation_report")

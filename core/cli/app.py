@@ -6,6 +6,7 @@ from typing import List, Optional
 from core import __version__
 from core.cli.terminal.colors import bold, cyan, dim, green, red, yellow
 from core.cli.terminal.tty import is_tty, should_color
+from core.cli.terminal.banner import get_banner, print_banner
 from core.cli.commands.eval import run_eval_run, run_eval_list, run_eval_info, ALL_DEFENSES, PARALLEL_DEFENSES
 from core.cli.commands.probe import run_probe_run, run_probe_list
 from core.cli.commands.dlp import run_dlp_audit
@@ -20,6 +21,19 @@ from core.cli.commands.redteam import run_redteam_run, run_redteam_list
 
 class SecurityCLIParser(argparse.ArgumentParser):
     """Custom ArgumentParser with improved error messages and exit code 2 on syntax error."""
+
+    show_banner_in_help: bool = False
+
+    def format_help(self) -> str:
+        text = super().format_help()
+        if self.show_banner_in_help:
+            args_list = getattr(self, "_active_argv", None) or sys.argv
+            is_quiet = any(a in args_list for a in ("-q", "--quiet", "--json"))
+            if not is_quiet:
+                no_color = "--no-color" in args_list or not should_color(sys.stdout)
+                banner = get_banner(color=not no_color)
+                return f"{banner}\n{text}"
+        return text
 
     def error(self, message):
         print(red(f"Error: {message}", enabled=should_color(sys.stderr)), file=sys.stderr)
@@ -63,6 +77,7 @@ Exit Codes:
   3 = Runtime / Environment Error (Missing dependencies / API error)
 """,
     )
+    root.show_banner_in_help = True
 
     root.add_argument("-V", "--version", action="store_true", help="Show application version and exit")
 
@@ -217,6 +232,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         argv = sys.argv[1:]
 
     parser = build_parser()
+    parser._active_argv = argv
 
     # If --version flag passed anywhere at root
     if "-V" in argv or "--version" in argv:
@@ -225,10 +241,6 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     # If no arguments provided
     if not argv:
-        # If in interactive TTY terminal, print welcoming banner and root help
-        if is_tty():
-            print("\n" + bold("Thai Injection Eval", enabled=True) + f" v{__version__} - Security Benchmark CLI")
-            print(dim("Run 'thai-eval --help' for options or 'thai-eval doctor' for health check.\n"))
         parser.print_help()
         return 0
 
