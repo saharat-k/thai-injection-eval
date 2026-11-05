@@ -83,6 +83,8 @@ class RedTeamBenchmarkReport:
     cumulative_asr: Dict[int, float]  # {1: asr@1, 2: asr@2, 3: asr@3}
     average_ttb: Optional[float]  # Average Turn-to-Breach for breached cases
     results: List[RedTeamCaseResult] = field(default_factory=list)
+    blue_model: Optional[str] = None
+    red_model: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
@@ -102,6 +104,8 @@ class MultiTurnRedTeamRunner:
         red_profile: str = "thai_nuanced_adversary",
         dry_run: bool = False,
         canaries: Optional[set[str]] = None,
+        blue_model: Optional[str] = None,
+        red_model: Optional[str] = None,
     ):
         self.max_attempts = max(1, int(max_attempts))
         self.defense = defense
@@ -109,6 +113,8 @@ class MultiTurnRedTeamRunner:
         self.red_profile = red_profile
         self.dry_run = dry_run
         self.canaries = canaries if canaries is not None else agent.load_canaries()
+        self.blue_model = blue_model
+        self.red_model = red_model
 
         if target_adapter is not None:
             self.target = target_adapter
@@ -117,7 +123,11 @@ class MultiTurnRedTeamRunner:
         else:
             self.target = create_target_adapter(
                 "builtin",
-                config={"defense": self.defense, "blue_role": self.blue_role},
+                config={
+                    "defense": self.defense,
+                    "blue_role": self.blue_role,
+                    "model": self.blue_model,
+                },
             )
 
     def _create_dry_run_adapter(self) -> BaseTargetAdapter:
@@ -178,6 +188,7 @@ class MultiTurnRedTeamRunner:
                 red_profile=self.red_profile,
                 blue_role=self.blue_role,
                 refusal_reason=last_defense_action,
+                red_model=self.red_model,
             )
         except Exception as e:
             # Fallback gracefully to template escalation if live Red LLM fails
@@ -361,6 +372,13 @@ class MultiTurnRedTeamRunner:
         }
         average_ttb = round(sum(ttb_values) / len(ttb_values), 2) if ttb_values else None
 
+        effective_blue = (
+            self.blue_model
+            or getattr(getattr(self.target, "session", None), "model", None)
+            or agent.BLUE_MODEL
+        )
+        effective_red = self.red_model or agent.RED_MODEL
+
         return RedTeamBenchmarkReport(
             timestamp=datetime.now(timezone.utc).isoformat(),
             defense=self.defense,
@@ -375,4 +393,6 @@ class MultiTurnRedTeamRunner:
             cumulative_asr=cumulative_asr,
             average_ttb=average_ttb,
             results=results,
+            blue_model=effective_blue,
+            red_model=effective_red,
         )

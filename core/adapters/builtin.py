@@ -16,17 +16,30 @@ class BuiltinTargetAdapter(BaseTargetAdapter):
         self.defense = self.config.get("defense", "off")
         self.role = self.config.get("blue_role", "registrar_staff")
         self.allow_fallback = self.config.get("allow_fallback", None)
-        self.session = agent.BlueSession(defense=self.defense, role=self.role, allow_fallback=self.allow_fallback)
+        self.model = self.config.get("model") or self.config.get("blue_model")
+        self.session = agent.BlueSession(
+            defense=self.defense,
+            role=self.role,
+            allow_fallback=self.allow_fallback,
+            model=self.model,
+        )
 
     def send(self, prompt: str, **kwargs) -> TargetResponse:
         defense = kwargs.get("defense", self.defense)
         role = kwargs.get("blue_role", self.role)
         allow_fallback = kwargs.get("allow_fallback", self.allow_fallback)
-        if defense != self.defense or role != self.role or allow_fallback != self.allow_fallback:
+        model = kwargs.get("model", self.model)
+        if defense != self.defense or role != self.role or allow_fallback != self.allow_fallback or model != self.model:
             self.defense = defense
             self.role = role
             self.allow_fallback = allow_fallback
-            self.session = agent.BlueSession(defense=self.defense, role=self.role, allow_fallback=self.allow_fallback)
+            self.model = model
+            self.session = agent.BlueSession(
+                defense=self.defense,
+                role=self.role,
+                allow_fallback=self.allow_fallback,
+                model=self.model,
+            )
 
         tool_calls_before = len(agent._tool_calls)
         try:
@@ -50,8 +63,13 @@ class BuiltinTargetAdapter(BaseTargetAdapter):
             return TargetResponse(
                 text="",
                 error=sanitized_err,
-                metadata={"defense": self.defense, "role": self.role},
+                metadata={"defense": self.defense, "role": self.role, "model": self.model},
             )
 
     def reset(self):
-        self.session = agent.BlueSession(defense=self.defense, role=self.role, allow_fallback=self.allow_fallback)
+        self.session = agent.BlueSession(
+            defense=self.defense,
+            role=self.role,
+            allow_fallback=self.allow_fallback,
+            model=self.model,
+        )

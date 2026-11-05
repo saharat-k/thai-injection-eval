@@ -1,0 +1,57 @@
+import unittest
+from core.cli.app import build_parser
+
+
+class TestCLIModelFlags(unittest.TestCase):
+    def test_redteam_run_accepts_blue_and_red_flags(self):
+        parser = build_parser()
+        args = parser.parse_args([
+            "redteam", "run",
+            "--blue", "gemini-3.5-flash-lite",
+            "--red", "openrouter:openrouter/free",
+            "--limit", "1",
+        ])
+        self.assertEqual(args.blue, "gemini-3.5-flash-lite")
+        self.assertEqual(args.red, "openrouter:openrouter/free")
+
+    def test_redteam_run_model_flag_alias(self):
+        parser = build_parser()
+        args = parser.parse_args([
+            "redteam", "run",
+            "--model", "gemini-3.5-flash-lite",
+            "--red", "openrouter:openrouter/free",
+            "--limit", "1",
+        ])
+        self.assertEqual(args.model, "gemini-3.5-flash-lite")
+
+    def test_eval_run_accepts_blue_and_red_flags(self):
+        parser = build_parser()
+        args = parser.parse_args([
+            "eval", "run",
+            "--blue", "gemini-3.5-flash-lite",
+            "--red", "openrouter:openrouter/free",
+        ])
+        self.assertEqual(args.blue, "gemini-3.5-flash-lite")
+        self.assertEqual(args.red, "openrouter:openrouter/free")
+
+    def test_benchmark_run_accepts_blue_and_red_flags(self):
+        parser = build_parser()
+        args = parser.parse_args([
+            "benchmark", "run",
+            "--blue", "gemini-3.5-flash-lite",
+            "--red", "openrouter:openrouter/free",
+        ])
+        self.assertEqual(args.blue, "gemini-3.5-flash-lite")
+        self.assertEqual(args.red, "openrouter:openrouter/free")
+        self.assertEqual(args.model, "gemini-3.5-flash-lite")
+
+    def test_long_flag_aliases(self):
+        parser = build_parser()
+        args = parser.parse_args([
+            "redteam", "run",
+            "--blue-model", "gemini-3.5-flash-lite",
+            "--red-model", "openrouter:openrouter/free",
+        ])
+        self.assertEqual(args.blue, "gemini-3.5-flash-lite")
+        self.assertEqual(args.model, "gemini-3.5-flash-lite")
+        self.assertEqual(args.red, "openrouter:openrouter/free")

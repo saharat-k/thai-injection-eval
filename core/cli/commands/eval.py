@@ -239,11 +239,12 @@ def run_eval_run(args) -> int:
         print(f"Target: {target} | Defense: {defense} | Role: {role}")
         print("=" * 65 + "\n")
 
+    effective_model = getattr(args, "blue", None) or getattr(args, "model", None) or "default"
     config = {
         "defense": defense,
         "blue_role": role,
         "base_url": getattr(args, "base_url", "http://localhost:8000/v1"),
-        "model": getattr(args, "model", "default"),
+        "model": effective_model,
         "api_key": getattr(args, "api_key", ""),
     }
 
@@ -346,7 +347,8 @@ def _run_eval_parallel(args) -> int:
     reporter = ProgressReporter(quiet=quiet, no_color=no_color)
     callback = reporter.make_eval_callback()
 
-    config = {"defense": defenses[0], "blue_role": role}
+    effective_model = getattr(args, "blue", None) or getattr(args, "model", None)
+    config = {"defense": defenses[0], "blue_role": role, "model": effective_model}
     try:
         adapter = create_target_adapter(target, config=config)
     except Exception as e:
@@ -501,11 +503,12 @@ def _run_eval_linguistic(args) -> int:
             print(green("\n[dry-run] Validation successful. Deterministic hash verified. No live LLM calls executed.", enabled=not no_color) + "\n")
         return 0
 
+    effective_model = getattr(args, "blue", None) or getattr(args, "model", None) or "default"
     config = {
         "defense": defense,
         "blue_role": role,
         "base_url": getattr(args, "base_url", "http://localhost:8000/v1"),
-        "model": getattr(args, "model", "default"),
+        "model": effective_model,
         "api_key": getattr(args, "api_key", ""),
     }
 
@@ -656,12 +659,13 @@ def _run_eval_indirect(args) -> int:
     all_results = []
     tier_stats = {}
 
+    effective_model = getattr(args, "blue", None) or getattr(args, "model", None) or "default"
     for d_tier in defenses:
         config = {
             "defense": d_tier,
             "blue_role": role,
             "base_url": getattr(args, "base_url", "http://localhost:8000/v1"),
-            "model": getattr(args, "model", "default"),
+            "model": effective_model,
             "api_key": getattr(args, "api_key", ""),
         }
         try:
@@ -792,12 +796,13 @@ def _run_eval_benign(args) -> int:
     all_results = []
     tier_stats = {}
 
+    effective_model = getattr(args, "blue", None) or getattr(args, "model", None) or "default"
     for d_tier in defenses:
         config = {
             "defense": d_tier,
             "blue_role": role,
             "base_url": getattr(args, "base_url", "http://localhost:8000/v1"),
-            "model": getattr(args, "model", "default"),
+            "model": effective_model,
             "api_key": getattr(args, "api_key", ""),
         }
         adapter = create_target_adapter(target, config)
@@ -864,7 +869,7 @@ def run_benchmark_run(args) -> int:
     export_dir = getattr(args, "export_dir", "results")
     export_name = getattr(args, "export_name", "benchmark_leaderboard")
     target = getattr(args, "target", "builtin")
-    model = getattr(args, "model", "default")
+    model = getattr(args, "blue", None) or getattr(args, "model", None) or "default"
     role = getattr(args, "role", "registrar_staff")
     from_results = getattr(args, "from_results", None)
 

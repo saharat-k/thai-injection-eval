@@ -1421,12 +1421,18 @@ def make_client(spec: str = "gemini-3.5-flash-lite"):
         )
 
 
-def call_red_llm(contents: str, system_prompt: str, audit_context: dict = None) -> str:
-    """Generate attack/analysis text using RED_MODEL with automatic fallback
+def call_red_llm(
+    contents: str,
+    system_prompt: str,
+    audit_context: dict = None,
+    red_model: Optional[str] = None,
+) -> str:
+    """Generate attack/analysis text using RED_MODEL (or red_model override) with automatic fallback
     to FALLBACK_RED_MODEL (gemini-3.8-flash) and FALLBACK_MODEL (gemini-3.1-flash-lite)."""
     candidates = []
     seen_specs = set()
-    specs = [RED_MODEL, FALLBACK_RED_MODEL, FALLBACK_MODEL]
+    primary = red_model or RED_MODEL
+    specs = [primary, FALLBACK_RED_MODEL, FALLBACK_MODEL]
 
     for spec in specs:
         if not spec or spec in seen_specs:
@@ -1474,10 +1480,17 @@ def call_red_llm(contents: str, system_prompt: str, audit_context: dict = None) 
 class BlueSession:
     """A single Blue chat. Reuse the same instance for multi-turn conversations."""
 
-    def __init__(self, defense: str, role: str = "registrar_staff", allow_fallback: bool = None):
+    def __init__(
+        self,
+        defense: str,
+        role: str = "registrar_staff",
+        allow_fallback: bool = None,
+        model: Optional[str] = None,
+    ):
         self.defense = defense
         self.role = role if role in BLUE_ROLES else "registrar_staff"
-        self.client, self.model = make_client(BLUE_MODEL)
+        model_spec = model or BLUE_MODEL
+        self.client, self.model = make_client(model_spec)
         base_sys = HARDENED_SYSTEM_PROMPT if defense in ("prompt", "all") else BASE_SYSTEM_PROMPT
         schema_hint = PUBLIC_SCHEMA_HINT if defense in ("prompt", "tools", "all") else FULL_SCHEMA_HINT
         role_addon = get_blue_role_prompt(self.role)
@@ -1539,12 +1552,14 @@ class BlueSession:
                         last_err = e
                         err_str = str(e)
                         if "429" in err_str or "404" in err_str or "503" in err_str or "UNAVAILABLE" in err_str or "10053" in err_str:
-                            # If daily quota exhausted on primary model or service unavailable, switch to fallback model immediately
-                            if "GenerateRequestsPerDay" in err_str or "404" in err_str or "503" in err_str or "UNAVAILABLE" in err_str:
+                            # Hard errors break immediately to fallback model
+                            if "GenerateRequestsPerDay" in err_str or "404" in err_str:
                                 break
+                            # Transient spikes retry once after brief backoff before switching models
                             if tries == 0:
                                 time.sleep(2)
                                 continue
+                            break
                         raise
             if last_err:
                 raise last_err
@@ -1553,9 +1568,9 @@ class BlueSession:
             _turn_tool_ceiling_enabled = False
 
 
-def ask_blue(prompt, defense, role="registrar_staff"):
+def ask_blue(prompt, defense, role="registrar_staff", model: Optional[str] = None):
     """Stateless helper: one fresh chat per call (used by the automatic test suite)."""
-    return BlueSession(defense, role=role).send(prompt)
+    return BlueSession(defense, role=role, model=model).send(prompt)
 
 
 def is_red_refusal(text: str) -> bool:
@@ -1894,6 +1909,7 @@ def ask_red(
     red_profile: str = "realistic_attacker",
     blue_role: str = "registrar_staff",
     refusal_reason: str = None,
+    red_model: Optional[str] = None,
 ) -> tuple[str, dict]:
     """Red team: craft the next injection by analyzing Blue's responses and defining a counter-strategy."""
     lang = case.get("language", "Thai")
@@ -1940,6 +1956,7 @@ def ask_red(
             contents="\n".join(lines),
             system_prompt=system_prompt,
             audit_context={"id": case["id"], "attempt": attempt},
+            red_model=red_model,
         )
     except Exception as e:
         audit("red_error", {"id": case["id"], "attempt": attempt, "error": str(e)[:300]})

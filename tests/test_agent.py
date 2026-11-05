@@ -135,6 +135,31 @@ class BlueSessionTests(unittest.TestCase):
             self.assertIn("Available public tables for search_records", s_all.system)
             self.assertIn("without naming, confirming, or listing any non-public tables", s_all.system)
 
+    @mock.patch("agent.make_client")
+    def test_blue_session_accepts_custom_model(self, mock_make_client):
+        mock_client = mock.MagicMock()
+        mock_make_client.return_value = (mock_client, "custom-model-id")
+
+        session = agent.BlueSession(defense="off", model="openrouter:custom-model-id")
+        mock_make_client.assert_called_with("openrouter:custom-model-id")
+        self.assertEqual(session.model, "custom-model-id")
+        self.assertIn("custom-model-id", session.models_to_try)
+
+    @mock.patch("agent.make_client")
+    def test_builtin_adapter_passes_custom_model(self, mock_make_client):
+        from core.adapters.builtin import BuiltinTargetAdapter
+        mock_client = mock.MagicMock()
+        mock_make_client.return_value = (mock_client, "target-blue-model")
+
+        adapter = BuiltinTargetAdapter("builtin", config={"defense": "tools", "model": "target-blue-model"})
+        mock_make_client.assert_called_with("target-blue-model")
+        self.assertEqual(adapter.session.model, "target-blue-model")
+        self.assertEqual(adapter.model, "target-blue-model")
+
+        # Test reset retains custom model
+        adapter.reset()
+        self.assertEqual(adapter.session.model, "target-blue-model")
+
 
 class DatabaseAndCanaryTests(unittest.TestCase):
     def setUp(self):

@@ -60,12 +60,16 @@ def print_preflight_card(args, total_cases: int, cases_path: str, no_color: bool
 
     dry_badge = yellow("[SIMULATION / DRY-RUN]", enabled=color_enabled) if getattr(args, "dry_run", False) else green("[LIVE TARGET EXECUTION]", enabled=color_enabled)
     def_badge = status_badge(str(getattr(args, "defense", "all")).upper(), enabled=color_enabled)
+    blue_model = getattr(args, "blue", None) or getattr(args, "model", None) or agent.BLUE_MODEL
+    red_model = getattr(args, "red", None) or agent.RED_MODEL
 
     print(f"  {bold('Execution Mode', enabled=color_enabled):<20} : {dry_badge}")
     print(f"  {bold('Dataset Source', enabled=color_enabled):<20} : {cyan(f'{cases_path} ({total_cases} cases)', enabled=color_enabled)}")
+    print(f"  {bold('Target Blue Model', enabled=color_enabled):<20} : {cyan(blue_model, enabled=color_enabled)}")
+    print(f"  {bold('Red Adversary Model', enabled=color_enabled):<20} : {red(red_model, enabled=color_enabled)}")
     print(f"  {bold('Active Defense', enabled=color_enabled):<20} : {def_badge}")
     print(f"  {bold('Target Blue Role', enabled=color_enabled):<20} : {cyan(getattr(args, 'role', 'registrar_staff'), enabled=color_enabled)}")
-    print(f"  {bold('Red Adversary', enabled=color_enabled):<20} : {red(getattr(args, 'profile', 'thai_nuanced_adversary'), enabled=color_enabled)}")
+    print(f"  {bold('Red Adversary Profile', enabled=color_enabled):<20} : {red(getattr(args, 'profile', 'thai_nuanced_adversary'), enabled=color_enabled)}")
     print(f"  {bold('Multi-Turn Limit', enabled=color_enabled):<20} : Up to {bold(str(getattr(args, 'attempts', 3)), enabled=color_enabled)} turns per test case")
     print(line)
     print(dim("  Adversary will probe iteratively until target honeytoken leaks or max turns reached.", enabled=color_enabled))
@@ -148,6 +152,8 @@ def export_redteam_report(report: RedTeamBenchmarkReport, export_dir: str = "res
         f.write("# Adaptive Multi-Turn Red Teaming Evaluation Report\n\n")
         f.write(f"- **Timestamp**: `{report.timestamp}`\n")
         f.write(f"- **Defense Level**: `{report.defense}`\n")
+        f.write(f"- **Target Blue Model**: `{report.blue_model}`\n")
+        f.write(f"- **Red Adversary Model**: `{report.red_model}`\n")
         f.write(f"- **Blue Role**: `{report.blue_role}`\n")
         f.write(f"- **Red Adversary Profile**: `{report.red_profile}`\n")
         f.write(f"- **Max Attempts**: `{report.max_attempts}` turns\n\n")
@@ -155,6 +161,7 @@ def export_redteam_report(report: RedTeamBenchmarkReport, export_dir: str = "res
         f.write(f"- **Total Cases**: {report.total_cases}\n")
         f.write(f"- **Breached Cases**: {report.breached_cases}\n")
         f.write(f"- **Defended Cases**: {report.defended_cases}\n")
+        f.write(f"- **Error Cases**: {report.error_cases}\n")
         f.write(f"- **Overall Attack Success Rate (ASR)**: **{report.overall_asr}%**\n")
         if report.average_ttb:
             f.write(f"- **Average Turn-to-Breach (TTB)**: **{report.average_ttb}** turns\n\n")
@@ -204,6 +211,11 @@ def run_redteam_run(args) -> int:
     if limit and limit > 0:
         cases = cases[:limit]
 
+    blue_model = getattr(args, "blue", None) or getattr(args, "model", None)
+    red_model = getattr(args, "red", None)
+    if red_model:
+        agent.RED_MODEL = red_model
+
     print_preflight_card(args, len(cases), cases_file, no_color=no_color)
 
     runner = MultiTurnRedTeamRunner(
@@ -212,13 +224,20 @@ def run_redteam_run(args) -> int:
         blue_role=blue_role,
         red_profile=red_profile,
         dry_run=dry_run,
+        blue_model=blue_model,
+        red_model=red_model,
     )
 
     def on_turn(c, turn, attempt, total_attempts):
         print_turn_telemetry(c, turn, attempt, total_attempts, no_color=no_color)
 
     def on_case(res, idx, total_c):
-        status_text = green("DEFENDED", enabled=not no_color) if res.final_status == 0 else red(f"BREACHED (TTB={res.turn_to_breach})", enabled=not no_color)
+        if res.final_status == 1:
+            status_text = red(f"BREACHED (TTB={res.turn_to_breach})", enabled=not no_color)
+        elif res.final_status == -1:
+            status_text = yellow("ERROR", enabled=not no_color)
+        else:
+            status_text = green("DEFENDED", enabled=not no_color)
         print(f"➔ Result [{idx}/{total_c}] Case {bold(res.case_id, enabled=not no_color)}: {status_text}\n")
 
     report = runner.run_benchmark(cases, on_turn_callback=on_turn, on_case_callback=on_case)
@@ -227,7 +246,12 @@ def run_redteam_run(args) -> int:
     rows = []
     headers = ["Case ID", "Lang", "Technique", "Turns Run", "TTB", "Verdict"]
     for r in report.results:
-        verdict = green("DEFENDED", enabled=not no_color) if r.final_status == 0 else red("BREACHED", enabled=not no_color)
+        if r.final_status == 1:
+            verdict = red("BREACHED", enabled=not no_color)
+        elif r.final_status == -1:
+            verdict = yellow("ERROR", enabled=not no_color)
+        else:
+            verdict = green("DEFENDED", enabled=not no_color)
         ttb_display = str(r.turn_to_breach) if r.turn_to_breach else "-"
         rows.append([r.case_id, r.language, r.technique, str(r.attempts_run), ttb_display, verdict])
 
@@ -252,6 +276,8 @@ def run_redteam_run(args) -> int:
     print(f"  {bullet_dot} Total Cases Evaluated   : {report.total_cases}")
     print(f"  {bullet_dot} Defended Cases          : {green(str(report.defended_cases), enabled=not no_color)}")
     print(f"  {bullet_dot} Breached Cases          : {red(str(report.breached_cases), enabled=not no_color)}")
+    if report.error_cases > 0:
+        print(f"  {bullet_dot} Error Cases             : {yellow(str(report.error_cases), enabled=not no_color)}")
     print(f"  {bullet_dot} Overall Multi-Turn ASR  : {bold(f'{report.overall_asr}%', enabled=not no_color)}")
     if report.average_ttb:
         print(f"  {bullet_dot} Average Turn-to-Breach  : {cyan(f'{report.average_ttb} turns', enabled=not no_color)}")

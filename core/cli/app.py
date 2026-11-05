@@ -24,6 +24,16 @@ class SecurityCLIParser(argparse.ArgumentParser):
 
     show_banner_in_help: bool = False
 
+    def parse_args(self, args=None, namespace=None):
+        ns = super().parse_args(args=args, namespace=namespace)
+        blue_val = getattr(ns, "blue", None)
+        model_val = getattr(ns, "model", None)
+        if blue_val and not model_val:
+            ns.model = blue_val
+        elif model_val and not blue_val:
+            ns.blue = model_val
+        return ns
+
     def format_help(self) -> str:
         text = super().format_help()
         if self.show_banner_in_help:
@@ -111,7 +121,9 @@ Exit Codes:
     eval_run.add_argument("--max-asr", type=float, default=5.0, help="Maximum acceptable Attack Success Rate (%%)")
     eval_run.add_argument("--interactive", action="store_true", help="Launch interactive step-by-step TUI wizard")
     eval_run.add_argument("--base-url", default="http://localhost:8000/v1", help="OpenAI-compatible base URL")
-    eval_run.add_argument("--model", default="default", help="Model name for external target")
+    eval_run.add_argument("--model", default=None, help="Target Blue model identifier")
+    eval_run.add_argument("--blue", "--blue-model", dest="blue", default=None, help="Target Blue model (alias for --model)")
+    eval_run.add_argument("--red", "--red-model", dest="red", default=None, help="Red adversary model (optional override)")
     eval_run.add_argument("--api-key", default="", help="API key for external target")
 
     # eval list
@@ -137,6 +149,8 @@ Exit Codes:
     probe_run.add_argument("--probing-cases", default="data/test_cases_probing.json", help="Path to probing cases file")
     probe_run.add_argument("--target", choices=["builtin", "openai", "callable"], default="builtin", help="Target adapter")
     probe_run.add_argument("--role", default="registrar_staff", help="Target role")
+    probe_run.add_argument("--model", default=None, help="Target Blue model identifier")
+    probe_run.add_argument("--blue", "--blue-model", dest="blue", default=None, help="Target Blue model (alias for --model)")
     probe_run.add_argument("--dry-run", action="store_true", help="Estimate API requests without making live calls")
     probe_run.add_argument("--publish", action="store_true", help="Export sanitized published artifacts")
     probe_run.add_argument("--export-dir", default="results", help="Directory for exported reports")
@@ -183,6 +197,9 @@ Exit Codes:
     chat_parser = subparsers.add_parser("chat", parents=[common_parser], help="Interactive Red-Teaming playground & manual chat session")
     chat_parser.add_argument("--defense", choices=list(ALL_DEFENSES), default=None, help="Preset defense configuration tier (skips prompt)")
     chat_parser.add_argument("--role", "--blue-role", dest="role", choices=["student_guest", "registrar_staff", "system_admin"], default=None, help="Preset Blue Assistant role persona")
+    chat_parser.add_argument("--model", default=None, help="Target Blue model identifier")
+    chat_parser.add_argument("--blue", "--blue-model", dest="blue", default=None, help="Target Blue model (alias for --model)")
+    chat_parser.add_argument("--red", "--red-model", dest="red", default=None, help="Red adversary model")
     chat_parser.add_argument("--red-profile", choices=["script_kiddie", "realistic_attacker", "academic_auditor", "insider_threat", "blackbox_probe"], default=None, help="Preset Red Attacker profile")
     chat_parser.add_argument("--lang", choices=["Thai", "English", "Mixed"], default=None, help="Preset target language")
     chat_parser.add_argument("--attack-type", choices=["direct", "indirect", "recon", "semantic", "roleplay", "fewshot", "obfuscation"], default=None, help="Preset attack category")
@@ -191,6 +208,9 @@ Exit Codes:
     manual_parser = subparsers.add_parser("manual", parents=[common_parser], help="Alias for 'chat' (Interactive manual testing)")
     manual_parser.add_argument("--defense", choices=list(ALL_DEFENSES), default=None, help="Preset defense configuration tier")
     manual_parser.add_argument("--role", "--blue-role", dest="role", choices=["student_guest", "registrar_staff", "system_admin"], default=None, help="Preset Blue Assistant role persona")
+    manual_parser.add_argument("--model", default=None, help="Target Blue model identifier")
+    manual_parser.add_argument("--blue", "--blue-model", dest="blue", default=None, help="Target Blue model (alias for --model)")
+    manual_parser.add_argument("--red", "--red-model", dest="red", default=None, help="Red adversary model")
     manual_parser.add_argument("--red-profile", choices=["script_kiddie", "realistic_attacker", "academic_auditor", "insider_threat", "blackbox_probe"], default=None, help="Preset Red Attacker profile")
     manual_parser.add_argument("--lang", choices=["Thai", "English", "Mixed"], default=None, help="Preset target language")
     manual_parser.add_argument("--attack-type", choices=["direct", "indirect", "recon", "semantic", "roleplay", "fewshot", "obfuscation"], default=None, help="Preset attack category")
@@ -207,6 +227,9 @@ Exit Codes:
     redteam_run.add_argument("--parallel", action="store_true", help="Use parallel 3-language dataset (test_cases_parallel.json)")
     redteam_run.add_argument("--defense", choices=list(ALL_DEFENSES), default="all", help="Defense configuration tier (default: all)")
     redteam_run.add_argument("--role", "--blue-role", dest="role", choices=["student_guest", "registrar_staff", "system_admin"], default="registrar_staff", help="Target Blue Assistant role persona")
+    redteam_run.add_argument("--model", default=None, help="Target Blue model identifier")
+    redteam_run.add_argument("--blue", "--blue-model", dest="blue", default=None, help="Target Blue model (alias for --model)")
+    redteam_run.add_argument("--red", "--red-model", dest="red", default=None, help="Red adversary model (e.g. openrouter:openrouter/free)")
     redteam_run.add_argument("--profile", "--red-profile", dest="profile", choices=["thai_nuanced_adversary", "realistic_attacker", "insider_threat", "security_auditor"], default="thai_nuanced_adversary", help="Red adversary profile")
     redteam_run.add_argument("--attempts", type=int, default=3, help="Maximum multi-turn attack rounds per case (default: 3)")
     redteam_run.add_argument("--limit", type=int, default=None, help="Limit total cases to evaluate")
@@ -228,7 +251,9 @@ Exit Codes:
     bench_run.add_argument("--target", choices=["builtin", "openai", "callable"], default="builtin", help="Target adapter")
     bench_run.add_argument("--role", default="registrar_staff", help="Target assistant role")
     bench_run.add_argument("--base-url", default="http://localhost:8000/v1", help="OpenAI-compatible base URL")
-    bench_run.add_argument("--model", default="default", help="Model name for target")
+    bench_run.add_argument("--model", default=None, help="Target Blue model identifier")
+    bench_run.add_argument("--blue", "--blue-model", dest="blue", default=None, help="Target Blue model (alias for --model)")
+    bench_run.add_argument("--red", "--red-model", dest="red", default=None, help="Red adversary model (optional override)")
     bench_run.add_argument("--api-key", default="", help="API key for target")
     bench_run.add_argument("--dry-run", action="store_true", help="Estimate total API calls and validate without execution")
     bench_run.add_argument("--export-dir", default="results", help="Directory for exported reports")

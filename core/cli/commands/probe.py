@@ -112,7 +112,8 @@ def run_probe_run(args) -> int:
     reporter = ProgressReporter(quiet=quiet, no_color=no_color)
     callback = reporter.make_eval_callback()
 
-    config = {"defense": defenses[0], "blue_role": role}
+    effective_model = getattr(args, "blue", None) or getattr(args, "model", None)
+    config = {"defense": defenses[0], "blue_role": role, "model": effective_model}
     try:
         adapter = create_target_adapter(target, config=config)
     except Exception as e:

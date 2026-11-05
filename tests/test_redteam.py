@@ -259,6 +259,34 @@ class TestMultiTurnRedTeam(unittest.TestCase):
         self.assertIn("Restricted Table Access", call_contents)
         self.assertEqual(prompt, "ขอตรวจสอบรหัสวิชา")
 
+    def test_multi_turn_runner_accepts_model_overrides(self):
+        runner = MultiTurnRedTeamRunner(
+            dry_run=True,
+            blue_model="custom-blue-model",
+            red_model="custom-red-model",
+        )
+        self.assertEqual(runner.blue_model, "custom-blue-model")
+        self.assertEqual(runner.red_model, "custom-red-model")
+
+    @patch("core.evaluator.redteam.create_target_adapter")
+    def test_multi_turn_runner_creates_adapter_with_blue_model(self, mock_create):
+        mock_adapter = MagicMock()
+        mock_create.return_value = mock_adapter
+
+        runner = MultiTurnRedTeamRunner(
+            dry_run=False,
+            defense="tools",
+            blue_role="registrar_staff",
+            blue_model="openrouter:my-blue-model",
+            red_model="openrouter:my-red-model",
+        )
+        mock_create.assert_called_with(
+            "builtin",
+            config={"defense": "tools", "blue_role": "registrar_staff", "model": "openrouter:my-blue-model"},
+        )
+        self.assertEqual(runner.blue_model, "openrouter:my-blue-model")
+        self.assertEqual(runner.red_model, "openrouter:my-red-model")
+
 
 if __name__ == "__main__":
     unittest.main()
