@@ -63,13 +63,10 @@ class OpenAILikeTargetAdapter(BaseTargetAdapter):
         return sys_text
 
     def _init_messages(self, defense: Optional[str] = None, role: Optional[str] = None):
-        """Initialize conversation with system prompt."""
-        d = defense or self.defense
-        r = role or self.role
+        """Initialize conversation with system prompt if configured."""
         self.messages = []
-        sys_prompt = self._get_effective_system_prompt(d, r)
-        if sys_prompt:
-            self.messages.append({"role": "system", "content": sys_prompt})
+        if self.system_prompt:
+            self.messages.append({"role": "system", "content": self.system_prompt})
 
     def send(self, prompt: str, **kwargs) -> TargetResponse:
         defense = kwargs.get("defense", self.defense)

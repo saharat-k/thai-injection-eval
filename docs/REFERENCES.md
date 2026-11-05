@@ -30,3 +30,18 @@
 งานวิจัย *Defending Against Indirect Prompt Injection Attacks With Spotlighting* โดย Keegan Hines, Gary Lopez, Matthew Hall, Federico Zarfati, Roshan Ramprasad, และ Blake Bullwinkel ([arXiv:2403.14720](https://arxiv.org/abs/2403.14720)) เสนอแนวทางการแยกข้อมูลที่ไม่ได้ผ่านการรับรอง (Untrusted Data) ออกจากคำสั่งประมวลผลของโมเดล โดยการสุ่มค่า Delimiter ที่ไม่ซ้ำกันในแต่ละคำขอ พร้อมกับการตีกรอบบริบทข้อมูล (Context Framing) เพื่อกำกับให้โมเดลประมวลผลข้อความภายในขอบเขตดังกล่าวเป็นข้อมูลอ้างอิงเท่านั้น (Passive Data) และไม่ปฏิบัติตามคำสั่งใด ๆ ที่แฝงอยู่
 
 โปรเจกต์นี้นำเทคนิค Spotlighting มาพัฒนาเป็นระดับการป้องกัน `spotlight` (Isolated Spotlighting Tier) ใน [core/defenses/spotlight.py](../core/defenses/spotlight.py) และ [agent.py](../agent.py) โดยใช้ PRNG แบบกำหนด seed เพื่อการทำซ้ำผลลัพธ์ พร้อมกลไกตรวจจับและลบล้างค่า Delimiter ที่ชนกัน (Collision Neutralization) เพื่อทดสอบการป้องกันต่อ Indirect Injection อย่างเป็นระบบ
+
+## 6. AgentDojo (NeurIPS 2024, ETH Zurich & Invariant Labs)
+งานวิจัย *AgentDojo: A Dynamic Environment to Evaluate Attacks and Defenses on LLM Agents* โดย Edoardo Debenedetti, Jie Zhang, Balun Cowley และคณะ ([arXiv:2406.13340](https://arxiv.org/abs/2406.13340), [GitHub](https://github.com/ethz-spylab/agentdojo)) ตีพิมพ์ในสาย Datasets and Benchmarks Track ของ NeurIPS 2024 เสนอแนวทางประเมินความปลอดภัยของระบบ Agent ในสภาพแวดล้อมที่เชื่อมต่อ Tool โดยกำหนดหลักการสำคัญว่าการวัดผลความปลอดภัยต้องทำแบบ **Dual Metrics** เสมอ คือการวัด **Attack Success Rate (ASR)** ควบคู่กับ **Benign Utility / Task Completion** ภายใต้การโจมตี (Utility under Attack)
+
+โปรเจกต์นี้นำแนวคิดของ AgentDojo มาสร้างชุดข้อมูลควบคุม [data/normalized/test_cases_benign.json](../data/normalized/test_cases_benign.json) (36 เคส) เพื่อวัดอัตราการปฏิเสธผิดพลาด (False Refusal Rate - FRR) และอรรถประโยชน์ของการให้บริการ เพื่อป้องกันไม่ให้โมเดลที่ใช้วิธีปฏิเสธทุกคำถาม (Over-defense) ได้คะแนนความปลอดภัยเสมือนจริง
+
+## 7. ThaiSafetyBench (ICLR Workshop 2024, SCB 10X / OpenTyphoon)
+งานวิจัย *ThaiSafetyBench: A Culturally-Aware Safety Benchmark for Thai Large Language Models* โดยทีมวิจัย OpenTyphoon / SCB 10X ([arXiv:2603.04992](https://arxiv.org/abs/2603.04992)) ชี้ให้เห็นว่าการโจมตีที่มีมิติทางสังคม วัฒนธรรม และสำนวนภาษาไทยเฉพาะตัว มีอัตราการเจาะสำเร็จ (ASR) สูงกว่าพรอมต์ที่แปลตรงตัวจากภาษาอังกฤษอย่างมีนัยสำคัญ
+
+โปรเจกต์นี้นำแนวคิดเรื่องการฝังบริบททางวัฒนธรรมและระบบราชการไทย (เช่น ระเบียบงานทะเบียน, พระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562 (PDPA) มาตรา 24, และคำลงท้ายสุภาพ) มาใช้ออกแบบชุดทดสอบใน `test_cases_parallel.json` และ `test_cases_benign.json` รวมถึงรองรับการทดสอบโมเดล **Typhoon 2** ผ่าน `OpenAILikeTargetAdapter`
+
+## 8. PyRIT: Python Risk Identification Tool (Microsoft AI Red Team)
+เฟรมเวิร์กโอเพนซอร์ส *PyRIT (Python Risk Identification Tool)* โดยทีมวิจัย Microsoft AI Red Team ([GitHub](https://github.com/Azure/PyRIT)) เสนอสถาปัตยกรรมตัวประสานงาน (Orchestrator Architecture) ที่แยก Target Adapters ออกเป็นโมดูลอิสระเพื่อรองรับการยิงคำสั่งทดสอบทั้งแบบ Single-Turn, Multi-Turn, และ Cross-Domain Prompt Injection (XPIA)
+
+โปรเจกต์นี้นำสถาปัตยกรรมของ PyRIT มาใช้พัฒนาวงรอบ `OpenAILikeTargetAdapter` ใน [core/adapters/openai_like.py](../core/adapters/openai_like.py) ให้สามารถส่งคำสั่งและจัดการผลลัพธ์ของฟังก์ชัน Tool Calling ในสภาพแวดล้อมภายนอกได้โดยอัตโนมัติ

@@ -137,9 +137,9 @@ For full research disclosure, see [**`LIMITATIONS.md`**](LIMITATIONS.md).
 - [x] Dataset validation
 - [x] Evaluation methodology
 - [x] Evaluator
-- [ ] Benign dataset
-- [ ] Test suite
-- [ ] Reproducible benchmark
+- [x] Benign dataset
+- [x] Test suite
+- [x] Reproducible benchmark
 - [ ] Model comparison
 - [ ] Analysis
 
