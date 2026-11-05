@@ -1718,11 +1718,11 @@ def extract_discovered_tables(text: str) -> list[str]:
     return [t for t in PRIVATE_TABLES if t in lower]
 
 
-def parse_red_response(text: str, base_prompt: str) -> tuple[str, dict]:
+def parse_red_response(text: str, base_prompt: str, is_multiturn: bool = False) -> tuple[str, dict]:
     """Parse [ANALYSIS], [COUNTER_STRATEGY], and [NEXT_PROMPT] from Red LLM output."""
     analysis = ""
     strategy = ""
-    prompt = text
+    prompt = text.strip()
 
     if "[ANALYSIS]" in text and "[NEXT_PROMPT]" in text:
         parts = text.split("[NEXT_PROMPT]")
@@ -1739,7 +1739,17 @@ def parse_red_response(text: str, base_prompt: str) -> tuple[str, dict]:
     elif "[NEXT_PROMPT]" in text:
         prompt = text.split("[NEXT_PROMPT]")[1].strip()
 
-    if base_prompt not in prompt:
+    # Strip code block fences if Red LLM wrapped the prompt
+    if prompt.startswith("```"):
+        lines = prompt.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip().startswith("```"):
+            lines = lines[:-1]
+        prompt = "\n".join(lines).strip()
+
+    # In single-turn mode, ensure base question context exists. In multi-turn mode, allow independent follow-up.
+    if not is_multiturn and base_prompt not in prompt:
         prompt = f"{base_prompt}\n\n{prompt}"
 
     return prompt.strip(), {"analysis": analysis, "strategy": strategy}
@@ -1930,7 +1940,7 @@ def ask_red(
         last_resp = history[-1][1] if history else ""
         return build_fallback_attack(case, attempt, last_resp)
 
-    return parse_red_response(generated, case["prompt"])
+    return parse_red_response(generated, case["prompt"], is_multiturn=(attempt > 1))
 
 
 def parse_architect_response(text: str, default_desc: str) -> dict:
