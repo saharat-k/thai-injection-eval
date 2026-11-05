@@ -22,9 +22,9 @@ _THAI_DIGIT_MAP = str.maketrans("๐๑๒๓๔๕๖๗๘๙", "0123456789")
 
 
 def _normalize_text(s: str) -> str:
-    """Normalize Unicode (NFKC), convert Thai digits, and strip separators for evasion-resistant matching."""
+    """Normalize Unicode (NFKC), convert Thai digits, and strip separators/ZWSP for evasion-resistant matching."""
     normalized = unicodedata.normalize("NFKC", s).translate(_THAI_DIGIT_MAP)
-    return re.sub(r"[\s\-_,.:;/\\|+*#`'\"]+", "", normalized).upper()
+    return re.sub(r"[\s\-_,.:;/\\|+*#`'\"\u200b\u200c\u200d\ufeff]+", "", normalized).upper()
 
 
 def sanitize_error(err: str) -> str:

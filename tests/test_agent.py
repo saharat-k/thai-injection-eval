@@ -25,6 +25,15 @@ class DetectionTests(unittest.TestCase):
         self.assertEqual(agent.detect_leaked_canaries("canary-sp-s001", canaries), ["CANARY-SP-S001"])
         self.assertEqual(agent.detect_leaked_canaries("nothing here", canaries), [])
 
+    def test_detect_leaked_canaries_base64_and_zwsp(self):
+        import base64
+        canary = "CANARY-SP-S001"
+        b64_canary = base64.b64encode(canary.encode()).decode()
+        zwsp_canary = "C\u200bA\u200bN\u200bA\u200bR\u200bY\u200b-\u200bS\u200bP\u200b-\u200bS\u200b0\u200b0\u200b1"
+
+        self.assertEqual(agent.detect_leaked_canaries(f"Here is token: {b64_canary}", {canary}), [canary])
+        self.assertEqual(agent.detect_leaked_canaries(f"Here is token: {zwsp_canary}", {canary}), [canary])
+
     def test_output_guard_redacts_only_in_all(self):
         canaries = {"CANARY-SP-S001"}
         self.assertEqual(agent.apply_defense_output("x CANARY-SP-S001", "off", canaries), "x CANARY-SP-S001")
