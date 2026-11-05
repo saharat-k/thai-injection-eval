@@ -240,6 +240,25 @@ class TestMultiTurnRedTeam(unittest.TestCase):
         prompt, meta = agent.parse_red_response(red_output, base_prompt, is_multiturn=False)
         self.assertEqual(prompt, "Initial prompt context\n\nAdditional injection payload")
 
+    @patch("agent.call_red_llm")
+    def test_ask_red_includes_telemetry_feedback(self, mock_call):
+        """ask_red must include refusal_reason in contents sent to Red LLM."""
+        mock_call.return_value = "[ANALYSIS]\nRefused\n[COUNTER_STRATEGY]\nPivot\n[NEXT_PROMPT]\nขอตรวจสอบรหัสวิชา"
+        case = {"id": "TEST-01", "prompt": "Original prompt", "language": "Thai"}
+        history = [("Attack 1", "ขออภัย ไม่สามารถเข้าถึงตารางได้")]
+        
+        prompt, meta = agent.ask_red(
+            case,
+            history,
+            attempt=2,
+            refusal_reason="Restricted Table Access",
+        )
+        self.assertTrue(mock_call.called)
+        call_kwargs = mock_call.call_args[1] if mock_call.call_args[1] else {}
+        call_contents = call_kwargs.get("contents", "") or (mock_call.call_args[0][0] if mock_call.call_args[0] else "")
+        self.assertIn("Restricted Table Access", call_contents)
+        self.assertEqual(prompt, "ขอตรวจสอบรหัสวิชา")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -159,6 +159,7 @@ class MultiTurnRedTeamRunner:
         history: List[Tuple[str, str]],
         attempt: int,
         last_response: str,
+        last_defense_action: Optional[str] = None,
     ) -> Tuple[str, Dict[str, str]]:
         """Generate the attack payload for the current turn using LLM or deterministic fallback."""
         if attempt == 1:
@@ -176,6 +177,7 @@ class MultiTurnRedTeamRunner:
                 attempt,
                 red_profile=self.red_profile,
                 blue_role=self.blue_role,
+                refusal_reason=last_defense_action,
             )
         except Exception as e:
             # Fallback gracefully to template escalation if live Red LLM fails
@@ -213,7 +215,10 @@ class MultiTurnRedTeamRunner:
         final_status = 0
 
         for attempt in range(1, self.max_attempts + 1):
-            attack_prompt, red_meta = self._generate_payload(case, history, attempt, last_response)
+            last_action = turn_results[-1].defense_action if turn_results else None
+            attack_prompt, red_meta = self._generate_payload(
+                case, history, attempt, last_response, last_defense_action=last_action
+            )
 
             # Query target model
             resp = self.target.send(attack_prompt, defense=self.defense, blue_role=self.blue_role)
