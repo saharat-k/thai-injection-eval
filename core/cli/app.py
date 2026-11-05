@@ -7,7 +7,7 @@ from core import __version__
 from core.cli.terminal.colors import bold, cyan, dim, green, red, yellow
 from core.cli.terminal.tty import is_tty, should_color
 from core.cli.terminal.banner import get_banner, print_banner
-from core.cli.commands.eval import run_eval_run, run_eval_list, run_eval_info, ALL_DEFENSES, PARALLEL_DEFENSES
+from core.cli.commands.eval import run_eval_run, run_eval_list, run_eval_info, run_benchmark_run, ALL_DEFENSES, PARALLEL_DEFENSES
 from core.cli.commands.probe import run_probe_run, run_probe_list
 from core.cli.commands.dlp import run_dlp_audit
 from core.cli.commands.test import run_test_run, run_test_list
@@ -94,6 +94,8 @@ Exit Codes:
     eval_run.add_argument("--role", "--blue-role", dest="role", choices=["student_guest", "registrar_staff", "system_admin"], default="registrar_staff", help="Target Blue Assistant role persona")
     eval_run.add_argument("--parallel", action="store_true", help="Run parallel 3-language benchmark (test_cases_parallel.json)")
     eval_run.add_argument("--linguistic", action="store_true", help="Run Thai linguistic & direct DLP evasion benchmark (test_cases_linguistic.json)")
+    eval_run.add_argument("--indirect", action="store_true", help="Run Indirect prompt injection benchmark (test_cases_indirect.json)")
+    eval_run.add_argument("--indirect-cases", default="data/normalized/test_cases_indirect.json", help="Path to indirect cases file")
     eval_run.add_argument("--defenses", default=",".join(PARALLEL_DEFENSES), help="Comma-separated defense tiers for parallel run")
     eval_run.add_argument("--repeats", type=int, default=1, help="Repetitions per case/tier")
     eval_run.add_argument("--limit", type=int, default=None, help="Limit total cases to evaluate (cost control)")
@@ -115,6 +117,8 @@ Exit Codes:
     eval_list.add_argument("--cases", default=None, help="Custom test cases JSON file")
     eval_list.add_argument("--parallel", action="store_true", help="List parallel 3-language cases")
     eval_list.add_argument("--linguistic", action="store_true", help="List linguistic benchmark cases")
+    eval_list.add_argument("--indirect", action="store_true", help="List indirect benchmark cases")
+    eval_list.add_argument("--benign", action="store_true", help="List benign control cases")
 
     # eval info
     eval_info = eval_subs.add_parser("info", parents=[common_parser], help="Inspect detailed specification of a test case")
@@ -211,6 +215,23 @@ Exit Codes:
     # redteam list
     redteam_list = redteam_subs.add_parser("list", parents=[common_parser], help="List available Red adversary profiles and sociolinguistic vectors")
 
+    # 7. BENCHMARK command
+    bench_parser = subparsers.add_parser("benchmark", parents=[common_parser], help="Unified multi-suite benchmark runner & leaderboard generator")
+    bench_subs = bench_parser.add_subparsers(dest="subcommand", title="Benchmark Actions", metavar="<action>")
+    bench_run = bench_subs.add_parser("run", parents=[common_parser], help="Execute benchmark suites and generate comparative scorecard")
+    bench_run.add_argument("--all", action="store_true", help="Run all suites (parallel, indirect, probing, linguistic, benign)")
+    bench_run.add_argument("--suites", default="parallel,indirect,probing,linguistic,benign", help="Comma-separated list of suites to evaluate")
+    bench_run.add_argument("--defenses", default="off,prompt,tools,spotlight,all", help="Comma-separated defense tiers")
+    bench_run.add_argument("--repeats", type=int, default=1, help="Repetitions per test case")
+    bench_run.add_argument("--target", choices=["builtin", "openai", "callable"], default="builtin", help="Target adapter")
+    bench_run.add_argument("--role", default="registrar_staff", help="Target assistant role")
+    bench_run.add_argument("--base-url", default="http://localhost:8000/v1", help="OpenAI-compatible base URL")
+    bench_run.add_argument("--model", default="default", help="Model name for target")
+    bench_run.add_argument("--api-key", default="", help="API key for target")
+    bench_run.add_argument("--dry-run", action="store_true", help="Estimate total API calls and validate without execution")
+    bench_run.add_argument("--export-dir", default="results", help="Directory for exported reports")
+    bench_run.add_argument("--export-name", default="benchmark_leaderboard", help="Leaderboard output filename prefix")
+
     return root
 
 
@@ -299,6 +320,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         elif subcmd == "list":
             return run_redteam_list(args)
         parser.parse_args(["redteam", "--help"])
+        return 2
+    elif cmd == "benchmark":
+        if subcmd == "run" or subcmd is None:
+            return run_benchmark_run(args)
+        parser.parse_args(["benchmark", "--help"])
         return 2
 
     parser.print_help()

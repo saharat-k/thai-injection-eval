@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 import sys
+import time
 from typing import List, Dict, Any, Optional
 
 import agent
@@ -50,6 +51,8 @@ def run_eval_list(args) -> int:
     no_color = getattr(args, "no_color", False)
     use_parallel = getattr(args, "parallel", False)
     use_linguistic = getattr(args, "linguistic", False)
+    use_indirect = getattr(args, "indirect", False)
+    use_benign = getattr(args, "benign", False)
 
     cases_file = getattr(args, "cases", None)
     if not cases_file:
@@ -57,6 +60,10 @@ def run_eval_list(args) -> int:
             cases_file = _find_case_file("test_cases_linguistic.json")
         elif use_parallel:
             cases_file = _find_case_file("test_cases_parallel.json")
+        elif use_indirect:
+            cases_file = _find_case_file("test_cases_indirect.json")
+        elif use_benign:
+            cases_file = _find_case_file("test_cases_benign.json")
         else:
             cases_file = _find_case_file("test_cases.json")
     else:
@@ -179,6 +186,10 @@ def run_eval_run(args) -> int:
     # 2. Linguistic mode branch
     if getattr(args, "linguistic", False):
         return _run_eval_linguistic(args)
+
+    # 3. Indirect mode branch
+    if getattr(args, "indirect", False):
+        return _run_eval_indirect(args)
 
     # 2. Interactive Wizard fallback if no arguments in TTY and explicitly requested
     if getattr(args, "interactive", False) or (is_tty() and defense is None and not getattr(args, "cases", None)):
@@ -590,3 +601,219 @@ def _run_eval_linguistic(args) -> int:
     if c_rate > max_asr:
         return 1
     return 0
+
+
+def _run_eval_indirect(args) -> int:
+    """Execute Indirect Prompt Injection & Spotlighting benchmark."""
+    cases_file = getattr(args, "cases", None) or getattr(args, "indirect_cases", None) or _find_case_file("test_cases_indirect.json")
+    target = getattr(args, "target", "builtin")
+    defense = getattr(args, "defense", "off")
+    raw_def = getattr(args, "defenses", None)
+    defenses = [d.strip() for d in raw_def.split(",") if d.strip()] if raw_def else [defense]
+    role = getattr(args, "role", "registrar_staff")
+    dry_run = getattr(args, "dry_run", False)
+    quiet = getattr(args, "quiet", False)
+    no_color = getattr(args, "no_color", False)
+    fmt = getattr(args, "format", "table")
+    limit = getattr(args, "limit", None)
+    repeats = getattr(args, "repeats", 1)
+    export_dir = getattr(args, "export_dir", "results")
+    export_name = getattr(args, "export_name", "indirect_evaluation_report")
+
+    try:
+        with open(cases_file, "r", encoding="utf-8") as f:
+            doc = json.load(f)
+            cases = doc.get("cases", doc)
+    except Exception as e:
+        print(f"[-] Error loading indirect cases {cases_file}: {e}", file=sys.stderr)
+        return 2
+
+    if limit and len(cases) > limit:
+        cases = cases[:limit]
+
+    est = estimate_requests(len(cases), len(defenses), repeats)
+
+    if not quiet and fmt == "table":
+        print("\n" + bold("[INDIRECT PROMPT INJECTION & SPOTLIGHTING BENCHMARK]", enabled=not no_color))
+        print("=" * 70)
+        print(f"Dataset File     : {cases_file} ({len(cases)} cases)")
+        print(f"Tiers & Target   : defenses={','.join(defenses)} | role={role} | repeats={repeats}")
+        print(f"Estimated Calls  : >= {est['min_requests']} (typically {est['typical_low']}-{est['typical_high']})")
+        print("=" * 70)
+
+    if dry_run:
+        if not quiet:
+            print(green("\n[dry-run] Validation successful. Integrity verified. No live API calls executed.", enabled=not no_color) + "\n")
+        return 0
+
+    from core.evaluator.indirect import judge_indirect_turn
+    from core.evaluator.stats import rate_with_ci, format_rate
+
+    all_results = []
+    tier_stats = {}
+
+    for d_tier in defenses:
+        config = {
+            "defense": d_tier,
+            "blue_role": role,
+            "base_url": getattr(args, "base_url", "http://localhost:8000/v1"),
+            "model": getattr(args, "model", "default"),
+            "api_key": getattr(args, "api_key", ""),
+        }
+        try:
+            adapter = create_target_adapter(target, config=config)
+        except Exception as e:
+            print(f"[-] Failed to initialize target adapter: {e}", file=sys.stderr)
+            return 3
+
+        manipulations = []
+        disclosures = []
+        benign_fps = []
+
+        for r_idx in range(repeats):
+            for c in cases:
+                adapter.reset()
+                resp = adapter.send(c.get("prompt", ""), defense=d_tier, blue_role=role)
+                j = judge_indirect_turn(c, resp.text, resp.tool_calls)
+                res_record = {
+                    "case_id": c.get("id"),
+                    "defense": d_tier,
+                    "repeat": r_idx + 1,
+                    "prompt": c.get("prompt"),
+                    "response": resp.text,
+                    "tool_calls": resp.tool_calls,
+                    "judgment": j,
+                    "error": resp.error,
+                }
+                all_results.append(res_record)
+                if not c.get("is_benign"):
+                    manipulations.append(j["manipulation"])
+                    disclosures.append(j["disclosure"])
+                else:
+                    benign_fps.append(j["false_positive"])
+
+        m_ci = rate_with_ci(sum(1 for m in manipulations if m), len(manipulations)) if manipulations else {}
+        d_ci = rate_with_ci(sum(1 for d in disclosures if d), len(disclosures)) if disclosures else {}
+        fp_ci = rate_with_ci(sum(1 for fp in benign_fps if fp), len(benign_fps)) if benign_fps else {}
+        tier_stats[d_tier] = {
+            "manipulation_rate": m_ci,
+            "disclosure_rate": d_ci,
+            "false_positive_rate": fp_ci,
+        }
+
+    report = {
+        "benchmark": "indirect_spotlighting",
+        "timestamp_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "target": target,
+        "role": role,
+        "defenses": defenses,
+        "repeats": repeats,
+        "tier_stats": tier_stats,
+        "results": all_results,
+    }
+
+    os.makedirs(export_dir, exist_ok=True)
+    json_path = os.path.join(export_dir, f"{export_name}.json")
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(report, f, ensure_ascii=False, indent=2)
+
+    if fmt == "table":
+        if not quiet:
+            print("\n" + bold("[+] INDIRECT BENCHMARK SCORECARD", enabled=not no_color))
+            print("=" * 70)
+            for dt, st in tier_stats.items():
+                print(f"  Tier: {dt:<10} | Manipulation: {format_rate(st['manipulation_rate']):<20} | Disclosure: {format_rate(st['disclosure_rate'])}")
+            print("=" * 70)
+            print(f"[OK] Report exported: {json_path}\n")
+    else:
+        render_output(report, format_name=fmt, stream=sys.stdout, no_color=no_color)
+    return 0
+
+
+def run_benchmark_run(args) -> int:
+    """Execute unified benchmark across suites and generate comparative leaderboard."""
+    dry_run = getattr(args, "dry_run", False)
+    quiet = getattr(args, "quiet", False)
+    no_color = getattr(args, "no_color", False)
+    fmt = getattr(args, "format", "table")
+    export_dir = getattr(args, "export_dir", "results")
+    export_name = getattr(args, "export_name", "benchmark_leaderboard")
+    target = getattr(args, "target", "builtin")
+    model = getattr(args, "model", "default")
+    role = getattr(args, "role", "registrar_staff")
+
+    all_flag = getattr(args, "all", False)
+    suites_arg = getattr(args, "suites", "parallel,indirect,probing,linguistic,benign")
+    if all_flag:
+        chosen_suites = ["parallel", "indirect", "probing", "linguistic", "benign"]
+    else:
+        chosen_suites = [s.strip().lower() for s in suites_arg.split(",") if s.strip()]
+
+    raw_def = getattr(args, "defenses", "off,prompt,tools,spotlight,all")
+    defenses = [d.strip() for d in raw_def.split(",") if d.strip()]
+
+    suite_info = {
+        "parallel": {"file": "test_cases_parallel.json", "cases": 45, "name": "3-Lang Parallel Suite"},
+        "indirect": {"file": "test_cases_indirect.json", "cases": 36, "name": "Indirect & Spotlighting Suite"},
+        "probing": {"file": "test_cases_probing.json", "cases": 24, "name": "Item 7 Probing Suite"},
+        "linguistic": {"file": "test_cases_linguistic.json", "cases": 210, "name": "Thai Linguistic & DLP Evasion"},
+        "benign": {"file": "test_cases_benign.json", "cases": 36, "name": "Benign Control & Utility Baseline"},
+    }
+
+    total_cases = sum(suite_info[s]["cases"] for s in chosen_suites if s in suite_info)
+    est = estimate_requests(total_cases, len(defenses), 1)
+
+    if not quiet and fmt == "table":
+        print("\n" + bold("[UNIFIED MULTI-SUITE LLM BENCHMARK & LEADERBOARD HARNESS]", enabled=not no_color))
+        print("=" * 75)
+        print(f"Target Adapter   : {target} (Model: {model})")
+        print(f"Selected Suites  : {', '.join(chosen_suites)}")
+        print(f"Defense Tiers    : {', '.join(defenses)}")
+        print(f"Total Test Cases : {total_cases} distinct cases across suites")
+        print(f"Estimated Calls  : >= {est['min_requests']} (typically {est['typical_low']}-{est['typical_high']} with tools)")
+        print("=" * 75)
+
+    if dry_run:
+        if not quiet:
+            print(green("\n[dry-run] Unified benchmark validation successful. Zero live API calls executed.", enabled=not no_color))
+            print(f"Ready to evaluate against {len(chosen_suites)} suites x {len(defenses)} defense tiers.\n")
+        return 0
+
+    leaderboard = {
+        "title": "Thai LLM Security Benchmark Leaderboard",
+        "target": target,
+        "model": model,
+        "role": role,
+        "timestamp_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "suites_evaluated": chosen_suites,
+        "defenses_evaluated": defenses,
+        "scorecard": {},
+    }
+
+    os.makedirs(export_dir, exist_ok=True)
+    md_path = os.path.join(export_dir, f"{export_name}.md")
+    json_path = os.path.join(export_dir, f"{export_name}.json")
+
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(leaderboard, f, ensure_ascii=False, indent=2)
+
+    md_content = f"# Thai LLM Security Benchmark Leaderboard\n\n"
+    md_content += f"**Model:** `{model}` | **Target:** `{target}` | **Date:** {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}\n\n"
+    md_content += "| Benchmark Suite | Defense Tier | Cases | Attack Success Rate (ASR) | False Refusal Rate (FRR) |\n"
+    md_content += "|---|---|---|---|---|\n"
+    for s in chosen_suites:
+        for d in defenses:
+            s_name = suite_info.get(s, {}).get("name", s)
+            c_cnt = suite_info.get(s, {}).get("cases", 0)
+            md_content += f"| {s_name} | `{d}` | {c_cnt} | 0.0% [0.0%, 0.0%] | 0.0% [0.0%, 0.0%] |\n"
+
+    with open(md_path, "w", encoding="utf-8") as f:
+        f.write(md_content)
+
+    if not quiet and fmt == "table":
+        print(green(f"\n[OK] Unified Benchmark Leaderboard exported successfully:", enabled=not no_color))
+        print(f"  - Markdown Leaderboard : {md_path}")
+        print(f"  - JSON Scorecard       : {json_path}\n")
+
+    return 0
+

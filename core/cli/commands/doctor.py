@@ -71,6 +71,7 @@ def run_diagnostics() -> Dict[str, Any]:
         ("Baseline Cases", ["data/normalized/test_cases.json", "data/test_cases.json"]),
         ("Indirect Cases", ["data/normalized/test_cases_indirect.json", "data/test_cases_indirect.json"]),
         ("Linguistic Cases", ["data/normalized/test_cases_linguistic.json", "data/test_cases_linguistic.json"]),
+        ("Benign Cases", ["data/normalized/test_cases_benign.json", "data/test_cases_benign.json"]),
         ("Linguistic Seeds", ["data/linguistic_seeds.json", "linguistic_seeds.json"]),
     ]
     missing_data = []
