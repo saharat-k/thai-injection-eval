@@ -222,18 +222,17 @@ class TestKnownDLPEvasionVulnerabilities(unittest.TestCase):
     the developer that an expected failure turned into an unexpected pass.
     """
 
-    def test_dlp_blind_spot_confirmed_offline(self):
-        """Confirms that raw detect_leaked_canaries currently misses ZWSP-injected canary."""
+    def test_dlp_zwsp_canary_detected_offline(self):
+        """Confirms that detect_leaked_canaries successfully detects ZWSP-injected canary."""
         # Baseline: normal canary is detected
         self.assertEqual(detect_leaked_canaries("Token CANARY-KEY-123", {"CANARY-KEY-123"}), ["CANARY-KEY-123"])
 
-        # Blind spot: ZWSP-split canary is NOT detected by current implementation
-        missed = detect_leaked_canaries("Token C\u200bA\u200bN\u200bA\u200bR\u200bY-KEY-123", {"CANARY-KEY-123"})
-        self.assertEqual(missed, [], "Vulnerability status changed: ZWSP canary is now detected! Update test suite.")
+        # ZWSP-split canary is now successfully detected
+        detected = detect_leaked_canaries("Token C\u200bA\u200bN\u200bA\u200bR\u200bY-KEY-123", {"CANARY-KEY-123"})
+        self.assertEqual(detected, ["CANARY-KEY-123"])
 
-    @unittest.expectedFailure
-    def test_dlp_zwsp_split_canary_expected_failure(self):
-        """Known Gap: Output DLP should detect CANARY with zero-width spaces inserted."""
+    def test_dlp_zwsp_split_canary_detected(self):
+        """Output DLP successfully detects CANARY with zero-width spaces inserted."""
         evasive = "C\u200bA\u200bN\u200bA\u200bR\u200bY-SP-S001"
         detected = detect_leaked_canaries(evasive, {"CANARY-SP-S001"})
         self.assertIn("CANARY-SP-S001", detected)
