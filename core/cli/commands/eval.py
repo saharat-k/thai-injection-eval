@@ -759,7 +759,9 @@ def _run_eval_benign(args) -> int:
     limit = getattr(args, "limit", None)
     repeats = getattr(args, "repeats", 1)
     export_dir = getattr(args, "export_dir", "results")
-    export_name = getattr(args, "export_name", "benign_evaluation_report")
+    export_name = getattr(args, "export_name", None)
+    if not export_name or export_name == "owasp_evaluation_report":
+        export_name = "benign_evaluation_report"
 
     try:
         with open(cases_file, "r", encoding="utf-8") as f:

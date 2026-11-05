@@ -31,7 +31,7 @@ def get_effective_config() -> Dict[str, Any]:
         "GEMINI_API_KEY": _mask_secret(api_key),
         "GEMINI_API_STATUS": "Configured" if api_key else "Missing",
         "FLASK_SECRET_KEY": _mask_secret(flask_secret),
-        "DEFAULT_RED_MODEL": os.getenv("RED_MODEL", "gemini-3.8-flash"),
+        "DEFAULT_RED_MODEL": os.getenv("RED_MODEL", "gemini-3.5-flash-lite"),
         "DEFAULT_BLUE_MODEL": os.getenv("BLUE_MODEL", "gemini-3.5-flash-lite"),
         "DEFAULT_DEFENSE": os.getenv("DEFAULT_DEFENSE", "off"),
         "DEFAULT_ROLE": os.getenv("DEFAULT_ROLE", "registrar_staff"),

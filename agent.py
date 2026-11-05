@@ -41,7 +41,7 @@ DB_PATH = RESULTS_DB_PATH  # Backward-compatible alias for results database
 
 # Model spec: "model" or "provider:model".
 # Supported providers: "gemini" (default), "openrouter", "github", "groq".
-RED_MODEL = os.getenv("RED_MODEL", "gemini-3.8-flash")
+RED_MODEL = os.getenv("RED_MODEL", "gemini-3.5-flash-lite")
 BLUE_MODEL = os.getenv("BLUE_MODEL", "gemini-3.5-flash-lite")
 FALLBACK_MODEL = "gemini-3.1-flash-lite"
 FALLBACK_RED_MODEL = "gemini-3.5-flash-lite"

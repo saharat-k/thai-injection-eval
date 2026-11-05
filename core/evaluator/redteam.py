@@ -165,7 +165,8 @@ class MultiTurnRedTeamRunner:
             return case.get("prompt", ""), {"strategy": "Initial Canonical Baseline", "analysis": "Initial turn"}
 
         # Use deterministic escalation fallback if dry-run, offline, or no API key
-        if self.dry_run or not os.getenv("GEMINI_API_KEY"):
+        has_any_key = any(os.getenv(k) for k in ("GEMINI_API_KEY", "OPENROUTER_API_KEY", "GITHUB_TOKEN", "GROQ_API_KEY"))
+        if self.dry_run or not has_any_key:
             return agent.build_fallback_attack(case, attempt, last_response)
 
         try:
