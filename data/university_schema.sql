@@ -5,27 +5,38 @@ CREATE TABLE IF NOT EXISTS students (
     student_id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     major TEXT NOT NULL,
-    year INTEGER NOT NULL
+    year INTEGER NOT NULL,
+    faculty TEXT DEFAULT 'คณะวิศวกรรมศาสตร์',
+    advisor_id TEXT DEFAULT 'P001',
+    academic_status TEXT DEFAULT 'ปกติ'
 );
 
 CREATE TABLE IF NOT EXISTS professors (
     professor_id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     department TEXT NOT NULL,
-    email TEXT NOT NULL
+    email TEXT NOT NULL,
+    academic_rank TEXT DEFAULT 'ผศ.ดร.',
+    office_hours TEXT DEFAULT 'Mon/Wed 13:00-15:00',
+    research_area TEXT DEFAULT 'AI & Cybersecurity'
 );
 
 CREATE TABLE IF NOT EXISTS departments (
     dept_id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    faculty_head TEXT NOT NULL
+    faculty_head TEXT NOT NULL,
+    faculty_name_th TEXT DEFAULT 'คณะวิศวกรรมศาสตร์',
+    phone_ext TEXT DEFAULT '1100'
 );
 
 CREATE TABLE IF NOT EXISTS courses (
     course_id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
     department TEXT NOT NULL,
-    credits INTEGER NOT NULL
+    credits INTEGER NOT NULL,
+    course_name_th TEXT DEFAULT '',
+    credit_format TEXT DEFAULT '3(3-0-6)',
+    prerequisite_id TEXT DEFAULT NULL
 );
 
 CREATE TABLE IF NOT EXISTS enrollments (
@@ -34,6 +45,8 @@ CREATE TABLE IF NOT EXISTS enrollments (
     course_id TEXT NOT NULL,
     semester TEXT NOT NULL,
     grade TEXT,
+    academic_year INTEGER DEFAULT 2567,
+    attendance_rate REAL DEFAULT 95.0,
     FOREIGN KEY(student_id) REFERENCES students(student_id),
     FOREIGN KEY(course_id)  REFERENCES courses(course_id)
 );
@@ -41,7 +54,9 @@ CREATE TABLE IF NOT EXISTS enrollments (
 CREATE TABLE IF NOT EXISTS classrooms (
     room_id TEXT PRIMARY KEY,
     building TEXT NOT NULL,
-    capacity INTEGER NOT NULL
+    capacity INTEGER NOT NULL,
+    room_type TEXT DEFAULT 'Lecture',
+    has_smart_board INTEGER DEFAULT 1
 );
 
 CREATE TABLE IF NOT EXISTS schedules (
@@ -51,6 +66,8 @@ CREATE TABLE IF NOT EXISTS schedules (
     day_of_week TEXT NOT NULL,
     start_time TEXT NOT NULL,
     end_time TEXT NOT NULL,
+    exam_midterm_date TEXT DEFAULT '2026-03-15',
+    exam_final_date TEXT DEFAULT '2026-05-20',
     FOREIGN KEY(course_id) REFERENCES courses(course_id),
     FOREIGN KEY(room_id)  REFERENCES classrooms(room_id)
 );
@@ -60,6 +77,8 @@ CREATE TABLE IF NOT EXISTS awards (
     student_id TEXT NOT NULL,
     name TEXT NOT NULL,
     year INTEGER NOT NULL,
+    award_level TEXT DEFAULT 'ระดับมหาวิทยาลัย',
+    certificate_no TEXT DEFAULT 'CERT-2567',
     FOREIGN KEY(student_id) REFERENCES students(student_id)
 );
 
@@ -70,6 +89,8 @@ CREATE TABLE IF NOT EXISTS research_projects (
     budget REAL,
     start_date TEXT,
     end_date TEXT,
+    funding_agency TEXT DEFAULT 'สกสว. (TSRI)',
+    ethics_approval_code TEXT DEFAULT 'IRB-2567-01',
     FOREIGN KEY(professor_id) REFERENCES professors(professor_id)
 );
 
@@ -79,7 +100,9 @@ CREATE TABLE IF NOT EXISTS announcements (
     department TEXT NOT NULL,
     author TEXT NOT NULL,
     content TEXT NOT NULL,
-    date_posted TEXT NOT NULL
+    date_posted TEXT NOT NULL,
+    target_audience TEXT DEFAULT 'นักศึกษาและบุคลากรทั่วไป',
+    priority_level TEXT DEFAULT 'Normal'
 );
 
 CREATE TABLE IF NOT EXISTS course_evaluations (
@@ -89,8 +112,43 @@ CREATE TABLE IF NOT EXISTS course_evaluations (
     rating INTEGER NOT NULL,
     comment TEXT NOT NULL,
     semester TEXT NOT NULL,
+    semester_academic TEXT DEFAULT '1/2567',
+    response_channel TEXT DEFAULT 'Web Portal',
     FOREIGN KEY(course_id) REFERENCES courses(course_id),
     FOREIGN KEY(student_id) REFERENCES students(student_id)
+);
+
+CREATE TABLE IF NOT EXISTS curriculums (
+    curriculum_id TEXT PRIMARY KEY,
+    dept_id TEXT NOT NULL,
+    curriculum_name_th TEXT NOT NULL,
+    curriculum_name_en TEXT NOT NULL,
+    degree_abbrev_th TEXT NOT NULL,
+    total_credits INTEGER NOT NULL,
+    accreditation_status TEXT DEFAULT 'รับรองมาตรฐาน อว.',
+    FOREIGN KEY(dept_id) REFERENCES departments(dept_id)
+);
+
+CREATE TABLE IF NOT EXISTS academic_calendar (
+    event_id TEXT PRIMARY KEY,
+    academic_year INTEGER NOT NULL,
+    semester TEXT NOT NULL,
+    event_name_th TEXT NOT NULL,
+    event_name_en TEXT NOT NULL,
+    start_date TEXT NOT NULL,
+    end_date TEXT NOT NULL,
+    target_group TEXT DEFAULT 'นักศึกษาทุกคน'
+);
+
+CREATE TABLE IF NOT EXISTS library_catalog (
+    book_id TEXT PRIMARY KEY,
+    isbn TEXT NOT NULL,
+    title_th TEXT NOT NULL,
+    title_en TEXT NOT NULL,
+    author TEXT NOT NULL,
+    category TEXT NOT NULL,
+    location_call_no TEXT NOT NULL,
+    available_copies INTEGER DEFAULT 1
 );
 
 -- DATA SEEDING -----------------------------------------------------
@@ -565,3 +623,27 @@ INSERT OR IGNORE INTO course_evaluations (eval_id, course_id, student_id, rating
     ('EV911_TH', 'C002', 'S018', 5, 'วิชาโครงสร้างข้อมูลได้รับคะแนนความพึงพอใจ 4.8 จากคะแนนเต็ม 5 โดยมีนักศึกษาส่งงานและสอบผ่านคิดเป็น 95 เปอร์เซ็นต์ของผู้เรียนทั้งหมด อาจารย์สอนได้ละเอียดมาก', '2024 Fall'),
     ('EV911_EN', 'C002', 'S018', 5, 'The Data Structures course achieved an average satisfaction rating of 4.8 out of 5.0, with a 95 percent overall assignment completion rate among enrolled students.', '2024 Fall'),
     ('EV911_MIX', 'C002', 'S018', 5, 'วิชา Data Structures ได้รับ satisfaction score 4.8 จาก 5.0 เต็ม และมีอัตรา completion rate ของงานอยู่ที่ 95 percent ของนักศึกษาทั้งหมด', '2024 Fall');
+
+-- curriculums (5 rows)
+INSERT OR IGNORE INTO curriculums (curriculum_id, dept_id, curriculum_name_th, curriculum_name_en, degree_abbrev_th, total_credits, accreditation_status) VALUES
+    ('CURR-CS', 'D001', 'หลักสูตรวิทยาศาสตรบัณฑิต สาขาวิชาวิทยาการคอมพิวเตอร์ (ปรับปรุง 2566)', 'B.Sc. Computer Science', 'วท.บ. (วิทยาการคอมพิวเตอร์)', 128, 'รับรองมาตรฐาน อว.'),
+    ('CURR-SE', 'D001', 'หลักสูตรวิศวกรรมศาสตรบัณฑิต สาขาวิชาวิศวกรรมซอฟต์แวร์ (นานาชาติ)', 'B.Eng. Software Engineering', 'วศ.บ. (วิศวกรรมซอฟต์แวร์)', 136, 'รับรองสภาวิศวกร'),
+    ('CURR-EE', 'D002', 'หลักสูตรวิศวกรรมศาสตรบัณฑิต สาขาวิชาวิศวกรรมไฟฟ้า', 'B.Eng. Electrical Engineering', 'วศ.บ. (วิศวกรรมไฟฟ้า)', 140, 'รับรองสภาวิศวกร'),
+    ('CURR-MATH', 'D003', 'หลักสูตรวิทยาศาสตรบัณฑิต สาขาวิชาคณิตศาสตร์ประกันภัย', 'B.Sc. Actuarial Mathematics', 'วท.บ. (คณิตศาสตร์ประกันภัย)', 130, 'รับรองมาตรฐาน อว.'),
+    ('CURR-PHYS', 'D002', 'หลักสูตรวิทยาศาสตรบัณฑิต สาขาวิชาฟิสิกส์วัสดุและนาโนเทคโนโลยี', 'B.Sc. Applied Physics', 'วท.บ. (ฟิสิกส์ประยุกต์)', 132, 'รับรองมาตรฐาน อว.');
+
+-- academic_calendar (5 rows)
+INSERT OR IGNORE INTO academic_calendar (event_id, academic_year, semester, event_name_th, event_name_en, start_date, end_date, target_group) VALUES
+    ('CAL-01', 2567, 'Fall 2024', 'เปิดภาคการศึกษาที่ 1', 'First Day of Classes', '2024-08-05', '2024-08-05', 'นักศึกษาและอาจารย์'),
+    ('CAL-02', 2567, 'Fall 2024', 'ช่วงเวลาเพิ่ม-ถอนรายวิชาโดยไม่บันทึก W', 'Add/Drop Period without W', '2024-08-05', '2024-08-16', 'นักศึกษาทุกคน'),
+    ('CAL-03', 2567, 'Fall 2024', 'การสอบกลางภาค', 'Midterm Examinations', '2024-09-30', '2024-10-06', 'นักศึกษาทุกคน'),
+    ('CAL-04', 2567, 'Fall 2024', 'วันสุดท้ายของการถอนรายวิชาติด W', 'Last Day for Course Withdrawal (W)', '2024-10-25', '2024-10-25', 'นักศึกษาทุกคน'),
+    ('CAL-05', 2567, 'Fall 2024', 'การสอบปลายภาค', 'Final Examinations', '2024-11-25', '2024-12-08', 'นักศึกษาทุกคน');
+
+-- library_catalog (5 rows)
+INSERT OR IGNORE INTO library_catalog (book_id, isbn, title_th, title_en, author, category, location_call_no, available_copies) VALUES
+    ('LIB-001', '978-0134685991', 'ปัญญาประดิษฐ์: แนวคิดสมัยใหม่', 'Artificial Intelligence: A Modern Approach', 'Stuart Russell, Peter Norvig', 'Computer Science', 'QA76.R87 2020', 3),
+    ('LIB-002', '978-0262033848', 'การออกแบบและวิเคราะห์ขั้นตอนวิธี', 'Introduction to Algorithms (4th ed.)', 'Thomas H. Cormen et al.', 'Algorithms', 'QA76.6.C66 2022', 5),
+    ('LIB-003', '978-1118063330', 'ความปลอดภัยระบบปฏิบัติการและฐานข้อมูล', 'Operating System Concepts', 'Abraham Silberschatz', 'Systems', 'QA76.76.O63', 2),
+    ('LIB-004', '978-0133594140', 'วิศวกรรมซอฟต์แวร์สมัยใหม่และการประกันคุณภาพ', 'Software Engineering (10th ed.)', 'Ian Sommerville', 'Software Engineering', 'QA76.758.S65', 4),
+    ('LIB-005', '978-0321573513', 'โครงสร้างข้อมูลและแบบรูปเชิงวัตถุ', 'Design Patterns: Elements of Reusable Object-Oriented Software', 'Erich Gamma et al.', 'Software Architecture', 'QA76.64.D47', 1);

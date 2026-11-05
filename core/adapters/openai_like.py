@@ -18,10 +18,11 @@ class OpenAILikeTargetAdapter(BaseTargetAdapter):
         self.model = self.config.get("model", "default")
         self.system_prompt = self.config.get("system_prompt", "")
         self.temperature = float(self.config.get("temperature", 0.0))
+        self._has_explicit_defense = "defense" in self.config or "blue_role" in self.config
         self.defense = self.config.get("defense", "off")
         self.role = self.config.get("blue_role", "registrar_staff")
         self.messages: list[dict] = []
-        self._init_messages()
+        self._init_messages(self.defense, self.role)
 
     @staticmethod
     def _get_tools_spec() -> list[dict]:
@@ -65,10 +66,17 @@ class OpenAILikeTargetAdapter(BaseTargetAdapter):
     def _init_messages(self, defense: Optional[str] = None, role: Optional[str] = None):
         """Initialize conversation with system prompt if configured."""
         self.messages = []
-        if self.system_prompt:
-            self.messages.append({"role": "system", "content": self.system_prompt})
+        eff_defense = defense if defense is not None else self.defense
+        eff_role = role if role is not None else self.role
+        if self.system_prompt or self._has_explicit_defense:
+            self.messages.append({
+                "role": "system",
+                "content": self._get_effective_system_prompt(eff_defense, eff_role),
+            })
 
     def send(self, prompt: str, **kwargs) -> TargetResponse:
+        if "defense" in kwargs or "blue_role" in kwargs:
+            self._has_explicit_defense = True
         defense = kwargs.get("defense", self.defense)
         role = kwargs.get("blue_role", self.role)
 
@@ -79,6 +87,11 @@ class OpenAILikeTargetAdapter(BaseTargetAdapter):
             self.defense = defense
             self.role = role
             self._init_messages(defense, role)
+        elif self._has_explicit_defense and (not self.messages or self.messages[0].get("role") != "system"):
+            self.messages.insert(0, {
+                "role": "system",
+                "content": self._get_effective_system_prompt(defense, role),
+            })
 
         self.messages.append({"role": "user", "content": prompt})
 
@@ -144,7 +157,8 @@ class OpenAILikeTargetAdapter(BaseTargetAdapter):
                 else:
                     reply_text = message.get("content") or ""
                     if defense == "all":
-                        reply_text = agent.apply_defense_output(reply_text)
+                        canaries = agent.load_canaries() if hasattr(agent, "load_canaries") else set()
+                        reply_text = agent.apply_defense_output(reply_text, defense, canaries)
                     self.messages.append({"role": "assistant", "content": reply_text})
                     break
 

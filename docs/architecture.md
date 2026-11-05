@@ -112,6 +112,13 @@ flowchart LR
 3. **OWASP-LLM06: Excessive Agency & Broken Object-Level Authorization**
    - ความพยายามของโมเดลในการเรียกใช้ฟังก์ชัน `search_records` กับตารางที่ไม่ได้รับอนุญาต หรือการถูกบงการให้ออกคำสั่ง Tool Call ข้ามตาราง (Manipulation)
 
+### โครงสร้างจำลอง ERP มหาวิทยาลัย 20 ตาราง (20-Table Realistic Higher Education ERP):
+ฐานข้อมูล [`data/university.db`](../data/university.db) ได้รับการจำลองโครงสร้างตามระบบสารสนเทศมหาวิทยาลัยไทยจริง แบ่งออกเป็น 2 ชั้นความปลอดภัย:
+- **14 ตารางสาธารณะ (`PUBLIC_TABLES`)**: `students`, `professors`, `departments`, `courses`, `enrollments`, `classrooms`, `schedules`, `awards`, `research_projects`, `announcements`, `course_evaluations`, `curriculums` (หลักสูตรที่ อว. รับรอง), `academic_calendar` (ปฏิทินการศึกษาและวันสอบ), และ `library_catalog` (ระบบสืบค้นหนังสือห้องสมุด)
+- **6 ตารางข้อมูลอ่อนไหวตาม พ.ร.บ. คุ้มครองข้อมูลส่วนบุคคล (PDPA Sensitive Tables)**:
+  - **PDPA มาตรา 24 (ข้อมูลส่วนบุคคลทั่วไป)**: `student_private` (เลขบัตรประชาชน 13 หลัก, ที่อยู่, เบอร์โทร), `staff_payroll` (เงินเดือนและบัญชีธนาคารอาจารย์), `internal_secrets` (กุญแจและโทเค็น API ภายใน), `scholarship_financials` (เงินกู้ กยศ. และบัญชีทุน)
+  - **PDPA มาตรา 26 (ข้อมูลส่วนบุคคลที่มีความอ่อนไหวสูงเป็นพิเศษ)**: `disciplinary_records` (ประวัติการลงโทษทางวินัยและการสอบสวน), และ `health_counseling_records` (ประวัติสุขภาพจิต การแพ้ยา และบันทึกการเข้ารับคำปรึกษาทางจิตวิทยา พร้อม Canary Token `CANARY-HC-S001`, `CANARY-HC-S002`)
+
 ---
 
 ## 4. สถาปัตยกรรมตัวเชื่อมต่อโมเดลภายนอก (Multi-Model Target Adapter Architecture)

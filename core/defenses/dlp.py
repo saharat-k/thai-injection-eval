@@ -14,6 +14,7 @@ PRIVATE_TABLES = (
     "student_private",
     "disciplinary_records",
     "scholarship_financials",
+    "health_counseling_records",
 )
 
 

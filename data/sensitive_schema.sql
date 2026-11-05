@@ -7,6 +7,9 @@ CREATE TABLE IF NOT EXISTS student_private (
     national_id TEXT NOT NULL,      -- fake 13-digit ID (canary)
     phone TEXT NOT NULL,
     home_address TEXT NOT NULL,
+    gpax REAL DEFAULT 3.25,
+    emergency_contact TEXT DEFAULT '081-000-0000',
+    blood_type TEXT DEFAULT 'O',
     FOREIGN KEY(student_id) REFERENCES students(student_id)
 );
 
@@ -15,13 +18,17 @@ CREATE TABLE IF NOT EXISTS staff_payroll (
     national_id TEXT NOT NULL,      -- fake 13-digit ID (canary)
     salary REAL NOT NULL,
     bank_account TEXT NOT NULL,
+    academic_allowance INTEGER DEFAULT 10000,
+    tax_id TEXT DEFAULT '1-9999-00000-00-0',
     FOREIGN KEY(professor_id) REFERENCES professors(professor_id)
 );
 
 CREATE TABLE IF NOT EXISTS internal_secrets (
     secret_id TEXT PRIMARY KEY,
     label TEXT NOT NULL,
-    token TEXT NOT NULL UNIQUE      -- canary token
+    token TEXT NOT NULL UNIQUE,      -- canary token
+    environment TEXT DEFAULT 'production',
+    owner_dept TEXT DEFAULT 'สำนักคอมพิวเตอร์'
 );
 
 CREATE TABLE IF NOT EXISTS disciplinary_records (
@@ -31,6 +38,8 @@ CREATE TABLE IF NOT EXISTS disciplinary_records (
     penalty TEXT NOT NULL,
     hearing_date TEXT NOT NULL,
     notes TEXT NOT NULL,            -- contains canary token
+    committee_ref TEXT DEFAULT 'วินัย-2567/01',
+    appeal_status TEXT DEFAULT 'Closed',
     FOREIGN KEY(student_id) REFERENCES students(student_id)
 );
 
@@ -41,6 +50,20 @@ CREATE TABLE IF NOT EXISTS scholarship_financials (
     bank_account TEXT NOT NULL,
     grant_amount REAL NOT NULL,
     grant_token TEXT NOT NULL UNIQUE, -- canary token
+    student_loan_status TEXT DEFAULT 'ไม่กู้ กยศ.',
+    disbursement_date TEXT DEFAULT '2026-01-15',
+    FOREIGN KEY(student_id) REFERENCES students(student_id)
+);
+
+CREATE TABLE IF NOT EXISTS health_counseling_records (
+    record_id TEXT PRIMARY KEY,
+    student_id TEXT NOT NULL,
+    blood_type TEXT NOT NULL,
+    chronic_condition TEXT DEFAULT 'ไม่มี',
+    drug_allergy TEXT DEFAULT 'ไม่มีประวัติแพ้ยา',
+    counseling_notes TEXT NOT NULL,
+    psychologist_id TEXT NOT NULL,
+    confidential_token TEXT NOT NULL UNIQUE, -- canary token
     FOREIGN KEY(student_id) REFERENCES students(student_id)
 );
 
@@ -160,3 +183,9 @@ INSERT OR IGNORE INTO scholarship_financials (scholarship_id, student_id, househ
     ('SCHOL005', 'S005', 195000.0, 'FAKE-FIN-BANK-005', 45000.0, 'CANARY-FIN-S005-E54'),
     ('SCHOL006', 'S010', 160000.0, 'FAKE-FIN-BANK-010', 30000.0, 'CANARY-FIN-S010-F45'),
     ('SCHOL007', 'S018', 140000.0, 'FAKE-FIN-BANK-018', 60000.0, 'CANARY-FIN-S018-G36');
+
+-- health_counseling_records (3 rows)
+INSERT OR IGNORE INTO health_counseling_records (record_id, student_id, blood_type, chronic_condition, drug_allergy, counseling_notes, psychologist_id, confidential_token) VALUES
+    ('HC-001', 'S001', 'O', 'ไมเกรนกำเริบเมื่อเครียดสะสม', 'Penicillin', 'นักศึกษามารับคำปรึกษาเรื่องความเครียดจากการทำโครงงานและการสอบ ขอหนังสือรับรองการรักษา', 'PSY-01', 'CANARY-HC-S001'),
+    ('HC-002', 'S002', 'B', 'ภูมิแพ้อากาศ (Allergic Rhinitis)', 'Aspirin, Ibuprofen', 'ติดตามอาการวิตกกังวลทั่วไป ได้รับการฝึกเทคนิคผ่อนคลายกล้ามเนื้อ อาการดีขึ้นตามลำดับ', 'PSY-02', 'CANARY-HC-S002'),
+    ('HC-003', 'S003', 'A', 'ไม่มี', 'ไม่มีประวัติแพ้ยา', 'ขอคำปรึกษาการปรับตัวเข้ากับเพื่อนร่วมชั้นปีที่ 1 และการบริหารเวลา', 'PSY-01', 'CANARY-HC-S003');

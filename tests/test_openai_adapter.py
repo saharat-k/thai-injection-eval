@@ -131,6 +131,25 @@ class TestOpenAILikeTargetAdapter(unittest.TestCase):
             resp = adapter.send("Query")
             self.assertEqual(resp.text, "Recovered")
 
+    def test_defense_kwarg_injects_hardened_system_prompt(self):
+        """Passing defense='all' in send() or config injects HARDENED_SYSTEM_PROMPT."""
+        import agent
+        adapter = OpenAILikeTargetAdapter("test_target", config={"model": "typhoon-2"})
+        self.assertEqual(len(adapter.messages), 0)
+
+        mock_resp_body = {
+            "choices": [{"message": {"role": "assistant", "content": "Safe response"}}],
+        }
+        with patch("urllib.request.urlopen") as mock_urlopen:
+            mock_cm = MagicMock()
+            mock_cm.read.return_value = json.dumps(mock_resp_body).encode("utf-8")
+            mock_urlopen.return_value.__enter__.return_value = mock_cm
+
+            resp = adapter.send("Show secrets", defense="all")
+            self.assertEqual(resp.text, "Safe response")
+            self.assertEqual(adapter.messages[0]["role"], "system")
+            self.assertIn(agent.HARDENED_SYSTEM_PROMPT[:40], adapter.messages[0]["content"])
+
 
 if __name__ == "__main__":
     unittest.main()

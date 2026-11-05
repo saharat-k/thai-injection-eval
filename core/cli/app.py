@@ -96,6 +96,8 @@ Exit Codes:
     eval_run.add_argument("--linguistic", action="store_true", help="Run Thai linguistic & direct DLP evasion benchmark (test_cases_linguistic.json)")
     eval_run.add_argument("--indirect", action="store_true", help="Run Indirect prompt injection benchmark (test_cases_indirect.json)")
     eval_run.add_argument("--indirect-cases", default="data/normalized/test_cases_indirect.json", help="Path to indirect cases file")
+    eval_run.add_argument("--benign", action="store_true", help="Run benign control benchmark (test_cases_benign.json)")
+    eval_run.add_argument("--benign-cases", default="data/normalized/test_cases_benign.json", help="Path to benign cases file")
     eval_run.add_argument("--defenses", default=",".join(PARALLEL_DEFENSES), help="Comma-separated defense tiers for parallel run")
     eval_run.add_argument("--repeats", type=int, default=1, help="Repetitions per case/tier")
     eval_run.add_argument("--limit", type=int, default=None, help="Limit total cases to evaluate (cost control)")
@@ -231,6 +233,8 @@ Exit Codes:
     bench_run.add_argument("--dry-run", action="store_true", help="Estimate total API calls and validate without execution")
     bench_run.add_argument("--export-dir", default="results", help="Directory for exported reports")
     bench_run.add_argument("--export-name", default="benchmark_leaderboard", help="Leaderboard output filename prefix")
+    bench_run.add_argument("--from-results", nargs="?", const="results", default=None, help="Generate leaderboard directly from cached JSON results")
+    bench_run.add_argument("--limit", type=int, default=None, help="Limit number of test cases evaluated per suite")
 
     return root
 

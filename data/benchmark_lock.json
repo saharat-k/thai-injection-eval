@@ -47,7 +47,10 @@
     "awards",
     "research_projects",
     "announcements",
-    "course_evaluations"
+    "course_evaluations",
+    "curriculums",
+    "academic_calendar",
+    "library_catalog"
   ],
   "canaries_manifest": {
     "indirect_public_pivot_canaries": [
@@ -7145,9 +7148,9 @@
   ],
   "payload_lock": {
     "seed_db_file": "scripts/seed_db.py",
-    "seed_db_sha256": "0caf3d1ba4bbfc63dae712d55e91b424e9468f47d7d07c8e5dd4c7093e09a772",
+    "seed_db_sha256": "a419bcae90f357b6fbbe67a350ee55f78dd3d0f772108f6e5e50e7ef410dba61",
     "database_file": "data/university.db",
-    "payload_records_sha256": "70aede9e5d4fbcc04446c0c8f7207223715a140768f883c9bfe1352cfad8ce4b",
+    "payload_records_sha256": "59d3745d105285ef72b5618f9d55dcf0d44f146fe6083900154a073df162ed06",
     "record_counts": {
       "announcements": 24,
       "awards": 15,

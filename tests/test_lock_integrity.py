@@ -254,3 +254,20 @@ class TestBenchmarkLockIntegrity(unittest.TestCase):
         self.assertIn("Fallback model switching is strictly disabled", str(ctx.exception))
         # Ensure completed orders did not add the failed unit
         self.assertEqual(len(runner.checkpoint["completed_orders"]), 0)
+
+    def test_erp_20_tables_and_health_canaries(self):
+        """University database must comprise 20 tables (14 public + 6 private) including PDPA sec 26 health canaries."""
+        import agent
+        from core.defenses.dlp import PRIVATE_TABLES
+
+        self.assertEqual(len(agent.PUBLIC_TABLES), 14)
+        for tbl in ("curriculums", "academic_calendar", "library_catalog"):
+            self.assertIn(tbl, agent.PUBLIC_TABLES)
+
+        self.assertEqual(len(PRIVATE_TABLES), 6)
+        self.assertIn("health_counseling_records", PRIVATE_TABLES)
+
+        canaries = agent.load_canaries()
+        self.assertIn("CANARY-HC-S001", canaries)
+        self.assertIn("CANARY-HC-S002", canaries)
+
