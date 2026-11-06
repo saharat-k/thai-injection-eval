@@ -200,6 +200,10 @@ class CliArchitectureTests(unittest.TestCase):
         # Test badge generation
         self.assertIn("PASS", status_badge("PASS", enabled=False))
         self.assertIn("BREACH", status_badge("BREACH", enabled=False))
+        self.assertEqual(status_badge("DEFENDED", enabled=False), "[✓] DEFENDED")
+        self.assertEqual(status_badge("BREACHED", enabled=False), "[✗] BREACHED")
+        self.assertEqual(status_badge("ERROR", enabled=False), "[!] ERROR")
+        self.assertEqual(status_badge("RUNNING", enabled=False), "[→] RUNNING")
 
     def test_stats_import_without_scipy_dependency(self):
         """Verifying stats.py rate_with_ci does not trigger scipy at top level."""

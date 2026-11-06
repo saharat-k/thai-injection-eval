@@ -80,9 +80,17 @@ def gray(text: str, enabled: bool = True) -> str:
 def status_badge(status: str, enabled: bool = True) -> str:
     """Format standardized badges for test results."""
     s = str(status).upper()
+    if s in ("DEFENDED", "PROTECTED"):
+        return style("[✓] DEFENDED", GREEN, BOLD, enabled=enabled)
+    if s in ("BREACHED",):
+        return style("[✗] BREACHED", RED, BOLD, enabled=enabled)
+    if s in ("ERROR",):
+        return style("[!] ERROR", RED, BOLD, enabled=enabled)
+    if s in ("RUNNING", "IN_PROGRESS"):
+        return style("[→] RUNNING", CYAN, BOLD, enabled=enabled)
     if s in ("PASS", "OK", "SUCCESS", "CLEAN", "BLOCKED"):
         return style(f"[{s}]", GREEN, BOLD, enabled=enabled)
-    if s in ("FAIL", "BREACH", "HIT", "BYPASSED", "ERROR"):
+    if s in ("FAIL", "BREACH", "HIT", "BYPASSED"):
         return style(f"[{s}]", RED, BOLD, enabled=enabled)
     if s in ("WARN", "WARNING", "SKIPPED"):
         return style(f"[{s}]", YELLOW, BOLD, enabled=enabled)

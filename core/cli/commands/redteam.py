@@ -51,7 +51,7 @@ def print_preflight_card(args, total_cases: int, cases_path: str, no_color: bool
     bullet = get_glyph("■", "*")
 
     if not getattr(args, "quiet", False):
-        print_banner(stream=sys.stdout, color_enabled=color_enabled, subtitle="Adaptive Multi-Turn Red Team")
+        print_banner(stream=sys.stdout, color_enabled=color_enabled, subtitle="AI Security Test Bench & Multi-Turn Red Teaming CLI")
 
     print("\n" + double_line)
     header = f"{bullet} ADAPTIVE MULTI-TURN RED TEAMING SESSION {bullet}"
@@ -135,7 +135,7 @@ def print_turn_telemetry(case: dict, turn: RedTeamTurnResult, attempt: int, max_
         badge = status_badge("DEFENDED", enabled=color_enabled)
         tool_cnt = len(turn.tool_calls)
         act = turn.defense_action
-        msg = f"[{cid} | Turn {attempt}/{max_attempts}] {badge} Action: {cyan(act, enabled=color_enabled)} | Tools: {tool_cnt} | Prompt refused cleanly"
+        msg = f"  [{cid} | Turn {attempt}/{max_attempts}] {badge:<16} Action: {cyan(act, enabled=color_enabled):<24} | Tools: {tool_cnt:<2} | Prompt refused cleanly"
         print(msg)
 
 
