@@ -740,6 +740,15 @@ class WebUiTests(unittest.TestCase):
         self.assertIn("jetbrains mono", html.lower())
         self.assertIn("noto sans thai", html.lower())
 
+    def test_index_contains_slide_over_drawer_structure(self):
+        resp = self.client.get("/")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertIn('id="caseDetailDrawer"', html)
+        self.assertIn('id="drawerTranscriptTabBtn"', html)
+        self.assertIn('id="drawerTelemetryTabBtn"', html)
+        self.assertIn('btn-inspect-case', html)
+
 
 if __name__ == "__main__":
     unittest.main()

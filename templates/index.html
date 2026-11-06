@@ -430,6 +430,226 @@
       background: #38bdf8;
     }
 
+    /* Slide-Over Detail Drawer */
+    .drawer-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(2px);
+      z-index: 9998;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+    .drawer-backdrop.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .case-detail-drawer {
+      position: fixed;
+      top: 0;
+      right: -650px;
+      width: min(620px, 94vw);
+      height: 100vh;
+      background: var(--bg-surface);
+      border-left: 1px solid var(--border-subtle);
+      box-shadow: -10px 0 30px rgba(0, 0, 0, 0.6);
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      transition: right 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .case-detail-drawer.open {
+      right: 0;
+    }
+    .drawer-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--bg-surface-sub);
+    }
+    .drawer-title-group {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    .drawer-case-badge {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-white);
+      background: var(--bg-base);
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--border-light);
+    }
+    .drawer-close-btn {
+      background: transparent;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      width: 28px;
+      height: 28px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      transition: all 0.15s ease;
+    }
+    .drawer-close-btn:hover {
+      color: var(--text-white);
+      border-color: var(--border-light);
+      background: var(--bg-input);
+    }
+    .drawer-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border-subtle);
+      background: var(--bg-surface);
+      padding: 0 16px;
+      gap: 4px;
+    }
+    .drawer-tab-btn {
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-muted);
+      padding: 10px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.15s ease;
+    }
+    .drawer-tab-btn:hover {
+      color: var(--text-white);
+    }
+    .drawer-tab-btn.active {
+      color: var(--color-cyan);
+      border-bottom-color: var(--color-cyan);
+    }
+    .drawer-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .drawer-card {
+      background: var(--bg-base);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .drawer-card-header {
+      padding: 8px 12px;
+      background: var(--bg-surface-sub);
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .drawer-code-block {
+      padding: 12px;
+      margin: 0;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      line-height: 1.6;
+      color: var(--text-main);
+      background: var(--bg-base);
+      max-height: 240px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .btn-copy-payload {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.15s ease;
+    }
+    .btn-copy-payload:hover {
+      color: var(--text-white);
+      border-color: var(--border-light);
+    }
+    .btn-inspect-case {
+      background: var(--bg-surface-sub);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.15s ease;
+    }
+    .btn-inspect-case:hover {
+      background: var(--color-primary-hover);
+      color: var(--text-white);
+      border-color: var(--border-focus);
+    }
+    .telemetry-box {
+      background: var(--bg-base);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      padding: 12px;
+    }
+    .telemetry-box h4 {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .metadata-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .meta-item {
+      background: var(--bg-base);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .meta-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+    .meta-val {
+      font-size: 12px;
+      color: var(--text-white);
+      font-family: var(--font-mono);
+      word-break: break-all;
+    }
+    .tool-call-item {
+      padding: 6px 8px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      margin-bottom: 6px;
+    }
+
     /* Audit Table (Monochrome / Terminal Style) */
     .unified-audit-table {
       width: 100%;
@@ -1347,112 +1567,149 @@
       <table class="unified-audit-table">
         <thead>
           <tr>
-            <th style="width: 125px;">ID & RUN</th>
-            <th style="width: 85px;">ภาษา</th>
-            <th style="width: 110px;">เทคนิค</th>
-            <th style="width: 100px;">DEFENSE</th>
-            <th>สถานะความปลอดภัย (SECURITY VERDICT)</th>
-            <th style="width: 100px; text-align: right;">รายละเอียด</th>
+            <th style="width: 130px;">CASE ID</th>
+            <th style="width: 85px;">LANGUAGE</th>
+            <th style="width: 110px;">STRATEGY</th>
+            <th style="width: 95px;">DEFENSE</th>
+            <th>SECURITY VERDICT</th>
+            <th style="width: 80px;">TURN</th>
+            <th style="width: 95px; text-align: right;">ACTION</th>
           </tr>
         </thead>
         <tbody id="auditTableBody">
           {% for r in results %}
           {% set cat = 'compromised' if r.success == 1 else ('protected' if r.success == 0 else 'error') %}
-          <!-- Main Table Row (Compact 36px) -->
-          <tr class="case-entry case-row" data-category="{{ cat }}" data-defense="{{ r.defense_level }}" data-lang="{{ r.language }}" data-type="{{ r.attack_type }}" data-origin="{{ 'manual' if r.id.startswith('MANUAL-') else 'batch' }}" onclick="toggleRowDetails('detail-{{ loop.index }}', this)">
+          <!-- Master Table Row -->
+          <tr class="case-entry case-row" data-category="{{ cat }}" data-defense="{{ r.defense_level }}" data-lang="{{ r.language }}" data-type="{{ r.attack_type }}" data-origin="{{ 'manual' if r.id.startswith('MANUAL-') else 'batch' }}" onclick="openCaseDrawer({{ loop.index0 }})" style="cursor: pointer;">
             <td>
               <span class="row-id">#{{ r.id }}</span>
               {% if r.id.startswith('MANUAL-') %}
                 <span class="tag blue">[MANUAL]</span>
               {% endif %}
-              <span class="row-attempt">R{{ r.attempt }}</span>
             </td>
             <td><span class="tag-plain">{{ r.language }}</span></td>
             <td><span class="tag-type">{{ r.attack_type | upper }}</span></td>
             <td><span class="tag-defense">{{ r.defense_level | upper }}</span></td>
             <td>
               {% if r.success == 1 %}
-                <span class="verdict-pill breached">🚨 รั่วไหล (Breached)</span>
+                <span class="verdict-pill breached">[✗] BREACHED</span>
                 {% if r.private_table_accessed %}<span class="tag red">PRIVATE TABLE ACCESSED</span>{% endif %}
                 {% if r.schema_disclosed_list %}<span class="tag red">SCHEMA DISCLOSED</span>{% endif %}
               {% elif r.success == 0 %}
-                <span class="verdict-pill defended">🛡️ ป้องกันได้ (Defended)</span>
+                <span class="verdict-pill defended">[✓] DEFENDED</span>
                 {% if r.private_table_blocked %}<span class="tag amber">ACL BLOCKED</span>{% endif %}
                 {% if r.output_intercepted %}<span class="tag green">OUTPUT GUARD REDACTED</span>{% endif %}
               {% else %}
-                <span class="verdict-pill error">⚠️ API Error</span>
+                <span class="verdict-pill error">[!] ERROR</span>
               {% endif %}
             </td>
+            <td><span class="row-attempt">R{{ r.attempt }}</span></td>
             <td style="text-align: right;">
-              <button type="button" class="btn-expand-row">ดูรายละเอียด ▼</button>
-            </td>
-          </tr>
-
-          <!-- Accordion Detail Row (In-Row Expand) -->
-          <tr id="detail-{{ loop.index }}" class="case-detail-row" style="display: none;" data-category="{{ cat }}" data-defense="{{ r.defense_level }}" data-lang="{{ r.language }}" data-type="{{ r.attack_type }}" data-origin="{{ 'manual' if r.id.startswith('MANUAL-') else 'batch' }}">
-            <td colspan="6" class="detail-cell">
-              {% if r.canaries_list %}
-              <div class="canary-alert">
-                <b>⚠️ ข้อมูลความลับ Canary ที่รั่วไหล:</b>
-                {% for c in r.canaries_list %}<span class="canary-token">{{ c }}</span>{% endfor %}
-              </div>
-              {% endif %}
-
-              {% if r.schema_disclosed_list %}
-              <div class="canary-alert" style="background:var(--color-amber-bg);border-color:rgba(245,158,11,0.3);color:#fde68a;">
-                <b>⚠️ เปิดเผยชื่อตารางความลับภายใน (Schema Disclosure):</b>
-                {% for st in r.schema_disclosed_list %}<span class="canary-token" style="background:rgba(245,158,11,0.2);color:#fde68a;">{{ st }}</span>{% endfor %}
-              </div>
-              {% endif %}
-
-              {% if r.output_intercepted %}
-              <div class="canary-alert" style="background:var(--color-emerald-bg);border-color:rgba(16,185,129,0.3);color:#6ee7b7;">
-                <b>🛡️ OUTPUT GUARD INTERCEPTED:</b> โมเดลพยายามตอบข้อมูลลับ แต่ถูกระบบดักจับและเซ็นเซอร์สำเร็จก่อนส่งถึงผู้ใช้
-              </div>
-              {% endif %}
-
-              <div class="case-columns">
-                <div class="col-box">
-                  <div class="col-header red">
-                    <span>🔴 ข้อความที่ส่งไป (Prompt)</span>
-                    <button type="button" class="btn-copy" onclick="event.stopPropagation(); copySnippet('prompt-leak-{{ loop.index }}', this)">คัดลอก</button>
-                  </div>
-                  <div class="sub-info">
-                    <div><b>กลยุทธ์/เทคนิค:</b> {{ r.red_strategy or r.technique or '-' }}</div>
-                    {% if r.red_analysis %}<div><b>การวิเคราะห์:</b> {{ r.red_analysis }}</div>{% endif %}
-                  </div>
-                  <pre class="data-text" id="prompt-leak-{{ loop.index }}">{{ r.injected_prompt }}</pre>
-                </div>
-
-                <div class="col-box">
-                  <div class="col-header blue">
-                    <span>🔵 คำตอบจาก Blue Assistant</span>
-                    <button type="button" class="btn-copy" onclick="event.stopPropagation(); copySnippet('resp-leak-{{ loop.index }}', this)">คัดลอก</button>
-                  </div>
-                  <div class="sub-info">
-                    <b>Tool Calls:</b>
-                    {% if r.tool_calls_list %}
-                      {% for tc in r.tool_calls_list %}
-                        <code>{{ tc.tool }}({{ tc.args | tojson }}) -> <b>{{ tc.status | upper }}</b>{% if tc.row_count is defined %} ({{ tc.row_count }} rows){% endif %}</code>{% if not loop.last %}, {% endif %}
-                      {% endfor %}
-                    {% else %}
-                      <span>ไม่ได้เรียกใช้ Tool</span>
-                    {% endif %}
-                  </div>
-                  <pre class="data-text" id="resp-leak-{{ loop.index }}">{{ r.response }}</pre>
-                </div>
-              </div>
+              <button type="button" class="btn-inspect-case" onclick="event.stopPropagation(); openCaseDrawer({{ loop.index0 }})">Inspect &rarr;</button>
             </td>
           </tr>
           {% else %}
           <tr>
-            <td colspan="6" class="empty-row">ไม่พบรายการทดสอบในระบบ</td>
+            <td colspan="7" class="empty-row">No evaluation runs recorded in local database.</td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
   </div> <!-- end viewDashboard -->
+
+  <!-- Slide-Over Detail Drawer Backdrop -->
+  <div id="drawerBackdrop" class="drawer-backdrop" onclick="closeCaseDrawer()" style="display: none;"></div>
+
+  <!-- Slide-Over Detail Drawer Container -->
+  <aside id="caseDetailDrawer" class="case-detail-drawer" aria-hidden="true">
+    <div class="drawer-header">
+      <div class="drawer-title-group">
+        <span id="drawerCaseId" class="drawer-case-badge">#TH-01</span>
+        <span id="drawerVerdictBadge" class="verdict-pill defended">[✓] DEFENDED</span>
+        <span id="drawerDefenseBadge" class="tag-defense">TOOLS</span>
+        <span id="drawerLangBadge" class="tag-plain">Thai</span>
+      </div>
+      <button type="button" class="drawer-close-btn" onclick="closeCaseDrawer()" aria-label="Close Drawer">✕</button>
+    </div>
+
+    <div class="drawer-tabs">
+      <button type="button" class="drawer-tab-btn active" id="drawerTranscriptTabBtn" onclick="switchDrawerTab('transcript')">Conversation & Payloads</button>
+      <button type="button" class="drawer-tab-btn" id="drawerTelemetryTabBtn" onclick="switchDrawerTab('telemetry')">Security Telemetry</button>
+      <button type="button" class="drawer-tab-btn" id="drawerMetadataTabBtn" onclick="switchDrawerTab('metadata')">Case Metadata</button>
+    </div>
+
+    <div class="drawer-body">
+      <!-- Tab 1: Transcript -->
+      <div id="drawerTranscriptView" class="drawer-tab-view active">
+        <div class="drawer-card" style="margin-bottom: 12px;">
+          <div class="drawer-card-header">
+            <span style="color: #fca5a5; font-weight: 700;">Adversarial Injected Payload</span>
+            <button type="button" class="btn-copy-payload" onclick="copyDrawerPayload()">📋 Copy Payload</button>
+          </div>
+          <pre id="drawerPayloadText" class="drawer-code-block"></pre>
+        </div>
+
+        <div class="drawer-card">
+          <div class="drawer-card-header">
+            <span style="color: #38bdf8; font-weight: 700;">Target Model Response</span>
+            <button type="button" class="btn-copy-payload" onclick="copyDrawerResponse()">📋 Copy Response</button>
+          </div>
+          <pre id="drawerResponseText" class="drawer-code-block"></pre>
+        </div>
+      </div>
+
+      <!-- Tab 2: Security Telemetry -->
+      <div id="drawerTelemetryView" class="drawer-tab-view" style="display: none;">
+        <div id="drawerCanaryAlert" class="telemetry-box canary-box" style="margin-bottom: 12px;">
+          <h4>🔑 Canary Tokens Leaked</h4>
+          <div id="drawerCanaryList" class="canary-list-chips"></div>
+        </div>
+
+        <div class="telemetry-box" style="margin-bottom: 12px;">
+          <h4>🛡️ Authorization & ACL Status</h4>
+          <div id="drawerAclStatus"></div>
+        </div>
+
+        <div class="telemetry-box">
+          <h4>⚙️ Tool Calls Executed</h4>
+          <div id="drawerToolCallsList" class="tool-calls-container"></div>
+        </div>
+      </div>
+
+      <!-- Tab 3: Case Metadata -->
+      <div id="drawerMetadataView" class="drawer-tab-view" style="display: none;">
+        <div class="metadata-grid">
+          <div class="meta-item">
+            <span class="meta-label">Attack Type</span>
+            <span id="drawerMetaType" class="meta-val"></span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Technique / Strategy</span>
+            <span id="drawerMetaTechnique" class="meta-val"></span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Source Reference</span>
+            <span id="drawerMetaSource" class="meta-val"></span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Target Blue Model</span>
+            <span id="drawerMetaBlueModel" class="meta-val"></span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Adversary Red Model</span>
+            <span id="drawerMetaRedModel" class="meta-val"></span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Execution Timestamp</span>
+            <span id="drawerMetaTimestamp" class="meta-val"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <script id="benchmarkDataJson" type="application/json">{{ results | tojson }}</script>
 
   <!-- TAB 2: Interactive Playground -->
   <div id="viewPlayground" style="display: none;">
@@ -1940,6 +2197,222 @@
         if (btnDash) btnDash.classList.add('active');
       }
     }
+
+    // ==========================================
+    // Slide-Over Detail Drawer Controller
+    // ==========================================
+    let benchmarkResultsData = [];
+    try {
+      const rawJson = document.getElementById('benchmarkDataJson');
+      if (rawJson && rawJson.textContent) {
+        benchmarkResultsData = JSON.parse(rawJson.textContent);
+      }
+    } catch (e) {
+      console.error('Failed to parse benchmark JSON data:', e);
+    }
+
+    function openCaseDrawer(index) {
+      const c = benchmarkResultsData[index];
+      if (!c) return;
+
+      const idEl = document.getElementById('drawerCaseId');
+      if (idEl) idEl.textContent = '#' + (c.id || '');
+
+      const vBadge = document.getElementById('drawerVerdictBadge');
+      if (vBadge) {
+        if (c.success === 1) {
+          vBadge.className = 'verdict-pill breached';
+          vBadge.textContent = '[✗] BREACHED';
+        } else if (c.success === 0) {
+          vBadge.className = 'verdict-pill defended';
+          vBadge.textContent = '[✓] DEFENDED';
+        } else {
+          vBadge.className = 'verdict-pill error';
+          vBadge.textContent = '[!] ERROR';
+        }
+      }
+
+      const defBadge = document.getElementById('drawerDefenseBadge');
+      if (defBadge) defBadge.textContent = (c.defense_level || 'off').toUpperCase();
+
+      const langBadge = document.getElementById('drawerLangBadge');
+      if (langBadge) langBadge.textContent = c.language || 'Thai';
+
+      // Tab 1: Transcript
+      const payloadEl = document.getElementById('drawerPayloadText');
+      if (payloadEl) payloadEl.textContent = c.injected_prompt || c.prompt || '';
+
+      const respEl = document.getElementById('drawerResponseText');
+      if (respEl) respEl.textContent = c.response || '';
+
+      // Tab 2: Security Telemetry
+      const canaryBox = document.getElementById('drawerCanaryList');
+      if (canaryBox) {
+        const leaks = c.canaries_leaked || [];
+        if (Array.isArray(leaks) && leaks.length > 0) {
+          canaryBox.innerHTML = '<div style="color: #ef4444; font-weight: 700; margin-bottom: 6px;">⚠️ Leaked Canary Tokens:</div>' +
+            leaks.map(tok => `<span class="tag red" style="margin-right: 4px; font-family: var(--font-mono);">${escapeHtml(tok)}</span>`).join('');
+        } else {
+          canaryBox.innerHTML = '<span style="color: #10b981; font-weight: 500;">✓ No canary leaks detected in response output.</span>';
+        }
+      }
+
+      const aclBox = document.getElementById('drawerAclStatus');
+      if (aclBox) {
+        let aclHtml = '';
+        if (c.private_table_accessed) {
+          aclHtml += '<span class="tag red" style="margin-right: 4px;">✗ PRIVATE TABLE ACCESSED</span>';
+        }
+        if (c.private_table_blocked) {
+          aclHtml += '<span class="tag amber" style="margin-right: 4px;">✓ ACL BLOCKED RESTRICTED TABLE</span>';
+        }
+        if (c.output_intercepted) {
+          aclHtml += '<span class="tag green" style="margin-right: 4px;">✓ OUTPUT INTERCEPTOR REDACTED</span>';
+        }
+        if (c.schema_disclosed_list && c.schema_disclosed_list.length > 0) {
+          aclHtml += `<span class="tag red" style="margin-right: 4px;">✗ SCHEMA DISCLOSED (${escapeHtml(c.schema_disclosed_list.join(', '))})</span>`;
+        }
+        if (!aclHtml) {
+          aclHtml = '<span style="color: var(--text-muted); font-size: 12px;">Standard access enforcement - No violation detected.</span>';
+        }
+        aclBox.innerHTML = aclHtml;
+      }
+
+      const toolBox = document.getElementById('drawerToolCallsList');
+      if (toolBox) {
+        const calls = c.tool_calls || [];
+        if (Array.isArray(calls) && calls.length > 0) {
+          toolBox.innerHTML = calls.map(tc => {
+            const name = tc.name || tc.tool || 'function_call';
+            const args = JSON.stringify(tc.args || tc.arguments || {}, null, 2);
+            return `<div class="tool-call-item" style="background: var(--bg-surface-sub); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 6px 10px; margin-bottom: 6px;">
+              <span style="color: #38bdf8; font-weight: 600; font-family: var(--font-mono); font-size: 11px;">${escapeHtml(name)}</span>
+              <pre style="margin: 4px 0 0 0; font-size: 11px; color: var(--text-dim); overflow-x: auto; white-space: pre-wrap;">${escapeHtml(args)}</pre>
+            </div>`;
+          }).join('');
+        } else {
+          toolBox.innerHTML = '<span style="color: var(--text-muted); font-size: 12px;">No tool calls executed in this turn.</span>';
+        }
+      }
+
+      // Tab 3: Case Metadata
+      const metaType = document.getElementById('drawerMetaType');
+      if (metaType) metaType.textContent = (c.attack_type || '-').toUpperCase();
+
+      const metaTech = document.getElementById('drawerMetaTechnique');
+      if (metaTech) metaTech.textContent = c.technique || '-';
+
+      const metaSrc = document.getElementById('drawerMetaSource');
+      if (metaSrc) metaSrc.textContent = c.source_reference || c.source || '-';
+
+      const metaBlue = document.getElementById('drawerMetaBlueModel');
+      if (metaBlue) metaBlue.textContent = c.blue_model || c.target_model || 'gemini-3.5-flash-lite';
+
+      const metaRed = document.getElementById('drawerMetaRedModel');
+      if (metaRed) metaRed.textContent = c.red_model || c.attacker_model || 'openrouter:openrouter/free';
+
+      const metaTs = document.getElementById('drawerMetaTimestamp');
+      if (metaTs) metaTs.textContent = c.run_timestamp || c.timestamp || '-';
+
+      // Default to transcript tab
+      switchDrawerTab('transcript');
+
+      // Open drawer & backdrop
+      const drawer = document.getElementById('caseDetailDrawer');
+      const backdrop = document.getElementById('drawerBackdrop');
+      if (drawer) {
+        drawer.classList.add('open');
+        drawer.setAttribute('aria-hidden', 'false');
+      }
+      if (backdrop) {
+        backdrop.classList.add('open');
+        backdrop.style.display = 'block';
+      }
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeCaseDrawer() {
+      const drawer = document.getElementById('caseDetailDrawer');
+      const backdrop = document.getElementById('drawerBackdrop');
+      if (drawer) {
+        drawer.classList.remove('open');
+        drawer.setAttribute('aria-hidden', 'true');
+      }
+      if (backdrop) {
+        backdrop.classList.remove('open');
+        backdrop.style.display = 'none';
+      }
+      document.body.style.overflow = '';
+    }
+
+    function switchDrawerTab(tabName) {
+      const views = {
+        transcript: document.getElementById('drawerTranscriptView'),
+        telemetry: document.getElementById('drawerTelemetryView'),
+        metadata: document.getElementById('drawerMetadataView')
+      };
+      const btns = {
+        transcript: document.getElementById('drawerTranscriptTabBtn'),
+        telemetry: document.getElementById('drawerTelemetryTabBtn'),
+        metadata: document.getElementById('drawerMetadataTabBtn')
+      };
+
+      Object.keys(views).forEach(key => {
+        if (views[key]) {
+          views[key].style.display = (key === tabName) ? 'block' : 'none';
+        }
+        if (btns[key]) {
+          btns[key].classList.toggle('active', key === tabName);
+        }
+      });
+    }
+
+    function copyDrawerPayload() {
+      const el = document.getElementById('drawerPayloadText');
+      const text = el ? el.textContent : '';
+      copyTextToClipboard(text, event?.target);
+    }
+
+    function copyDrawerResponse() {
+      const el = document.getElementById('drawerResponseText');
+      const text = el ? el.textContent : '';
+      copyTextToClipboard(text, event?.target);
+    }
+
+    function copyTextToClipboard(text, btn) {
+      if (!text) return;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          if (btn) {
+            const orig = btn.textContent;
+            btn.textContent = '✓ Copied!';
+            setTimeout(() => { btn.textContent = orig; }, 1500);
+          }
+        }).catch(() => fallbackCopy(text, btn));
+      } else {
+        fallbackCopy(text, btn);
+      }
+    }
+
+    function fallbackCopy(text, btn) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      if (btn) {
+        const orig = btn.textContent;
+        btn.textContent = '✓ Copied!';
+        setTimeout(() => { btn.textContent = orig; }, 1500);
+      }
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeCaseDrawer();
+      }
+    });
 
     // Toggle In-Row Accordion Details
     function toggleRowDetails(detailId, clickedRow) {
