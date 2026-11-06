@@ -60,7 +60,7 @@ def handle_http_error(e):
     desc = getattr(e, "description", str(e))
     if request.path.startswith("/api/") or request.path == "/status" or request.is_json:
         if code == 403 and "CSRF" in str(desc):
-            desc = "เซสชันหรือความปลอดภัย (CSRF) หมดอายุ กรุณารีเฟรชหน้าเว็บ (F5) แล้วเริ่มเซสชันใหม่"
+            desc = "Session security token (CSRF) has expired. Please refresh the page (F5) and start a new session."
         return jsonify({"success": False, "error": desc}), code
     return e
 
@@ -70,7 +70,7 @@ def handle_unhandled_exception(e):
     agent.audit("unhandled_web_error", {"path": request.path, "error": str(e)[:300]})
     if request.path.startswith("/api/") or request.path == "/status" or request.is_json:
         clean_err = agent.sanitize_error(str(e))
-        return jsonify({"success": False, "error": f"เซิร์ฟเวอร์เกิดข้อผิดพลาด: {clean_err}"}), 500
+        return jsonify({"success": False, "error": f"Internal server error: {clean_err}"}), 500
     raise e
 
 
@@ -231,6 +231,9 @@ def run():
     except ValueError:
         attempts = 2
 
+    blue_model = (request.form.get("blue_model") or "").strip() or None
+    red_model = (request.form.get("red_model") or "").strip() or None
+
     if not _run_lock.acquire(blocking=False):
         return redirect(url_for("index"))
 
@@ -239,10 +242,12 @@ def run():
     _run_status["defense"] = defense
     _run_status["attempts"] = attempts
     _run_status["started_at"] = agent.now()
+    _run_status["blue_model"] = blue_model or agent.BLUE_MODEL
+    _run_status["red_model"] = red_model or agent.RED_MODEL
 
     def _worker():
         try:
-            agent.run_all(defense=defense, max_attempts=attempts, case_id=case_id)
+            agent.run_all(defense=defense, max_attempts=attempts, case_id=case_id, blue_model=blue_model, red_model=red_model)
         finally:
             _run_status["running"] = False
             _run_lock.release()
@@ -344,7 +349,8 @@ def manual_start():
             while len(_manual_sessions) >= MAX_MANUAL_SESSIONS and sorted_sids:
                 _manual_sessions.pop(sorted_sids.pop(0), None)
 
-        blue_session = agent.BlueSession(defense, role=blue_role)
+        blue_model = (data.get("blue_model") or "").strip() or None
+        blue_session = agent.BlueSession(defense, role=blue_role, model=blue_model)
         canaries = agent.load_canaries()
         case = {
             "id": session_id,
@@ -361,6 +367,7 @@ def manual_start():
             "attack_type": attack_type,
             "blue_role": blue_role,
             "red_profile": red_profile,
+            "blue_model": blue_model or agent.BLUE_MODEL,
             "blue_session": blue_session,
             "canaries": canaries,
             "case": case,

@@ -680,6 +680,57 @@ class WebUiTests(unittest.TestCase):
         self.assertIn('value="insider_threat"', html)
         self.assertIn('value="security_auditor"', html)
 
+    def test_run_endpoint_propagates_blue_and_red_models(self):
+        with self.client.session_transaction() as sess:
+            sess["csrf_token"] = "run-csrf-token"
+
+        with mock.patch("threading.Thread") as mock_thread, mock.patch.object(agent, "run_all") as mock_run_all:
+            def run_target(target, daemon=True):
+                target()
+                m = mock.MagicMock()
+                return m
+
+            mock_thread.side_effect = run_target
+
+            resp = self.client.post("/run", data={
+                "csrf_token": "run-csrf-token",
+                "defense": "tools",
+                "case_id": "ALL",
+                "attempts": "2",
+                "blue_model": "gemini-3.5-flash-lite",
+                "red_model": "openrouter:openrouter/free",
+            })
+            self.assertEqual(resp.status_code, 302)
+            mock_run_all.assert_called_once_with(
+                defense="tools",
+                max_attempts=2,
+                case_id="ALL",
+                blue_model="gemini-3.5-flash-lite",
+                red_model="openrouter:openrouter/free",
+            )
+
+    def test_manual_start_propagates_blue_model(self):
+        with self.client.session_transaction() as sess:
+            sess["csrf_token"] = "manual-model-csrf"
+
+        headers = {"X-CSRFToken": "manual-model-csrf", "Content-Type": "application/json"}
+        with mock.patch.object(agent, "BlueSession") as mock_blue_cls:
+            mock_instance = mock.Mock()
+            mock_blue_cls.return_value = mock_instance
+            resp = self.client.post(
+                "/api/manual/start",
+                json={
+                    "csrf_token": "manual-model-csrf",
+                    "defense": "off",
+                    "language": "Thai",
+                    "attack_type": "direct",
+                    "blue_model": "gemini-3.5-flash-lite",
+                },
+                headers=headers,
+            )
+            self.assertEqual(resp.status_code, 200)
+            mock_blue_cls.assert_called_once_with("off", role="registrar_staff", model="gemini-3.5-flash-lite")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -2338,8 +2338,10 @@ def is_private_table_blocked(c: dict) -> bool:
     return False
 
 
-def run_case(case, canaries, defense, max_attempts, blue_role="registrar_staff", red_profile="realistic_attacker"):
+def run_case(case, canaries, defense, max_attempts, blue_role="registrar_staff", red_profile="realistic_attacker", blue_model=None, red_model=None):
     configure_defense(defense, blue_role=blue_role)
+    effective_blue = blue_model or BLUE_MODEL
+    effective_red = red_model or RED_MODEL
 
     attack_type = case.get("attack_type", "direct")
     history, last = [], None
@@ -2352,7 +2354,7 @@ def run_case(case, canaries, defense, max_attempts, blue_role="registrar_staff",
             attack, red_meta = build_fallback_attack(case, attempt, last_resp)
         else:
             try:
-                attack, red_meta = ask_red(case, history, attempt, red_profile=red_profile, blue_role=blue_role)
+                attack, red_meta = ask_red(case, history, attempt, red_profile=red_profile, blue_role=blue_role, red_model=effective_red)
             except Exception as e:
                 audit("red_error", {"id": case["id"], "attempt": attempt, "error": sanitize_error(str(e))[:300]})
                 attack, red_meta = build_fallback_attack(case, attempt, last_resp)
@@ -2362,7 +2364,7 @@ def run_case(case, canaries, defense, max_attempts, blue_role="registrar_staff",
         raw = ""
         for tries in range(2):
             try:
-                raw = ask_blue(attack, defense, role=blue_role)
+                raw = ask_blue(attack, defense, role=blue_role, model=effective_blue)
                 error = None
                 break
             except Exception as e:
@@ -2418,8 +2420,8 @@ def run_case(case, canaries, defense, max_attempts, blue_role="registrar_staff",
                     hashlib.sha256(resp.encode("utf-8")).hexdigest(),
                     defense,
                     attempt,
-                    RED_MODEL,
-                    BLUE_MODEL,
+                    effective_red,
+                    effective_blue,
                 ),
             )
             conn_res.commit()
@@ -2492,9 +2494,11 @@ def append_markdown(results, path="results.md"):
         f.writelines(lines)
 
 
-def run_all(defense="off", max_attempts=3, case_id=None, blue_role="registrar_staff", red_profile="realistic_attacker"):
+def run_all(defense="off", max_attempts=3, case_id=None, blue_role="registrar_staff", red_profile="realistic_attacker", blue_model=None, red_model=None):
     """Run test cases (all or a specific case_id) at the given defense level."""
     global _uni_conn, _res_conn
+    effective_blue = blue_model or BLUE_MODEL
+    effective_red = red_model or RED_MODEL
     if defense not in DEFENSE_LEVELS:
         raise ValueError(f"defense must be one of {DEFENSE_LEVELS}")
     _uni_conn = init_university_db(UNIVERSITY_DB_PATH)
@@ -2507,8 +2511,8 @@ def run_all(defense="off", max_attempts=3, case_id=None, blue_role="registrar_st
         audit(
             "run_start",
             {
-                "red": RED_MODEL,
-                "blue": BLUE_MODEL,
+                "red": effective_red,
+                "blue": effective_blue,
                 "defense": defense,
                 "max_attempts": max_attempts,
                 "case_id": case_id or "ALL",
@@ -2521,7 +2525,7 @@ def run_all(defense="off", max_attempts=3, case_id=None, blue_role="registrar_st
         for i, c in enumerate(cases):
             if i > 0:
                 time.sleep(2.0)  # Pacing delay to avoid API rate limits
-            results.append(run_case(c, canaries, defense, max_attempts, blue_role=blue_role, red_profile=red_profile))
+            results.append(run_case(c, canaries, defense, max_attempts, blue_role=blue_role, red_profile=red_profile, blue_model=effective_blue, red_model=effective_red))
         append_markdown(results)
         audit(
             "run_end",
