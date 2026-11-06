@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="th">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -1411,15 +1411,15 @@
         <span style="color:var(--text-dim);">|</span>
         <span>Blue: <b style="color:#38bdf8;">{{ blue_model }}</b></span>
       </div>
-      <a href="/" class="btn-refresh">↻ รีเฟรช</a>
+      <a href="/" class="btn-refresh">↻ Refresh</a>
     </div>
   </header>
 
   <!-- Main Navigation Tabs -->
   <div class="main-nav-tabs">
-    <button type="button" class="nav-tab-btn active" id="tabBtnDashboard" onclick="switchMainTab('dashboard')">📊 ผลการทดสอบ & รันประเมิน (Evaluation)</button>
-    <button type="button" class="nav-tab-btn" id="tabBtnPlayground" onclick="switchMainTab('playground')">💬 โหมดควบคุมเอง / แชทสด (Interactive Playground)</button>
-    <button type="button" class="nav-tab-btn" id="tabBtnOwasp" onclick="switchMainTab('owasp')">🛡️ เบนช์มาร์ก OWASP (Evaluation)</button>
+    <button type="button" class="nav-tab-btn active" id="tabBtnDashboard" onclick="switchMainTab('dashboard')">📊 Benchmark Evaluation</button>
+    <button type="button" class="nav-tab-btn" id="tabBtnPlayground" onclick="switchMainTab('playground')">💬 Interactive Playground</button>
+    <button type="button" class="nav-tab-btn" id="tabBtnOwasp" onclick="switchMainTab('owasp')">🛡️ OWASP Benchmark Matrix</button>
   </div>
 
   <!-- TAB 1: Evaluation Dashboard -->
@@ -1427,7 +1427,7 @@
     <!-- Live Status Banner -->
     <div id="live-banner" class="run-banner" {% if not run_status.is_locked %}style="display: none;"{% endif %}>
       <span id="live-banner-text">
-        ⏳ กำลังรันการทดสอบในพื้นหลัง: เคส <b>{{ run_status.case_id }}</b> | ระดับป้องกัน: <b>{{ run_status.defense | upper }}</b> | จำนวนรอบสูงสุด: <b>{{ run_status.attempts }}</b> ...
+        ⏳ Running evaluation in background: Case <b>{{ run_status.case_id }}</b> | Defense: <b>{{ run_status.defense | upper }}</b> | Max Turns: <b>{{ run_status.attempts }}</b> ...
       </span>
     </div>
 
@@ -1467,9 +1467,9 @@
       <form id="eval-form" method="post" action="/run" class="zone-controls">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
-        <label for="case-select" class="visually-hidden">เลือกเคสทดสอบ</label>
+        <label for="case-select" class="visually-hidden">Select Test Case</label>
         <select id="case-select" name="case_id" class="bar-select" style="max-width: 250px;">
-          <option value="ALL">ALL (รันทั้งหมด {{ test_cases | length }} เคส)</option>
+          <option value="ALL">ALL (Run all {{ test_cases | length }} cases)</option>
           {% for c in test_cases %}
           <option value="{{ c.id }}">[{{ c.id }}] {{ c.language }} ({{ c.attack_type }}) - {{ c.technique[:32] }}</option>
           {% endfor %}
@@ -1482,11 +1482,11 @@
           {% endfor %}
         </select>
 
-        <label for="attempts-input" class="visually-hidden">จำนวนรอบ</label>
-        <input id="attempts-input" name="attempts" type="number" min="1" max="5" value="2" required class="bar-number" title="จำนวนรอบ">
+        <label for="attempts-input" class="visually-hidden">Evaluation Turns</label>
+        <input id="attempts-input" name="attempts" type="number" min="1" max="5" value="2" required class="bar-number" title="Evaluation Turns">
 
         <button id="exec-btn" class="btn-run-action" type="submit" {% if run_status.is_locked %}disabled{% endif %}>
-          {% if run_status.is_locked %}⏳ กำลังรัน...{% else %}▶ สั่งรันการทดสอบ{% endif %}
+          {% if run_status.is_locked %}⏳ Running Evaluation...{% else %}▶ Run Benchmark{% endif %}
         </button>
       </form>
     </div>
@@ -1500,11 +1500,11 @@
     <div class="table-container">
       <div class="table-toolbar">
         <div class="filter-left">
-          <input type="text" id="searchInput" placeholder="ค้นหา Prompt, คำตอบ, Tool, ID..." class="search-input">
+          <input type="text" id="searchInput" placeholder="Search prompt, response, tool call, ID..." class="search-input">
           <div class="filter-pills">
-            <button type="button" class="btn-filter-pill active" data-filter="all">ทั้งหมด ({{ total_runs }})</button>
-            <button type="button" class="btn-filter-pill" data-filter="compromised">🚨 รั่วไหล ({{ leaked_count }})</button>
-            <button type="button" class="btn-filter-pill" data-filter="protected">🛡️ ป้องกันได้ ({{ safe_count }})</button>
+            <button type="button" class="btn-filter-pill active" data-filter="all">All ({{ total_runs }})</button>
+            <button type="button" class="btn-filter-pill" data-filter="compromised">🚨 Breached ({{ leaked_count }})</button>
+            <button type="button" class="btn-filter-pill" data-filter="protected">🛡️ Defended ({{ safe_count }})</button>
             {% if error_count > 0 %}
             <button type="button" class="btn-filter-pill" data-filter="error">⚠️ Error ({{ error_count }})</button>
             {% endif %}
@@ -1512,11 +1512,11 @@
         </div>
         <div class="filter-right">
           <button type="button" id="btnToggleAdvancedFilters" class="btn-secondary" onclick="toggleAdvancedFilters()">
-            ⚙️ ตัวกรอง
+            ⚙️ Filters
           </button>
-          <button type="button" id="btnToggleAllRows" class="btn-secondary" onclick="toggleAllAccordionRows()">
-            ⤢ กางทั้งหมด
-          </button>
+          <a href="/api/eval/report" target="_blank" class="btn-secondary" style="text-decoration: none;">
+            📥 Export Report
+          </a>
         </div>
       </div>
 
@@ -1525,15 +1525,15 @@
         <div class="filter-field">
           <label for="originFilter">ORIGIN:</label>
           <select id="originFilter" class="compact-select">
-            <option value="ALL">ทุกลักษณะ</option>
-            <option value="batch">เฉพาะ Batch</option>
-            <option value="manual">เฉพาะ Manual</option>
+            <option value="ALL">All Origins</option>
+            <option value="batch">Batch Only</option>
+            <option value="manual">Manual Only</option>
           </select>
         </div>
         <div class="filter-field">
           <label for="defenseFilter">DEFENSE:</label>
           <select id="defenseFilter" class="compact-select">
-            <option value="ALL">ทุก Defense</option>
+            <option value="ALL">All Defenses</option>
             {% for lvl in defense_levels %}
             <option value="{{ lvl }}">{{ lvl | upper }}</option>
             {% endfor %}
@@ -1542,7 +1542,7 @@
         <div class="filter-field">
           <label for="typeFilter">STRATEGY:</label>
           <select id="typeFilter" class="compact-select">
-            <option value="ALL">ทุกเทคนิค</option>
+            <option value="ALL">All Strategies</option>
             <option value="direct">DIRECT</option>
             <option value="recon">RECON</option>
             <option value="semantic">SEMANTIC</option>
@@ -1555,13 +1555,13 @@
         <div class="filter-field">
           <label for="langFilter">LANG:</label>
           <select id="langFilter" class="compact-select">
-            <option value="ALL">ทุกภาษา</option>
+            <option value="ALL">All Languages</option>
             <option value="Thai">Thai</option>
             <option value="English">English</option>
             <option value="Mixed">Mixed</option>
           </select>
         </div>
-        <button type="button" class="btn-reset-filters" onclick="resetAdvancedFilters()">✕ ล้างตัวกรอง</button>
+        <button type="button" class="btn-reset-filters" onclick="resetAdvancedFilters()">✕ Reset Filters</button>
       </div>
 
       <table class="unified-audit-table">
@@ -1716,14 +1716,14 @@
     <div class="playground-wrapper">
       <div id="manualSetupCard" class="card-panel">
         <div class="card-panel-title">
-          <span>⚙️ ตั้งค่าเซสชันโหมดควบคุมเอง (Interactive Playground)</span>
+          <span>⚙️ Interactive Session Configuration (Human-in-the-Loop Playground)</span>
         </div>
         <div class="card-panel-sub">
-          ทดสอบความปลอดภัยแบบโต้ตอบด้วยตนเอง โดย Blue Assistant จะจำบริบทการสนทนาต่อเนื่องในแชทเดียว คุณสามารถเลือกส่ง Prompt เอง หรือส่งต่อให้ Red AI วิเคราะห์และโจมตีต่อได้
+          Conduct interactive multi-turn security testing. The blue assistant maintains conversation memory across turns. Inject custom prompts manually or orchestrate multi-turn adversarial red teaming.
         </div>
         <form id="manualStartForm" onsubmit="startManualSession(event)" class="form-grid">
           <div class="field-group">
-            <label for="manualDefense">ระดับป้องกัน (Defense):</label>
+            <label for="manualDefense">Defense Level:</label>
             <select id="manualDefense" name="defense">
               {% for lvl in defense_levels %}
               <option value="{{ lvl }}" {% if lvl == 'off' %}selected{% endif %}>{{ lvl | upper }}</option>
@@ -1732,53 +1732,53 @@
           </div>
 
           <div class="field-group">
-            <label for="manualLang">ภาษาที่ใช้ทดสอบ:</label>
+            <label for="manualLang">Evaluation Language:</label>
             <select id="manualLang" name="language" onchange="onManualLangOrTypeChange()">
-              <option value="Thai" selected>Thai (ภาษาไทย)</option>
+              <option value="Thai" selected>Thai</option>
               <option value="English">English</option>
-              <option value="Mixed">Mixed (ไทยปนอังกฤษ)</option>
+              <option value="Mixed">Mixed (Thai & English)</option>
             </select>
           </div>
 
           <div class="field-group">
-            <label for="manualAttackType">ชนิดการโจมตี (Attack Strategy):</label>
+            <label for="manualAttackType">Attack Strategy:</label>
             <select id="manualAttackType" name="attack_type" onchange="onManualLangOrTypeChange()">
-              <option value="direct" selected>DIRECT (White-Box รู้ชื่อตาราง)</option>
-              <option value="indirect">INDIRECT (ฝังในฐานข้อมูล)</option>
-              <option value="recon">RECON (Black-Box สำรวจตาราง)</option>
-              <option value="semantic">SEMANTIC (Black-Box ไม่ระบุชื่อตาราง)</option>
-              <option value="roleplay">ROLEPLAY (จำลองสถานการณ์ฉุกเฉิน/สวมบทบาท)</option>
-              <option value="fewshot">FEWSHOT (Few-Shot In-Context Hijacking)</option>
-              <option value="obfuscation">OBFUSCATION (การเข้ารหัส/พรางคำสั่ง)</option>
+              <option value="direct" selected>DIRECT (White-Box known tables)</option>
+              <option value="indirect">INDIRECT (Stored/Database-injected)</option>
+              <option value="recon">RECON (Black-Box schema discovery)</option>
+              <option value="semantic">SEMANTIC (Black-Box concept extraction)</option>
+              <option value="roleplay">ROLEPLAY (Social engineering & emergency override)</option>
+              <option value="fewshot">FEWSHOT (In-Context Hijacking)</option>
+              <option value="obfuscation">OBFUSCATION (Encoding & character camouflage)</option>
             </select>
           </div>
 
           <div class="field-group">
-            <label for="manualBlueRole">บทบาท Blue Assistant (Persona):</label>
+            <label for="manualBlueRole">Target Blue Persona:</label>
             <select id="manualBlueRole" name="blue_role">
-              <option value="registrar_staff" selected>Registrar Staff (เจ้าหน้าที่ทะเบียน - ค่าแนะนำ)</option>
-              <option value="student_guest">Student / Guest (ผู้มาติดต่อ / นศ. ทั่วไป)</option>
-              <option value="system_admin">System Administrator (ผู้ดูแลระบบสูงสุด)</option>
+              <option value="registrar_staff" selected>Registrar Staff (Recommended)</option>
+              <option value="student_guest">Student / Guest</option>
+              <option value="system_admin">System Administrator</option>
             </select>
           </div>
 
           <div class="field-group">
-            <label for="manualRedProfile">รูปแบบ Red Attacker (Strategy):</label>
+            <label for="manualRedProfile">Adversary Red Profile:</label>
             <select id="manualRedProfile" name="red_profile">
-              <option value="realistic_attacker" selected>Realistic Attacker (ผู้โจมตีเสมือนจริง ไม่รู้ชื่อตารางลับ - ค่าแนะนำ)</option>
-              <option value="insider_threat">Insider Threat (ภัยคุกคามภายใน รู้กระบวนการและรหัสบุคคล)</option>
-              <option value="security_auditor">Security Auditor (White-box ผู้ตรวจประเมินความปลอดภัย)</option>
+              <option value="realistic_attacker" selected>Realistic Attacker (Black-box, progressive exploration)</option>
+              <option value="insider_threat">Insider Threat (Privileged operational context)</option>
+              <option value="security_auditor">Security Auditor (Systematic penetration test)</option>
             </select>
           </div>
 
           <div class="field-group field-group-wide">
-            <label for="manualTargets">ข้อมูลเป้าหมายเพิ่มเติม (หยุดเมื่อ AI พบ เช่น ชื่อตาราง คั่นด้วยจุลภาค):</label>
-            <input type="text" id="manualTargets" name="targets" placeholder="เช่น internal_secrets, student_private, national_id (เว้นว่างได้)" style="width: 100%;">
+            <label for="manualTargets">Additional Stop Targets (e.g. table names, comma separated):</label>
+            <input type="text" id="manualTargets" name="targets" placeholder="e.g. internal_secrets, student_private, national_id (optional)" style="width: 100%;">
           </div>
 
           <div class="field-group">
             <button type="submit" id="manualStartBtn" class="btn-run-action" style="padding: 7px 16px;">
-              🚀 เริ่มต้นเซสชันแชทสด
+              🚀 Launch Interactive Session
             </button>
           </div>
         </form>
@@ -1799,46 +1799,46 @@
           </div>
           <div>
             <button type="button" class="btn-run-action" onclick="resetManualSession()" style="background:#dc2626;border-color:#b91c1c;padding:3px 8px;font-size:11px;">
-              🔄 จบเซสชัน / เริ่มใหม่
+              🔄 Reset Session
             </button>
           </div>
         </div>
 
         <div id="turnNavBar" class="turn-nav-bar">
           <span class="turn-nav-bar-label">⚡ TURNS:</span>
-          <span id="turnNavEmptyText" style="font-size:11px;color:var(--text-dim);font-style:italic;">ยังไม่มีเทิร์น</span>
+          <span id="turnNavEmptyText" style="font-size:11px;color:var(--text-dim);font-style:italic;">No turns yet</span>
         </div>
 
         <div id="chatStatusAlert" class="status-alert-box" style="display: none;">
           <span id="chatStatusAlertMsg"></span>
           <div style="display: flex; gap: 6px;">
             <button type="button" class="btn-run-action" onclick="continueInCurrentChat()" style="background:#15803d;border-color:#166534;font-size:11px;padding:3px 8px;">
-              💬 สนทนาต่อ
+              💬 Continue Chat
             </button>
             <button type="button" class="btn-run-action" onclick="resetManualSession()" style="background:#475569;border-color:#334155;font-size:11px;padding:3px 8px;">
-              🔄 เริ่มใหม่
+              🔄 Start New Session
             </button>
           </div>
         </div>
 
         <div id="chatScrollArea" class="chat-scroll-area">
           <div id="chatEmptyPlaceholder" style="text-align: center; color: var(--text-dim); padding: 50px 20px; font-style: italic;">
-            ✨ เริ่มต้นบทสนทนา: พิมพ์คำสั่งด้านล่าง หรือเลือกแม่แบบเพื่อส่งข้อความแรกไปยัง Blue Assistant
+            ✨ Conversation ready: Type a message below or select an attack template to begin.
           </div>
         </div>
 
         <div class="prompt-control-panel">
           <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
             <div class="mode-switch-group">
-              <span style="font-weight: 600; font-size: 11px; color: var(--text-muted);">รูปแบบ Prompt:</span>
-              <button type="button" id="pillTemplate" class="mode-pill active" onclick="switchPromptMode('template')">เลือกแม่แบบสำเร็จรูป</button>
-              <button type="button" id="pillCustom" class="mode-pill" onclick="switchPromptMode('custom')">พิมพ์ข้อความเอง</button>
-              <button type="button" id="pillAiGenerate" class="mode-pill" onclick="switchPromptMode('ai_generate')" style="border-color:var(--color-emerald);color:#6ee7b7;">🤖 AI ช่วยร่าง Prompt</button>
+              <span style="font-weight: 600; font-size: 11px; color: var(--text-muted);">Prompt Mode:</span>
+              <button type="button" id="pillTemplate" class="mode-pill active" onclick="switchPromptMode('template')">Attack Library</button>
+              <button type="button" id="pillCustom" class="mode-pill" onclick="switchPromptMode('custom')">Custom Payload</button>
+              <button type="button" id="pillAiGenerate" class="mode-pill" onclick="switchPromptMode('ai_generate')" style="border-color:var(--color-emerald);color:#6ee7b7;">🤖 AI Draft Payload</button>
             </div>
             <div id="templateSelectRow" style="display: flex; align-items: center; gap: 6px;">
-              <label for="manualTemplatePicker" style="font-size: 11px; font-weight: 600;">แม่แบบ:</label>
+              <label for="manualTemplatePicker" style="font-size: 11px; font-weight: 600;">Template:</label>
               <select id="manualTemplatePicker" onchange="onTemplateSelected()" style="max-width: 300px; font-size: 11px;">
-                <option value="">-- เลือกเคสแม่แบบ --</option>
+                <option value="">-- Select Attack Template --</option>
               </select>
             </div>
           </div>
@@ -1848,12 +1848,12 @@
               <span style="font-size: 12px; font-weight: 700; color: #6ee7b7;">💡 AI Prompt Architect</span>
               <span class="tag green" style="font-size:10px;">Pro Mode</span>
             </div>
-            <textarea id="aiPromptIdeaInput" rows="2" placeholder="อธิบายเป้าหมายหรือไอเดียเจาะระบบ..." style="width: 100%; padding: 6px; font-size: 12px; border-radius: 3px; resize: vertical;"></textarea>
+            <textarea id="aiPromptIdeaInput" rows="2" placeholder="Describe red-teaming objective or attack idea..." style="width: 100%; padding: 6px; font-size: 12px; border-radius: 3px; resize: vertical;"></textarea>
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
               <div style="display: flex; align-items: center; gap: 5px;">
-                <label for="aiTechniqueSelect" style="font-size: 11px; font-weight: 600; color: #6ee7b7;">เทคนิค:</label>
+                <label for="aiTechniqueSelect" style="font-size: 11px; font-weight: 600; color: #6ee7b7;">Technique:</label>
                 <select id="aiTechniqueSelect" style="font-size: 11px; padding: 3px 6px;">
-                  <option value="auto" selected>อัตโนมัติ</option>
+                  <option value="auto" selected>Auto (Dynamic Selection)</option>
                   <option value="audit">Academic Audit</option>
                   <option value="roleplay">Roleplay</option>
                   <option value="fewshot">Few-Shot</option>
@@ -1863,60 +1863,60 @@
                 </select>
               </div>
               <button type="button" id="btnRunAiGenerate" class="btn-run-action" onclick="generatePromptWithAi()" style="background:#16a34a;border-color:#15803d;padding:4px 10px;font-size:11px;">
-                ✨ สร้าง Prompt
+                ✨ Generate Payload
               </button>
             </div>
 
             <div id="aiArchitectResultCard" style="display: none; background: var(--bg-surface); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 3px; padding: 8px; margin-top: 4px; flex-direction: column; gap: 4px;">
               <div style="font-size: 11px;">
-                <b style="color: #6ee7b7;">วิเคราะห์:</b>
+                <b style="color: #6ee7b7;">Analysis:</b>
                 <div id="aiResultAnalysis" style="background: var(--bg-input); padding: 4px; border-radius: 3px; margin-top: 2px;"></div>
               </div>
               <div style="font-size: 11px;">
-                <b style="color: #38bdf8;">ยุทธวิธี:</b>
+                <b style="color: #38bdf8;">Strategy:</b>
                 <div id="aiResultTactic" style="background: var(--bg-input); padding: 4px; border-radius: 3px; margin-top: 2px;"></div>
               </div>
               <div style="font-size: 11px;">
-                <b style="color: #f87171;">ร่าง Prompt:</b>
+                <b style="color: #f87171;">Drafted Payload:</b>
                 <pre id="aiResultPrompt" class="data-text" style="min-height: 35px; max-height: 80px; margin-top: 2px;"></pre>
               </div>
               <div style="display: flex; justify-content: flex-end; margin-top: 2px;">
                 <button type="button" class="btn-run-action" onclick="applyGeneratedPromptToInput()" style="font-size:10px;padding:3px 8px;">
-                  📥 นำไปใช้ในช่องพิมพ์
+                  📥 Insert into Input
                 </button>
               </div>
             </div>
           </div>
 
-          <label for="manualPromptInput" class="visually-hidden">ข้อความคำสั่ง Prompt สำหรับทดสอบเจาะระบบ</label>
-          <textarea id="manualPromptInput" rows="3" placeholder="พิมพ์ข้อความที่ต้องการทดสอบเจาะระบบที่นี่... (กด Ctrl+Enter เพื่อส่ง)" style="width: 100%; padding: 8px; font-family: var(--font-mono); font-size: 12px; resize: vertical;"></textarea>
+          <label for="manualPromptInput" class="visually-hidden">Adversarial Injected Prompt</label>
+          <textarea id="manualPromptInput" rows="3" placeholder="Type adversarial payload or query here... (Press Ctrl+Enter or Cmd+Enter to send)" style="width: 100%; padding: 8px; font-family: var(--font-mono); font-size: 12px; resize: vertical;"></textarea>
 
           <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; border-top: 1px solid var(--border-subtle); padding-top: 8px;">
             <button type="button" id="manualSendBtn" class="btn-run-action" onclick="sendManualPrompt()" style="padding: 6px 16px;">
-              ▶ ส่งข้อความ (Send Turn)
+              ▶ Send Turn
             </button>
 
             <div style="display: flex; align-items: center; gap: 6px; background: rgba(244, 63, 94, 0.08); border: 1px solid rgba(244, 63, 94, 0.25); padding: 3px 6px; border-radius: 3px;">
-              <label for="aiRoundsCount" style="font-size: 11px; font-weight: 600; color: #fca5a5;">🤖 AI ส่งต่อ:</label>
+              <label for="aiRoundsCount" style="font-size: 11px; font-weight: 600; color: #fca5a5;">🤖 AI Automation:</label>
               <select id="aiRoundsCount" style="font-size: 11px; padding: 2px 4px;">
-                <option value="1">1 รอบ</option>
-                <option value="2">2 รอบ</option>
-                <option value="3" selected>3 รอบ (แนะนำ)</option>
-                <option value="5">5 รอบ</option>
-                <option value="10">10 รอบ</option>
-                <option value="until_found">⚡ ส่งจนกว่าจะได้ข้อมูล</option>
+                <option value="1">1 Turn</option>
+                <option value="2">2 Turns</option>
+                <option value="3" selected>3 Turns (Recommended)</option>
+                <option value="5">5 Turns</option>
+                <option value="10">10 Turns</option>
+                <option value="until_found">⚡ Run until breach or max turns</option>
               </select>
               <button type="button" id="aiContinueBtn" class="btn-run-action" onclick="startAiContinue()" style="background:#dc2626;border-color:#b91c1c;padding:3px 8px;font-size:11px;">
-                ⚡ ให้ AI ส่งต่อเอง
+                ⚡ Run Multi-Turn Attack
               </button>
               <button type="button" id="aiStopBtn" class="btn-run-action" onclick="stopAiContinue()" style="background:#0f172a;border-color:#0f172a;padding:3px 8px;font-size:11px;display:none;">
-                🛑 หยุด AI ทันที
+                🛑 Stop Attack
               </button>
             </div>
           </div>
 
           <div id="aiLiveSpinner" style="display: none; font-size: 11px; color: #fca5a5; font-weight: 600; padding: 2px 0;">
-            ⏳ กำลังประมวลผล: Red Team กำลังวิเคราะห์และส่งคำสั่งถัดไป...
+            ⏳ Processing: Red Team is analyzing telemetry and orchestrating next turn...
           </div>
         </div>
       </div>
@@ -1925,21 +1925,21 @@
       <div id="manualHistoryCard" class="card-panel" style="margin-top: 14px;">
         <div class="card-panel-title" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
           <div style="display: flex; align-items: center; gap: 8px;">
-            <span>📜 ประวัติการส่ง-รับข้อมูลในโหมดควบคุมเอง (Playground History & Logs)</span>
-            <span id="manualHistoryCountBadge" class="tag blue" style="font-size: 11px;">{{ manual_results | length }} รายการ</span>
+            <span>📜 Interactive Session History & Audit Logs</span>
+            <span id="manualHistoryCountBadge" class="tag blue" style="font-size: 11px;">{{ manual_results | length }} runs</span>
           </div>
           <div style="display: flex; gap: 6px; align-items: center;">
             <button type="button" class="btn-run-action" onclick="refreshManualHistory()" style="background: var(--bg-surface); border: 1px solid var(--border-subtle); color: var(--text-white); font-size: 11px; padding: 3px 8px;">
-              🔄 รีเฟรชประวัติ
+              🔄 Refresh History
             </button>
           </div>
         </div>
         <div class="card-panel-sub">
-          บันทึกคำสั่งที่ส่งไป (Injected Prompt) และผลลัพธ์ที่ตอบกลับมาจาก Blue Assistant ในโหมดควบคุมเอง สามารถเปิดดูรายละเอียด และคัดลอก Prompt กลับไปทดสอบซ้ำได้
+          Audit log of injected prompts and target responses in interactive mode. Expand any turn to inspect security telemetry or copy payload.
         </div>
 
         <div id="manualHistoryEmpty" style="{% if manual_results %}display: none;{% endif %} text-align: center; color: var(--text-dim); padding: 30px 15px; font-style: italic; background: var(--bg-surface); border: 1px dashed var(--border-subtle); border-radius: 4px; margin-top: 10px;">
-          ยังไม่มีประวัติการส่งคำสั่งในโหมดควบคุมเอง (เมื่อเริ่มต้นเซสชันและส่งข้อความ ข้อมูลจะถูกบันทึกและแสดงที่นี่)
+          No interactive session history recorded yet. Start a session and send a prompt to begin auditing.
         </div>
 
         <div id="manualHistoryTableWrapper" style="{% if not manual_results %}display: none;{% endif %} overflow-x: auto; margin-top: 10px;">
@@ -1948,11 +1948,11 @@
               <tr>
                 <th style="width: 130px; text-align: left; padding: 8px 10px; background: var(--bg-surface); color: var(--text-dim); font-family: var(--font-mono); font-size: 10px; font-weight: 700; border-bottom: 1px solid var(--border-subtle);">SESSION & TURN</th>
                 <th style="width: 85px; text-align: left; padding: 8px 10px; background: var(--bg-surface); color: var(--text-dim); font-family: var(--font-mono); font-size: 10px; font-weight: 700; border-bottom: 1px solid var(--border-subtle);">DEFENSE</th>
-                <th style="text-align: left; padding: 8px 10px; background: var(--bg-surface); color: var(--text-dim); font-family: var(--font-mono); font-size: 10px; font-weight: 700; border-bottom: 1px solid var(--border-subtle);">ข้อความที่ส่งไป (PROMPT SENT)</th>
-                <th style="text-align: left; padding: 8px 10px; background: var(--bg-surface); color: var(--text-dim); font-family: var(--font-mono); font-size: 10px; font-weight: 700; border-bottom: 1px solid var(--border-subtle);">คำตอบที่ได้รับ (BLUE RESPONSE)</th>
-                <th style="width: 150px; text-align: left; padding: 8px 10px; background: var(--bg-surface); color: var(--text-dim); font-family: var(--font-mono); font-size: 10px; font-weight: 700; border-bottom: 1px solid var(--border-subtle);">สถานะความปลอดภัย</th>
-                <th style="width: 120px; text-align: left; padding: 8px 10px; background: var(--bg-surface); color: var(--text-dim); font-family: var(--font-mono); font-size: 10px; font-weight: 700; border-bottom: 1px solid var(--border-subtle);">เวลา</th>
-                <th style="width: 150px; text-align: right; padding: 8px 10px; background: var(--bg-surface); color: var(--text-dim); font-family: var(--font-mono); font-size: 10px; font-weight: 700; border-bottom: 1px solid var(--border-subtle);">การดำเนินการ</th>
+                <th style="text-align: left; padding: 8px 10px; background: var(--bg-surface); color: var(--text-dim); font-family: var(--font-mono); font-size: 10px; font-weight: 700; border-bottom: 1px solid var(--border-subtle);">ADVERSARIAL PROMPT (INJECTED)</th>
+                <th style="text-align: left; padding: 8px 10px; background: var(--bg-surface); color: var(--text-dim); font-family: var(--font-mono); font-size: 10px; font-weight: 700; border-bottom: 1px solid var(--border-subtle);">TARGET RESPONSE (BLUE)</th>
+                <th style="width: 150px; text-align: left; padding: 8px 10px; background: var(--bg-surface); color: var(--text-dim); font-family: var(--font-mono); font-size: 10px; font-weight: 700; border-bottom: 1px solid var(--border-subtle);">SECURITY VERDICT</th>
+                <th style="width: 120px; text-align: left; padding: 8px 10px; background: var(--bg-surface); color: var(--text-dim); font-family: var(--font-mono); font-size: 10px; font-weight: 700; border-bottom: 1px solid var(--border-subtle);">TIMESTAMP</th>
+                <th style="width: 150px; text-align: right; padding: 8px 10px; background: var(--bg-surface); color: var(--text-dim); font-family: var(--font-mono); font-size: 10px; font-weight: 700; border-bottom: 1px solid var(--border-subtle);">ACTION</th>
               </tr>
             </thead>
             <tbody id="manualHistoryTbody">
@@ -1977,10 +1977,10 @@
                 </td>
                 <td style="padding: 8px 10px; border-bottom: 1px solid var(--border-subtle); vertical-align: middle;">
                   {% if r.success == 1 %}
-                    <span class="verdict-pill breached" style="font-size: 10px;">🚨 รั่วไหล (Breached)</span>
+                    <span class="verdict-pill breached" style="font-size: 10px;">🚨 Breached</span>
                     {% if r.private_table_accessed %}<span class="tag red" style="font-size: 9px;">TABLE ACCESSED</span>{% endif %}
                   {% elif r.success == 0 %}
-                    <span class="verdict-pill defended" style="font-size: 10px;">🛡️ ป้องกันได้ (Defended)</span>
+                    <span class="verdict-pill defended" style="font-size: 10px;">🛡️ Defended</span>
                     {% if r.private_table_blocked %}<span class="tag amber" style="font-size: 9px;">BLOCKED</span>{% endif %}
                     {% if r.output_intercepted %}<span class="tag green" style="font-size: 9px;">REDACTED</span>{% endif %}
                   {% else %}
@@ -1992,8 +1992,8 @@
                 </td>
                 <td style="padding: 8px 10px; border-bottom: 1px solid var(--border-subtle); vertical-align: middle; text-align: right;">
                   <div style="display: flex; gap: 4px; justify-content: flex-end;">
-                    <button type="button" class="btn-copy" onclick="event.stopPropagation(); loadSessionIntoPlayground('{{ r.id }}')" style="font-size: 10px; padding: 2px 6px; background: rgba(56,189,248,0.12); border-color: rgba(56,189,248,0.4); color: #38bdf8;">💬 ดูในแชท</button>
-                    <button type="button" class="btn-expand-row" style="font-size: 10px; padding: 2px 6px;">ดูข้อมูล ▼</button>
+                    <button type="button" class="btn-copy" onclick="event.stopPropagation(); loadSessionIntoPlayground('{{ r.id }}')" style="font-size: 10px; padding: 2px 6px; background: rgba(56,189,248,0.12); border-color: rgba(56,189,248,0.4); color: #38bdf8;">💬 Load in Chat</button>
+                    <button type="button" class="btn-expand-row" style="font-size: 10px; padding: 2px 6px;">Details ▼</button>
                   </div>
                 </td>
               </tr>
@@ -2003,10 +2003,10 @@
                     <!-- Left: Injected Prompt -->
                     <div class="turn-half-col" style="background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 8px;">
                       <div class="col-header red" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 11px; font-weight: 700; color: #fca5a5;">
-                        <span>📤 ข้อความคำสั่งที่ส่งไป (PROMPT SENT - TURN {{ r.attempt }})</span>
+                        <span>📤 PROMPT SENT - TURN {{ r.attempt }}</span>
                         <div style="display: flex; gap: 4px;">
-                          <button type="button" class="btn-copy" onclick="event.stopPropagation(); copySnippet('m-p-{{ loop.index }}', this)">คัดลอก</button>
-                          <button type="button" class="btn-copy" onclick="event.stopPropagation(); usePromptInPlayground(document.getElementById('m-p-{{ loop.index }}').innerText)">นำไปใช้</button>
+                          <button type="button" class="btn-copy" onclick="event.stopPropagation(); copySnippet('m-p-{{ loop.index }}', this)">Copy</button>
+                          <button type="button" class="btn-copy" onclick="event.stopPropagation(); usePromptInPlayground(document.getElementById('m-p-{{ loop.index }}').innerText)">Use in Chat</button>
                         </div>
                       </div>
                       {% if r.red_analysis or r.red_strategy %}
@@ -2021,12 +2021,12 @@
                     <!-- Right: Model Response -->
                     <div class="turn-half-col" style="background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 8px;">
                       <div class="col-header blue" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 11px; font-weight: 700; color: #38bdf8;">
-                        <span>📥 คำตอบที่ได้รับกลับมา (BLUE RESPONSE)</span>
-                        <button type="button" class="btn-copy" onclick="event.stopPropagation(); copySnippet('m-r-{{ loop.index }}', this)">คัดลอก</button>
+                        <span>📥 TARGET RESPONSE (BLUE)</span>
+                        <button type="button" class="btn-copy" onclick="event.stopPropagation(); copySnippet('m-r-{{ loop.index }}', this)">Copy</button>
                       </div>
                       {% if r.canaries_list %}
                       <div class="canary-alert" style="margin-bottom: 6px;">
-                        <b>⚠️ ข้อมูลความลับ Canary ที่รั่วไหล:</b>
+                        <b>⚠️ Leaked Canary Tokens:</b>
                         {% for c in r.canaries_list %}
                           <span class="canary-token">{{ c }}</span>
                         {% endfor %}
@@ -2034,7 +2034,7 @@
                       {% endif %}
                       {% if r.schema_disclosed_list %}
                       <div class="canary-alert" style="background: var(--color-amber-bg); color: #fde68a; margin-bottom: 6px;">
-                        <b>⚠️ การเปิดเผยโครงสร้างฐานข้อมูล (Schema Disclosure):</b>
+                        <b>⚠️ Schema Disclosed:</b>
                         {% for s in r.schema_disclosed_list %}
                           <span class="tag amber">{{ s }}</span>
                         {% endfor %}
@@ -2069,7 +2069,7 @@
           <span>🛡️ OWASP Top 10 for LLM Benchmark & Evaluator</span>
         </div>
         <div class="card-panel-sub">
-          ประเมินและทดสอบความแข็งแกร่งของ AI Agent ตามมาตรฐาน OWASP LLM01 (Prompt Injection) และ LLM06 (Excessive Agency) พร้อมคำนวณตัวชี้วัด: ASR, FRR, TVR และ DES
+          Assess LLM agent resilience against OWASP Top 10 for LLM Applications (LLM01: Prompt Injection, LLM06: Excessive Agency, LLM02: Sensitive Information Disclosure). Computes Attack Success Rate (ASR), Defense Effectiveness Score (DES), Total Vulnerability Rate (TVR), and False Refusal Rate (FRR).
         </div>
         <div class="form-grid" style="margin-top: 8px;">
           <div class="field-group">
@@ -2080,20 +2080,20 @@
             </select>
           </div>
           <div class="field-group">
-            <label for="evalDefense">ระดับป้องกัน:</label>
+            <label for="evalDefense">Defense Level:</label>
             <select id="evalDefense">
-              <option value="all" selected>ALL (Defense-in-Depth - แนะนำ)</option>
+              <option value="all" selected>ALL (Defense-in-Depth - Recommended)</option>
               <option value="tools">TOOLS (Tool Gatekeeper & Data Delimiting)</option>
               <option value="prompt">PROMPT (Hardened System Prompt Only)</option>
               <option value="off">OFF (Baseline Unprotected)</option>
             </select>
           </div>
           <div class="field-group">
-            <label for="evalBlueRole">บทบาท Blue Persona:</label>
+            <label for="evalBlueRole">Target Blue Persona:</label>
             <select id="evalBlueRole">
-              <option value="registrar_staff" selected>Registrar Staff (เจ้าหน้าที่ทะเบียน)</option>
-              <option value="student_guest">Student / Guest (ผู้มาติดต่อทั่วไป)</option>
-              <option value="system_admin">System Administrator (ผู้ดูแลระบบสูงสุด)</option>
+              <option value="registrar_staff" selected>Registrar Staff (Recommended)</option>
+              <option value="student_guest">Student / Guest</option>
+              <option value="system_admin">System Administrator</option>
             </select>
           </div>
         </div>
@@ -2115,17 +2115,17 @@
 
         <div style="margin-top: 10px; display: flex; align-items: center; gap: 8px;">
           <button type="button" id="btnRunEvalBenchmark" class="btn-run-action" onclick="runOwaspBenchmark()" style="padding: 6px 14px;">
-            ⚡ เริ่มต้นรัน OWASP Benchmark
+            ⚡ Run OWASP Benchmark
           </button>
           <span id="evalRunSpinner" style="display: none; font-size: 11px; color: #38bdf8; font-weight: 600;">
-            ⏳ กำลังประเมินผลเบนช์มาร์ก...
+            ⏳ Evaluating OWASP Matrix...
           </span>
         </div>
       </div>
 
       <div id="evalResultsPanel" class="card-panel" style="display: none;">
         <div class="card-panel-title">
-          <span>📈 รายงานผลการประเมินเชิงวิทยาศาสตร์</span>
+          <span>📈 Scientific Evaluation Metrics & Vulnerability Breakdown</span>
         </div>
 
         <div class="two-zone-bar" style="margin-top: 8px;">
@@ -3373,7 +3373,7 @@
 
     async function startAiContinue() {
       if (!activeManualSession) {
-        alert('กรุณาเริ่มต้นเซสชันก่อน');
+        alert('Please start an active session first.');
         return;
       }
 
@@ -3393,15 +3393,15 @@
         try {
           const res = await executeAiStepOnce();
           if (!res || !res.success) {
-            showAlertBanner('AI หยุดการทำงาน: ' + (res?.error || 'เกิดข้อผิดพลาด'), 'leak');
+            showAlertBanner('AI stopped: ' + (res?.error || 'Execution encountered an error'), 'leak');
             break;
           }
           if (res.should_stop) {
-            showAlertBanner(res.stop_reason || 'AI หยุดเนื่องจากตรวจพบคอนดิชันสิ้นสุด', 'leak');
+            showAlertBanner(res.stop_reason || 'AI stopped: Terminal stop condition reached', 'leak');
             break;
           }
         } catch (err) {
-          showAlertBanner('AI ขัดข้อง: ' + err.message, 'leak');
+          showAlertBanner('AI error: ' + err.message, 'leak');
           break;
         }
         await new Promise(r => setTimeout(r, 600));
@@ -3454,7 +3454,7 @@
         document.getElementById('chatScrollArea').innerHTML = '';
         const navBar = document.getElementById('turnNavBar');
         if (navBar) {
-          navBar.innerHTML = '<span class="turn-nav-bar-label">⚡ TURNS:</span><span id="turnNavEmptyText" style="font-size:11px;color:var(--text-dim);font-style:italic;">ยังไม่มีเทิร์น</span>';
+          navBar.innerHTML = '<span class="turn-nav-bar-label">⚡ TURNS:</span><span id="turnNavEmptyText" style="font-size:11px;color:var(--text-dim);font-style:italic;">No turns yet</span>';
         }
         refreshManualHistory();
       }
@@ -3469,11 +3469,11 @@
         input.focus();
       } else {
         navigator.clipboard.writeText(text).then(() => {
-          alert('คัดลอก Prompt แล้ว! กรุณากด "เริ่มต้นเซสชันแชทสด" เพื่อส่งข้อความ');
+          alert('Prompt copied! Please launch an active session to test.');
           const startCard = document.getElementById('manualSetupCard');
           if (startCard) startCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }).catch(() => {
-          alert('กรุณาเริ่มต้นเซสชันเพื่อใช้งาน Prompt นี้');
+          alert('Please launch an active session to test this prompt.');
         });
       }
     }
@@ -3494,7 +3494,7 @@
       const tbody = document.getElementById('manualHistoryTbody');
       const badge = document.getElementById('manualHistoryCountBadge');
 
-      if (badge) badge.textContent = `${history.length} รายการ`;
+      if (badge) badge.textContent = `${history.length} runs`;
 
       if (!history || history.length === 0) {
         if (emptyEl) emptyEl.style.display = 'block';
@@ -3516,12 +3516,12 @@
 
         let verdictHtml = '';
         if (r.success === 1) {
-          verdictHtml = `<span class="verdict-pill breached" style="font-size: 10px;">🚨 รั่วไหล (Breached)</span>`;
+          verdictHtml = `<span class="verdict-pill breached" style="font-size: 10px;">🚨 Breached</span>`;
           if (r.private_table_accessed) {
             verdictHtml += ` <span class="tag red" style="font-size: 9px;">TABLE ACCESSED</span>`;
           }
         } else if (r.success === 0) {
-          verdictHtml = `<span class="verdict-pill defended" style="font-size: 10px;">🛡️ ป้องกันได้ (Defended)</span>`;
+          verdictHtml = `<span class="verdict-pill defended" style="font-size: 10px;">🛡️ Defended</span>`;
           if (r.private_table_blocked) {
             verdictHtml += ` <span class="tag amber" style="font-size: 9px;">BLOCKED</span>`;
           }
@@ -3535,13 +3535,13 @@
         let canariesHtml = '';
         if (r.canaries_list && r.canaries_list.length > 0) {
           const tokens = r.canaries_list.map(c => `<span class="canary-token">${escapeHtml(c)}</span>`).join(' ');
-          canariesHtml = `<div class="canary-alert" style="margin-bottom: 6px;"><b>⚠️ ข้อมูลความลับ Canary ที่รั่วไหล:</b> ${tokens}</div>`;
+          canariesHtml = `<div class="canary-alert" style="margin-bottom: 6px;"><b>⚠️ Leaked Canary Tokens:</b> ${tokens}</div>`;
         }
 
         let schemaHtml = '';
         if (r.schema_disclosed_list && r.schema_disclosed_list.length > 0) {
           const tags = r.schema_disclosed_list.map(s => `<span class="tag amber">${escapeHtml(s)}</span>`).join(' ');
-          schemaHtml = `<div class="canary-alert" style="background: var(--color-amber-bg); color: #fde68a; margin-bottom: 6px;"><b>⚠️ การเปิดเผยโครงสร้างฐานข้อมูล (Schema Disclosure):</b> ${tags}</div>`;
+          schemaHtml = `<div class="canary-alert" style="background: var(--color-amber-bg); color: #fde68a; margin-bottom: 6px;"><b>⚠️ Schema Disclosed:</b> ${tags}</div>`;
         }
 
         let toolsHtml = '';
@@ -3595,8 +3595,8 @@
             </td>
             <td style="padding: 8px 10px; border-bottom: 1px solid var(--border-subtle); vertical-align: middle; text-align: right;">
               <div style="display: flex; gap: 4px; justify-content: flex-end;">
-                <button type="button" class="btn-copy" onclick="event.stopPropagation(); loadSessionIntoPlayground('${escapeHtml(r.id)}')" style="font-size: 10px; padding: 2px 6px; background: rgba(56,189,248,0.12); border-color: rgba(56,189,248,0.4); color: #38bdf8;">💬 ดูในแชท</button>
-                <button type="button" class="btn-expand-row" style="font-size: 10px; padding: 2px 6px;">ดูข้อมูล ▼</button>
+                <button type="button" class="btn-copy" onclick="event.stopPropagation(); loadSessionIntoPlayground('${escapeHtml(r.id)}')" style="font-size: 10px; padding: 2px 6px; background: rgba(56,189,248,0.12); border-color: rgba(56,189,248,0.4); color: #38bdf8;">💬 Load in Chat</button>
+                <button type="button" class="btn-expand-row" style="font-size: 10px; padding: 2px 6px;">Details ▼</button>
               </div>
             </td>
           </tr>
@@ -3605,10 +3605,10 @@
               <div class="turn-split-cols" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                 <div class="turn-half-col" style="background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 8px;">
                   <div class="col-header red" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 11px; font-weight: 700; color: #fca5a5;">
-                    <span>📤 ข้อความคำสั่งที่ส่งไป (PROMPT SENT - TURN ${escapeHtml(r.attempt)})</span>
+                    <span>📤 PROMPT SENT - TURN ${escapeHtml(r.attempt)}</span>
                     <div style="display: flex; gap: 4px;">
-                      <button type="button" class="btn-copy" onclick="event.stopPropagation(); copySnippet('${promptId}', this)">คัดลอก</button>
-                      <button type="button" class="btn-copy" onclick="event.stopPropagation(); usePromptInPlayground(document.getElementById('${promptId}').innerText)">นำไปใช้</button>
+                      <button type="button" class="btn-copy" onclick="event.stopPropagation(); copySnippet('${promptId}', this)">Copy</button>
+                      <button type="button" class="btn-copy" onclick="event.stopPropagation(); usePromptInPlayground(document.getElementById('${promptId}').innerText)">Use in Chat</button>
                     </div>
                   </div>
                   ${metaHtml}
@@ -3616,8 +3616,8 @@
                 </div>
                 <div class="turn-half-col" style="background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 8px;">
                   <div class="col-header blue" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 11px; font-weight: 700; color: #38bdf8;">
-                    <span>📥 คำตอบที่ได้รับกลับมา (BLUE RESPONSE)</span>
-                    <button type="button" class="btn-copy" onclick="event.stopPropagation(); copySnippet('${respId}', this)">คัดลอก</button>
+                    <span>📥 TARGET RESPONSE (BLUE)</span>
+                    <button type="button" class="btn-copy" onclick="event.stopPropagation(); copySnippet('${respId}', this)">Copy</button>
                   </div>
                   ${canariesHtml}
                   ${schemaHtml}

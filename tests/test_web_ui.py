@@ -749,6 +749,18 @@ class WebUiTests(unittest.TestCase):
         self.assertIn('id="drawerTelemetryTabBtn"', html)
         self.assertIn('btn-inspect-case', html)
 
+    def test_index_has_pure_english_ui_labels(self):
+        resp = self.client.get("/")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertIn("Benchmark Evaluation", html)
+        self.assertIn("Interactive Playground", html)
+        self.assertIn("OWASP Benchmark Matrix", html)
+        self.assertNotIn("ผลการทดสอบ (Evaluation Runs)", html)
+        self.assertNotIn("ทดสอบด้วยตนเอง (Interactive Playground)", html)
+        self.assertNotIn("เบนช์มาร์ก OWASP", html)
+        self.assertNotIn("สั่งรันการทดสอบ", html)
+
 
 if __name__ == "__main__":
     unittest.main()
