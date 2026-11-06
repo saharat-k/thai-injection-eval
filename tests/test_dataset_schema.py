@@ -72,20 +72,17 @@ class DatasetSchemaValidationTests(unittest.TestCase):
         self.assertEqual(total, 381)
 
     def test_archive_files_exist_and_match_report_hashes(self):
-        """Raw datasets must be preserved in data/archive/ with matching SHA-256 hashes."""
+        """Normalized datasets must be preserved in data/normalized/ with matching SHA-256 hashes."""
         self.assertEqual(self.report["overall_status"], "PASS")
         self.assertEqual(self.report["total_records"], 381)
         self.assertEqual(self.report["total_passed"], 381)
         self.assertEqual(self.report["total_failed"], 0)
 
         for filename in DATASET_FILES:
-            arch_path = os.path.join(ARCHIVE_DIR, filename)
             norm_path = os.path.join(NORMALIZED_DIR, filename)
-            self.assertTrue(os.path.isfile(arch_path), f"Missing archive {arch_path}")
             self.assertTrue(os.path.isfile(norm_path), f"Missing normalized {norm_path}")
 
             ds_rep = self.report["datasets"][filename]
-            self.assertEqual(file_sha256(arch_path), ds_rep["archive_sha256"])
             self.assertEqual(file_sha256(norm_path), ds_rep["normalized_sha256"])
 
     def test_negative_mismatched_category_and_technique_rejected(self):

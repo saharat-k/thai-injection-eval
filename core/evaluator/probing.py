@@ -57,7 +57,6 @@ def _resolve_probing_path(path: str) -> str:
     for sub in (
         os.path.join(_BASE_DIR, "data", "normalized", base),
         os.path.join(_BASE_DIR, "data", base),
-        os.path.join(_BASE_DIR, "data", "archive", base),
         os.path.join(_BASE_DIR, base),
     ):
         if os.path.exists(sub):

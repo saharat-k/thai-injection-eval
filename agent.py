@@ -2268,7 +2268,7 @@ def load_test_cases(path="test_cases.json"):
     target_path = path
     if not os.path.exists(target_path):
         base = os.path.basename(path)
-        for sub in (os.path.join("data", "normalized", base), os.path.join("data", base), os.path.join("data", "archive", base)):
+        for sub in (os.path.join("data", "normalized", base), os.path.join("data", base)):
             if os.path.exists(sub):
                 target_path = sub
                 break
