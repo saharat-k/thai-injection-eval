@@ -15,6 +15,16 @@ def run_serve(args) -> int:
     print(f"  * Mode     : {'Debug' if debug else 'Production / Localhost-Bound'}")
     print("Press Ctrl+C to stop the server.\n")
 
+    if getattr(args, "open", False):
+        import webbrowser
+        target_url = f"http://{host}:{port}"
+        delay = getattr(args, "_open_delay", 0.5)
+        if delay > 0:
+            import threading
+            threading.Timer(delay, lambda: webbrowser.open_new_tab(target_url)).start()
+        else:
+            webbrowser.open_new_tab(target_url)
+
     try:
         import web_ui
         web_ui.app.run(host=host, port=port, debug=debug)

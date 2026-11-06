@@ -176,11 +176,13 @@ Exit Codes:
     test_list = test_subs.add_parser("list", parents=[common_parser], help="List discovered test cases")
     test_list.add_argument("-s", "--start-dir", default="tests", help="Directory to discover tests")
 
-    # 5. SERVE command
-    serve_parser = subparsers.add_parser("serve", parents=[common_parser], help="Launch interactive Red-Teaming Web UI (Flask)")
-    serve_parser.add_argument("--host", default="127.0.0.1", help="Host interface to bind (default: 127.0.0.1)")
-    serve_parser.add_argument("--port", type=int, default=5000, help="Port to listen on (default: 5000)")
-    serve_parser.add_argument("--debug", action="store_true", help="Enable Flask debug mode")
+    # 5. SERVE / VIEW command
+    for s_name in ("serve", "view"):
+        s_parser = subparsers.add_parser(s_name, parents=[common_parser], help="Launch interactive Red-Teaming Web UI (Flask)")
+        s_parser.add_argument("--host", default="127.0.0.1", help="Host interface to bind (default: 127.0.0.1)")
+        s_parser.add_argument("--port", type=int, default=5000, help="Port to listen on (default: 5000)")
+        s_parser.add_argument("--debug", action="store_true", help="Enable Flask debug mode")
+        s_parser.add_argument("--open", action="store_true", help="Automatically open web browser upon launch")
 
     # 6. DOCTOR command
     subparsers.add_parser("doctor", parents=[common_parser], help="Inspect environment, dependencies, datasets, and runtime health")
@@ -310,7 +312,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         return run_doctor(args)
     elif cmd == "config":
         return run_config(args)
-    elif cmd == "serve":
+    elif cmd in ("serve", "view"):
         return run_serve(args)
     elif cmd in ("chat", "manual"):
         return run_chat(args)
