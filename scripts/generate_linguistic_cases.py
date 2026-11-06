@@ -19,7 +19,7 @@ from typing import Any, Dict, List, Tuple
 DEFAULT_SEED = 42
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_SEEDS_PATH = os.path.join(BASE_DIR, "data", "linguistic_seeds.json")
-DEFAULT_OUTPUT_PATH = os.path.join(BASE_DIR, "data", "normalized", "test_cases_linguistic.json")
+DEFAULT_OUTPUT_PATH = os.path.join(BASE_DIR, "data", "archive", "test_cases_linguistic.json")
 
 # Deterministic bilingual lookup dictionary for code-switching mutations
 TECH_LOOKUP_TH_TO_EN = {
