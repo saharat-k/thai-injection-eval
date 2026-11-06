@@ -94,14 +94,18 @@ When adding or modifying adversarial test cases in `data/normalized/test_cases.j
 
 ## 6. Git & Commit Conventions
 
-We follow the [Conventional Commits](https://www.conventionalcommits.org/) specification:
+We adhere to the [Conventional Commits](https://www.conventionalcommits.org/) standard followed by top open-source projects:
 
-- `feat(scope): concise imperative subject <= 72 chars`
-- `fix(scope): concise imperative subject <= 72 chars`
-- `docs(scope): documentation update`
-- `style(scope): formatting, visual styles, UI themes`
-- `refactor(scope): code restructuring without changing behavior`
-- `test(scope): test suite additions or modifications`
-- `chore(scope): repository maintenance, dependency bumps`
-
-**Hygiene Rule**: Never commit `.env`, `*.db`, `results.md`, `.flask_secret`, or temporary scratch artifacts. Verify with `python scripts/check_secrets.py` before opening a Pull Request.
+- **Format**: `<type>(<scope>): <concise imperative subject>` (50-72 chars max, lowercase, no trailing period).
+- **Core Types**:
+  - `feat`: New capability or user-facing feature.
+  - `fix`: Bug fix or security patch.
+  - `refactor`: Code restructuring without external behavioral changes.
+  - `test`: Adding or updating test cases.
+  - `docs`: Documentation updates.
+  - `chore`: Maintenance, tooling, dependency updates.
+- **Top-Star Conciseness Rule**:
+  - Keep commits **atomic and concise**.
+  - A single-line commit message is standard for 90% of routine changes.
+  - Avoid multi-paragraph essays or repeating what `git diff` shows. If context is needed, provide 1-3 bullet points focused strictly on the *Why*.
+- **Secret & Junk Hygiene**: Never commit `.env`, `*.db`, `results.md`, `.flask_secret`, or agent scratchpad files. Always verify with `python scripts/check_secrets.py --history` before submitting a PR.
