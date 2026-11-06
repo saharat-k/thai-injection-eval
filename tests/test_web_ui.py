@@ -731,6 +731,15 @@ class WebUiTests(unittest.TestCase):
             self.assertEqual(resp.status_code, 200)
             mock_blue_cls.assert_called_once_with("off", role="registrar_staff", model="gemini-3.5-flash-lite")
 
+    def test_index_renders_tech_innovation_theme_and_font_stack(self):
+        resp = self.client.get("/")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        self.assertIn("--bg-base: #0b0f17", html.lower())
+        self.assertIn("--color-emerald: #10b981", html.lower())
+        self.assertIn("jetbrains mono", html.lower())
+        self.assertIn("noto sans thai", html.lower())
+
 
 if __name__ == "__main__":
     unittest.main()
