@@ -761,6 +761,87 @@ class WebUiTests(unittest.TestCase):
         self.assertNotIn("เบนช์มาร์ก OWASP", html)
         self.assertNotIn("สั่งรันการทดสอบ", html)
 
+    def test_index_all_buttons_and_js_toggles_pure_english(self):
+        resp = self.client.get("/")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode("utf-8")
+        # Ensure interactive buttons and dynamic toggles do not use Thai
+        self.assertNotIn(">คัดลอก<", html)
+        self.assertNotIn(">นำไปใช้<", html)
+        self.assertNotIn("คัดลอกแล้ว", html)
+        self.assertNotIn("ย่อรายละเอียด", html)
+        self.assertNotIn("ยุบทั้งหมด", html)
+        self.assertNotIn("ส่งข้อความ", html)
+
+    def test_eval_latest_not_found_returns_json_404(self):
+        with mock.patch("os.path.exists", return_value=False):
+            resp = self.client.get("/api/eval/latest")
+            self.assertEqual(resp.status_code, 404)
+            data = resp.get_json()
+            self.assertFalse(data["success"])
+            self.assertIn("No previous evaluation report found", data["error"])
+
+    def test_eval_run_invalid_target_type_returns_json_500(self):
+        with self.client.session_transaction() as sess:
+            sess["csrf_token"] = "eval-csrf-test"
+        headers = {"X-CSRFToken": "eval-csrf-test", "Content-Type": "application/json"}
+        resp = self.client.post(
+            "/api/eval/run",
+            json={"csrf_token": "eval-csrf-test", "target_type": "invalid_adapter_xyz"},
+            headers=headers,
+        )
+        self.assertEqual(resp.status_code, 500)
+        data = resp.get_json()
+        self.assertFalse(data["success"])
+        self.assertIn("Evaluation failed", data["error"])
+
+    def test_manual_send_boundary_length_accepted(self):
+        with self.client.session_transaction() as sess:
+            sess["csrf_token"] = "boundary-csrf"
+        headers = {"X-CSRFToken": "boundary-csrf", "Content-Type": "application/json"}
+        fake_blue = mock.Mock()
+        fake_blue.send.return_value = "Boundary response"
+        web_ui._manual_sessions["boundary-sess"] = {
+            "session_id": "boundary-sess",
+            "history": [],
+            "turn_no": 1,
+            "case": {
+                "id": "boundary-sess",
+                "prompt": "",
+                "language": "Thai",
+                "attack_type": "direct",
+                "source_reference": "manual",
+                "targets": [],
+            },
+            "defense": "off",
+            "canaries": set(),
+            "blue_session": fake_blue,
+        }
+        exact_max = "A" * web_ui.MAX_PROMPT_LENGTH
+        resp = self.client.post(
+            "/api/manual/send",
+            json={"csrf_token": "boundary-csrf", "session_id": "boundary-sess", "prompt": exact_max},
+            headers=headers,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.get_json()["success"])
+        web_ui._manual_sessions.pop("boundary-sess", None)
+
+    def test_manual_generate_prompt_boundary_length_accepted(self):
+        with self.client.session_transaction() as sess:
+            sess["csrf_token"] = "gen-boundary-csrf"
+        headers = {"X-CSRFToken": "gen-boundary-csrf", "Content-Type": "application/json"}
+        exact_max = "A" * web_ui.MAX_PROMPT_LENGTH
+        with mock.patch.object(agent, "generate_attack_prompt", return_value={"prompt": "p", "analysis": "a", "tactic": "t", "technique": "tk", "source": "s"}):
+            resp = self.client.post(
+                "/api/manual/generate-prompt",
+                json={"csrf_token": "gen-boundary-csrf", "description": exact_max},
+                headers=headers,
+            )
+            self.assertEqual(resp.status_code, 200)
+            self.assertTrue(resp.get_json()["success"])
+
+
 
 if __name__ == "__main__":
     unittest.main()

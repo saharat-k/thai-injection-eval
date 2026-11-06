@@ -2421,7 +2421,7 @@
       const isHidden = (detailRow.style.display === 'none' || !detailRow.style.display);
       detailRow.style.display = isHidden ? 'table-row' : 'none';
       const btn = clickedRow.querySelector('.btn-expand-row');
-      if (btn) btn.textContent = isHidden ? 'ย่อรายละเอียด ▲' : 'ดูรายละเอียด ▼';
+      if (btn) btn.textContent = isHidden ? 'Collapse Details ▲' : 'Details ▼';
     }
 
     // Toggle Collapsible Secondary Filters Drawer
@@ -2456,10 +2456,10 @@
         }
       });
       expandBtns.forEach(b => {
-        b.textContent = allRowsExpanded ? 'ย่อรายละเอียด ▲' : 'ดูรายละเอียด ▼';
+        b.textContent = allRowsExpanded ? 'Collapse Details ▲' : 'Details ▼';
       });
       if (mainBtn) {
-        mainBtn.textContent = allRowsExpanded ? '⤡ ยุบทั้งหมด' : '⤢ กางทั้งหมด';
+        mainBtn.textContent = allRowsExpanded ? '⤡ Collapse All' : '⤢ Expand All';
       }
     }
 
@@ -2586,7 +2586,7 @@
       const text = el.innerText || el.textContent;
       navigator.clipboard.writeText(text).then(() => {
         const orig = btn.innerText;
-        btn.innerText = "✓ คัดลอกแล้ว";
+        btn.innerText = "✓ Copied!";
         btn.style.borderColor = "var(--color-emerald)";
         btn.style.color = "var(--color-emerald)";
         setTimeout(() => {
@@ -2901,13 +2901,13 @@
 
         document.getElementById('chatScrollArea').innerHTML = `
           <div id="chatEmptyPlaceholder" style="text-align: center; color: var(--text-dim); padding: 50px 20px; font-style: italic;">
-            ✨ เริ่มต้นบทสนทนา: พิมพ์คำสั่งด้านล่าง หรือเลือกแม่แบบเพื่อส่งข้อความแรกไปยัง Blue Assistant
+            ✨ Start session: Type a prompt below or select a template to send the first turn to Blue Target.
           </div>`;
         document.getElementById('chatStatusAlert').style.display = 'none';
 
         const navBar = document.getElementById('turnNavBar');
         if (navBar) {
-          navBar.innerHTML = '<span class="turn-nav-bar-label">⚡ TURNS:</span><span id="turnNavEmptyText" style="font-size:11px;color:var(--text-dim);font-style:italic;">ยังไม่มีเทิร์น</span>';
+          navBar.innerHTML = '<span class="turn-nav-bar-label">⚡ TURNS:</span><span id="turnNavEmptyText" style="font-size:11px;color:var(--text-dim);font-style:italic;">No turns yet</span>';
         }
 
         loadTemplatesOnce();
@@ -3149,12 +3149,12 @@
           <div class="inbound-turn-block">
             <div class="turn-block-header">
               <div style="display: flex; align-items: center; gap: 6px; color: #fca5a5;">
-                <span>📤 ข้อความคำสั่งที่ส่งไป (PROMPT SENT)</span>
+                <span>📤 Inbound Attack Prompt</span>
                 <span class="tag" style="background: rgba(244,63,94,0.15); color: #fca5a5; font-size: 9px;">${promptText.length} chars</span>
               </div>
               <div style="display: flex; gap: 4px;">
-                <button type="button" class="btn-copy" onclick="copySnippet('${turnDomId}-prompt', this)">คัดลอก</button>
-                <button type="button" class="btn-copy" onclick="usePromptInPlayground(document.getElementById('${turnDomId}-prompt').innerText)">นำไปใช้</button>
+                <button type="button" class="btn-copy" onclick="copySnippet('${turnDomId}-prompt', this)">Copy</button>
+                <button type="button" class="btn-copy" onclick="usePromptInPlayground(document.getElementById('${turnDomId}-prompt').innerText)">Use in Chat</button>
               </div>
             </div>
             ${metaHtml}
@@ -3168,11 +3168,11 @@
           <div class="outbound-turn-block">
             <div class="turn-block-header">
               <div style="display: flex; align-items: center; gap: 6px; color: #38bdf8;">
-                <span>📥 คำตอบที่ได้รับกลับมา (BLUE RESPONSE)</span>
+                <span>📥 Outbound Blue Response</span>
                 <span class="tag" style="background: rgba(56,189,248,0.15); color: #93c5fd; font-size: 9px;">${responseText.length} chars</span>
               </div>
               <div style="display: flex; gap: 4px;">
-                <button type="button" class="btn-copy" onclick="copySnippet('${turnDomId}-resp', this)">คัดลอก</button>
+                <button type="button" class="btn-copy" onclick="copySnippet('${turnDomId}-resp', this)">Copy</button>
               </div>
             </div>
             <pre class="turn-response-content" id="${turnDomId}-resp">${escapeHtml(responseText)}</pre>
@@ -3314,7 +3314,7 @@
 
       const sendBtn = document.getElementById('manualSendBtn');
       sendBtn.disabled = true;
-      sendBtn.textContent = '⏳ ส่ง...';
+      sendBtn.textContent = '⏳ Sending...';
 
       try {
         const res = await safeFetchJson('/api/manual/send', {
@@ -3344,10 +3344,10 @@
           showAlertBanner(`🚨 ตรวจพบข้อมูล Canary รั่วไหล: ${res.leaked.join(', ')}`, 'leak');
         }
       } catch (err) {
-        alert('การส่งข้อความขัดข้อง: ' + err.message);
+        alert('Failed to send turn: ' + err.message);
       } finally {
         sendBtn.disabled = false;
-        sendBtn.textContent = '▶ ส่งข้อความ (Send Turn)';
+        sendBtn.textContent = '▶ Send Turn';
       }
     }
 
