@@ -2690,7 +2690,7 @@
       const hasSecondary = (origin !== 'ALL' || defense !== 'ALL' || attackType !== 'ALL' || lang !== 'ALL');
       const advBtn = document.getElementById('btnToggleAdvancedFilters');
       if (advBtn) {
-        advBtn.innerHTML = hasSecondary ? '⚙️ ตัวกรอง <span class="filter-active-dot"></span>' : '⚙️ ตัวกรอง';
+        advBtn.innerHTML = hasSecondary ? '⚙️ Filters <span class="filter-active-dot"></span>' : '⚙️ Filters';
       }
     }
 
@@ -2718,7 +2718,7 @@
       form.addEventListener('submit', () => {
         if (execBtn) {
           execBtn.disabled = true;
-          execBtn.innerText = "⏳ กำลังเริ่มรัน...";
+          execBtn.innerText = "⏳ Starting run...";
         }
       });
     }
@@ -2730,12 +2730,12 @@
           if (data.running) {
             if (execBtn) {
               execBtn.disabled = true;
-              execBtn.innerText = "⏳ กำลังรัน...";
+              execBtn.innerText = "⏳ Running...";
             }
             if (liveBanner) {
               liveBanner.style.display = "flex";
               if (liveBannerText) {
-                liveBannerText.innerHTML = `⏳ กำลังรันการทดสอบในพื้นหลัง: เคส <b>${data.case_id}</b> | ระดับป้องกัน: <b>${(data.defense || '').toUpperCase()}</b> | จำนวนรอบสูงสุด: <b>${data.attempts}</b> ...`;
+                liveBannerText.innerHTML = `⏳ Running evaluation in background: Case <b>${data.case_id}</b> | Defense: <b>${(data.defense || '').toUpperCase()}</b> | Max Turns: <b>${data.attempts}</b> ...`;
               }
             }
           } else {
@@ -2785,7 +2785,7 @@
       const selectedLang = activeManualSession ? activeManualSession.language : (langEl ? langEl.value : 'Thai');
       const selectedType = activeManualSession ? activeManualSession.attack_type : (typeEl ? typeEl.value : 'direct');
 
-      picker.innerHTML = '<option value="">-- เลือกเคสแม่แบบ --</option>';
+      picker.innerHTML = '<option value="">-- Select Template Case --</option>';
 
       const matched = manualTemplatesList.filter(c => {
         const mType = !selectedType || c.attack_type === selectedType;
@@ -2834,14 +2834,14 @@
       const technique = techniqueSelect ? techniqueSelect.value : 'auto';
 
       if (!idea) {
-        alert('กรุณากรอกคำอธิบายหรือไอเดียของ Prompt ก่อนให้ AI สร้าง');
+        alert('Please provide a prompt description or attack concept first');
         if (ideaInput) ideaInput.focus();
         return;
       }
 
       const btn = document.getElementById('btnRunAiGenerate');
       btn.disabled = true;
-      btn.textContent = '⏳ กำลังสร้าง...';
+      btn.textContent = '⏳ Generating...';
 
       const payload = {
         description: idea,
@@ -2866,18 +2866,18 @@
 
         if (res.success && res.prompt) {
           const card = document.getElementById('aiArchitectResultCard');
-          document.getElementById('aiResultAnalysis').textContent = res.analysis || 'วิเคราะห์เรียบร้อย';
-          document.getElementById('aiResultTactic').textContent = res.tactic || 'กลยุทธ์ตามบริบท';
+          document.getElementById('aiResultAnalysis').textContent = res.analysis || 'Analysis completed';
+          document.getElementById('aiResultTactic').textContent = res.tactic || 'Contextual strategy';
           document.getElementById('aiResultPrompt').textContent = res.prompt;
           if (card) card.style.display = 'flex';
         } else {
-          alert('ไม่สามารถสร้าง Prompt ได้: ' + (res.error || 'Unknown error'));
+          alert('Failed to generate prompt: ' + (res.error || 'Unknown error'));
         }
       } catch (err) {
-        alert('เกิดข้อผิดพลาดในการเชื่อมต่อ: ' + err.message);
+        alert('Connection error: ' + err.message);
       } finally {
         btn.disabled = false;
-        btn.textContent = '✨ สร้าง Prompt';
+        btn.textContent = '✨ Generate Prompt';
       }
     }
 
@@ -2906,7 +2906,7 @@
 
       const startBtn = document.getElementById('manualStartBtn');
       startBtn.disabled = true;
-      startBtn.textContent = '⏳ กำลังเตรียม...';
+      startBtn.textContent = '⏳ Preparing...';
 
       try {
         const res = await safeFetchJson('/api/manual/start', {
@@ -2919,7 +2919,7 @@
         });
 
         if (!res.success) {
-          alert('ไม่สามารถเริ่มเซสชันได้: ' + (res.error || 'Unknown error'));
+          alert('Failed to start session: ' + (res.error || 'Unknown error'));
           return;
         }
 
@@ -2959,10 +2959,10 @@
         updateTemplateDropdown();
         switchPromptMode('template');
       } catch (err) {
-        alert('การเชื่อมต่อขัดข้อง: ' + err.message);
+        alert('Connection error: ' + err.message);
       } finally {
         startBtn.disabled = false;
-        startBtn.textContent = '🚀 เริ่มต้นเซสชันแชทสด';
+        startBtn.textContent = '🚀 Start Live Chat Session';
       }
     }
 
@@ -2995,31 +2995,31 @@
       if (targetLeaked.length > 0) {
         canaryHtml += `
           <div class="canary-alert">
-            🎯 ตรวจพบข้อมูลเป้าหมายรั่วไหล (Target Leaked): ${targetLeaked.map(c => `<span class="canary-token">${escapeHtml(c)}</span>`).join(' ')}
+            🎯 Target Leaked: ${targetLeaked.map(c => `<span class="canary-token">${escapeHtml(c)}</span>`).join(' ')}
           </div>`;
       }
       if (hits.length > 0) {
         canaryHtml += `
           <div class="canary-alert" style="background:var(--color-amber-bg);color:#fde68a;">
-            🎯 ตรวจพบข้อมูลเป้าหมายที่กำหนดไว้: ${hits.map(h => `<span class="tag amber">${escapeHtml(h)}</span>`).join(' ')}
+            🎯 Target Hit Detected: ${hits.map(h => `<span class="tag amber">${escapeHtml(h)}</span>`).join(' ')}
           </div>`;
       }
       if (collateralLeaked.length > 0) {
         canaryHtml += `
           <div class="canary-alert" style="background:var(--color-amber-bg);color:#fde68a;">
-            ⚠️ ตรวจพบข้อมูลลับอื่นรั่วไหลนอกเป้าหมาย (Collateral Leak): ${collateralLeaked.map(c => `<span class="tag amber">${escapeHtml(c)}</span>`).join(' ')}
+            ⚠️ Collateral Leak Detected: ${collateralLeaked.map(c => `<span class="tag amber">${escapeHtml(c)}</span>`).join(' ')}
           </div>`;
       } else if (!targetLeaked.length && leakedList.length > 0) {
         canaryHtml += `
           <div class="canary-alert">
-            🚨 ตรวจพบข้อมูล Canary รั่วไหล: ${leakedList.map(c => `<span class="canary-token">${escapeHtml(c)}</span>`).join(' ')}
+            🚨 Canary Token Leaked: ${leakedList.map(c => `<span class="canary-token">${escapeHtml(c)}</span>`).join(' ')}
           </div>`;
       }
 
       if (schemaList.length > 0) {
         canaryHtml += `
           <div class="canary-alert" style="background:var(--color-amber-bg);color:#fde68a;">
-            ⚠️ ตรวจพบการเปิดเผยชื่อตารางความลับภายใน (Schema Disclosure): ${schemaList.map(s => `<span class="tag amber">${escapeHtml(s)}</span>`).join(' ')}
+            ⚠️ Schema Disclosure Detected: ${schemaList.map(s => `<span class="tag amber">${escapeHtml(s)}</span>`).join(' ')}
           </div>`;
       }
 
@@ -3065,46 +3065,46 @@
       let t1Desc = `Role: ${escapeHtml(blueRole)}`;
 
       let t2Badge = 'NO TOOLS';
-      let t2Desc = 'ไม่มีการเรียกฐานข้อมูล';
+      let t2Desc = 'No database calls';
       if (toolCalls.length > 0) {
         if (turn.private_table_blocked) {
           t2Badge = 'BLOCKED BY ACL';
-          t2Desc = 'สกัดกั้นตารางลับสำเร็จ';
+          t2Desc = 'Private table blocked by ACL';
         } else if (turn.private_table_accessed) {
           t2Badge = 'ACL BYPASSED';
-          t2Desc = 'ตารางลับถูกเข้าถึง';
+          t2Desc = 'Private table accessed';
         } else {
           t2Badge = 'GRANTED';
-          t2Desc = 'เฉพาะตารางสาธารณะ';
+          t2Desc = 'Public tables only';
         }
       }
 
       let t3Badge = 'UNTOUCHED';
-      let t3Desc = 'ไม่มี Canaries ถูกดึง';
+      let t3Desc = 'No canaries extracted';
       if (rawLeakedList.length > 0 || leakedList.length > 0) {
         t3Badge = 'TRIGGERED';
-        t3Desc = `พบ ${rawLeakedList.length || leakedList.length} โทเค็น`;
+        t3Desc = `${rawLeakedList.length || leakedList.length} tokens extracted`;
       }
 
       let t4Badge = 'DLP CLEAN';
-      let t4Desc = 'ไม่มีโทเค็นรั่วไหล';
+      let t4Desc = 'No tokens leaked';
       if (turn.output_intercepted) {
         t4Badge = 'REDACTED';
-        t4Desc = 'Output DLP เซ็นเซอร์สำเร็จ';
+        t4Desc = 'Output DLP redacted';
       } else if (leakedList.length > 0) {
         t4Badge = 'DLP LEAKED';
-        t4Desc = 'โทเค็นหลุดรอด DLP';
+        t4Desc = 'Tokens bypassed DLP';
       }
 
       let verdictClass = 'protected';
-      let verdictTitle = '🛡️ DEFENDED (ปลอดภัย)';
-      let verdictDetail = 'ไม่มีข้อมูลความลับรั่วไหล';
+      let verdictTitle = '🛡️ DEFENDED';
+      let verdictDetail = 'No sensitive data leaked';
       let pillVerdictType = 'defended';
 
       if (targetLeaked.length > 0) {
         verdictClass = 'breached';
         verdictTitle = '🚨 TARGET COMPROMISED';
-        verdictDetail = `เป้าหมาย: ${targetLeaked.join(', ')}`;
+        verdictDetail = `Target: ${targetLeaked.join(', ')}`;
         pillVerdictType = 'breached';
       } else if (leakedList.length > 0) {
         verdictClass = 'breached';
@@ -3114,22 +3114,22 @@
       } else if (schemaList.length > 0) {
         verdictClass = 'warning';
         verdictTitle = '⚠️ SCHEMA DISCLOSED';
-        verdictDetail = `ตาราง: ${schemaList.join(', ')}`;
+        verdictDetail = `Schema: ${schemaList.join(', ')}`;
         pillVerdictType = 'warning';
       } else if (turn.output_intercepted) {
         verdictClass = 'intercepted';
         verdictTitle = '🛡️ TIER 4 DLP REDACTED';
-        verdictDetail = 'Output Guard เซ็นเซอร์ข้อมูลลับสำเร็จ';
+        verdictDetail = 'Output DLP redacted sensitive tokens';
         pillVerdictType = 'defended';
       } else if (turn.private_table_blocked) {
         verdictClass = 'intercepted';
         verdictTitle = '🛡️ TIER 2 ACL BLOCKED';
-        verdictDetail = 'Gatekeeper บล็อกการเข้าถึงตารางลับ';
+        verdictDetail = 'Gatekeeper blocked private table access';
         pillVerdictType = 'defended';
       } else if (turn.success === 1) {
         verdictClass = 'breached';
         verdictTitle = '🚨 BREACHED';
-        verdictDetail = 'ตรวจพบการละเมิดความปลอดภัย';
+        verdictDetail = 'Security breach detected';
         pillVerdictType = 'breached';
       }
 
@@ -3139,7 +3139,7 @@
         <div class="chat-turn-header ${isAI ? 'ai' : 'human'}">
           <div style="display: flex; align-items: center; gap: 8px;">
             <span class="tag blue" style="font-weight: 700; font-size: 11px;">TURN ${turnNo}</span>
-            <span>ผู้ส่ง: <b style="color: ${isAI ? '#fca5a5' : '#93c5fd'};">${escapeHtml(senderName)}</b></span>
+            <span>Sender: <b style="color: ${isAI ? '#fca5a5' : '#93c5fd'};">${escapeHtml(senderName)}</b></span>
           </div>
           <div style="display: flex; align-items: center; gap: 8px;">
             <span class="verdict-pill ${pillVerdictType}" style="font-size: 10px;">${verdictTitle}</span>
@@ -3150,7 +3150,7 @@
 
         <div class="pipeline-bar-trigger">
           <button type="button" class="btn-pipeline-toggle" onclick="togglePipelineDrawer('${turnDomId}-pipeline', this)">
-            <span>🔍 ตรวจสอบ Defense Pipeline (5 Tiers)</span>
+            <span>🔍 Inspect Defense Pipeline (5 Tiers)</span>
             <span class="pipeline-status-badge ${verdictClass}">${verdictTitle}</span>
             <span class="chevron" style="font-size: 10px;">▼</span>
           </button>
@@ -3274,13 +3274,13 @@
       try {
         const res = await safeFetchJson(`/api/manual/session/${encodeURIComponent(sessionId)}`);
         if (!res || !res.success) {
-          alert('ไม่พบข้อมูลเซสชัน: ' + (res?.error || 'Unknown error'));
+          alert('Session not found: ' + (res?.error || 'Unknown error'));
           return;
         }
 
         const turns = res.turns || [];
         if (turns.length === 0) {
-          alert('เซสชันนี้ไม่มีข้อมูลเทิร์น');
+          alert('This session has no recorded turns.');
           return;
         }
 
@@ -3331,7 +3331,7 @@
         loadTemplatesOnce();
         updateTemplateDropdown();
       } catch (err) {
-        alert('เกิดข้อผิดพลาดในการโหลดเซสชัน: ' + err.message);
+        alert('Failed to load session: ' + err.message);
       }
     }
 
@@ -3347,13 +3347,13 @@
 
     async function sendManualPrompt() {
       if (!activeManualSession) {
-        alert('กรุณาเริ่มต้นเซสชันก่อน');
+        alert('Please start a session first.');
         return;
       }
       const input = document.getElementById('manualPromptInput');
       const prompt = (input ? input.value : '').trim();
       if (!prompt) {
-        alert('กรุณากรอกข้อความ Prompt ก่อนส่ง');
+        alert('Please enter a prompt message before sending.');
         return;
       }
 
@@ -3375,7 +3375,7 @@
         });
 
         if (!res.success) {
-          alert('เกิดข้อผิดพลาด: ' + (res.error || 'Unknown error'));
+          alert('Error: ' + (res.error || 'Unknown error'));
           return;
         }
 
@@ -3384,9 +3384,9 @@
         refreshManualHistory();
 
         if (res.is_target_met) {
-          showAlertBanner(`🎯 สำเร็จ! ตรวจพบข้อมูลเป้าหมายรั่วไหล: ${res.target_leaked || res.hits || res.leaked}`, 'leak');
+          showAlertBanner(`🎯 Target Leaked: ${res.target_leaked || res.hits || res.leaked}`, 'leak');
         } else if (res.leaked && res.leaked.length > 0) {
-          showAlertBanner(`🚨 ตรวจพบข้อมูล Canary รั่วไหล: ${res.leaked.join(', ')}`, 'leak');
+          showAlertBanner(`🚨 Canary Leaked: ${res.leaked.join(', ')}`, 'leak');
         }
       } catch (err) {
         alert('Failed to send turn: ' + err.message);

@@ -878,6 +878,15 @@ class WebUiTests(unittest.TestCase):
         data = json.loads(resp.data)
         self.assertIn("running", data)
 
+    def test_no_thai_in_dynamic_js_status_or_api_errors(self):
+        resp = self.client.get("/")
+        html = resp.data.decode("utf-8")
+        self.assertNotIn("กำลังเริ่มรัน", html)
+        self.assertNotIn("กำลังรัน", html)
+        self.assertNotIn("เกิดข้อผิดพลาดในการประเมิน", html)
+        self.assertNotIn("การประเมินผลขัดข้อง", html)
+
+
 
 
 

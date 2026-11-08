@@ -466,11 +466,11 @@ def manual_send():
     prompt = (data.get("prompt") or "").strip()
 
     if not session_id or session_id not in _manual_sessions:
-        return jsonify({"success": False, "error": "เซสชันไม่ถูกต้อง หรือหมดอายุแล้ว"}), 400
+        return jsonify({"success": False, "error": "Invalid or expired session"}), 400
     if not prompt:
-        return jsonify({"success": False, "error": "กรุณากรอกข้อความ Prompt"}), 400
+        return jsonify({"success": False, "error": "Prompt message cannot be empty"}), 400
     if len(prompt) > MAX_PROMPT_LENGTH:
-        return jsonify({"success": False, "error": f"ความยาวข้อความ Prompt ต้องไม่เกิน {MAX_PROMPT_LENGTH:,} ตัวอักษร"}), 400
+        return jsonify({"success": False, "error": f"Prompt length exceeds {MAX_PROMPT_LENGTH:,} characters"}), 400
 
     with _manual_lock:
         sess = _manual_sessions[session_id]
@@ -526,13 +526,13 @@ def manual_ai_step():
     session_id = data.get("session_id")
 
     if not session_id or session_id not in _manual_sessions:
-        return jsonify({"success": False, "error": "เซสชันไม่ถูกต้อง หรือหมดอายุแล้ว"}), 400
+        return jsonify({"success": False, "error": "Invalid or expired session"}), 400
 
     sess = _manual_sessions[session_id]
     if not sess["history"]:
         return jsonify({
             "success": False,
-            "error": "ยังไม่มีคำตอบในบทสนทนาให้ AI วิเคราะห์ กรุณาส่ง Prompt แรกก่อนเริ่มให้ AI ทำงาน",
+            "error": "No response in conversation for AI to analyze yet. Please send an initial prompt first.",
         }), 400
 
     with _manual_lock:
@@ -571,14 +571,14 @@ def manual_ai_step():
     stop_reason = ""
     if res.get("error"):
         should_stop = True
-        stop_reason = f"เกิดข้อผิดพลาด API: {res['error']}"
+        stop_reason = f"API Error: {res['error']}"
     elif is_target_met:
         should_stop = True
         target_desc = res.get("target_leaked") or res.get("hits") or res.get("leaked")
-        stop_reason = f"🎯 สำเร็จ! ตรวจพบข้อมูลเป้าหมายที่ตั้งไว้: {target_desc}"
+        stop_reason = f"🎯 Success! Target data detected: {target_desc}"
     elif not has_targets and res.get("leaked"):
         should_stop = True
-        stop_reason = f"🚨 พบข้อมูล Canary รั่วไหลในคำตอบ: {res['leaked']}"
+        stop_reason = f"🚨 Canary token leak detected in response: {res['leaked']}"
 
     return jsonify({
         "success": True,
@@ -652,10 +652,10 @@ def manual_generate_prompt():
     technique = (data.get("technique") or "auto").strip()
 
     if not description:
-        return jsonify({"success": False, "error": "กรุณากรอกคำอธิบายหรือไอเดียของ Prompt ที่ต้องการให้ AI สร้าง"}), 400
+        return jsonify({"success": False, "error": "Please enter a description or idea for the attack prompt"}), 400
 
     if len(description) > MAX_PROMPT_LENGTH:
-        return jsonify({"success": False, "error": f"ความยาวคำอธิบายต้องไม่เกิน {MAX_PROMPT_LENGTH:,} ตัวอักษร"}), 400
+        return jsonify({"success": False, "error": f"Description length exceeds {MAX_PROMPT_LENGTH:,} characters"}), 400
 
     defense = data.get("defense", "off")
     language = data.get("language", "Thai")
@@ -696,7 +696,7 @@ def manual_generate_prompt():
             "red_profile": red_profile,
         })
     except Exception as e:
-        return jsonify({"success": False, "error": f"เกิดข้อผิดพลาดในการสร้าง Prompt: {agent.sanitize_error(str(e))}"}), 500
+        return jsonify({"success": False, "error": f"Prompt generation error: {agent.sanitize_error(str(e))}"}), 500
 
 
 @app.route("/api/eval/run", methods=["POST"])
