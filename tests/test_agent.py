@@ -1029,6 +1029,82 @@ class PersonaAndRolePolicyTests(unittest.TestCase):
         self.assertFalse(agent.is_private_table_access(c_malformed))
         self.assertFalse(agent.is_private_table_blocked(c_malformed))
 
+    def test_personas_json_includes_all_red_profiles(self):
+        with open("personas.json", "r", encoding="utf-8") as f:
+            data = json.load(f)
+        for profile_key in ("realistic_attacker", "insider_threat", "security_auditor", "thai_nuanced_adversary"):
+            self.assertIn(profile_key, data.get("red_profiles", {}))
+
+    def test_openai_like_client_supports_blue_session_chat(self):
+        client = agent.OpenAILikeClient("openrouter", "https://openrouter.ai/api/v1", "fake-key", "openrouter/free")
+        with mock.patch.object(client.models, "generate_content", return_value=agent.OpenAILikeResponse("Hello from OpenRouter Blue")) as mock_gen, \
+             mock.patch.object(agent, "make_client", return_value=(client, "openrouter/free")):
+            s = agent.BlueSession("off", model="openrouter:openrouter/free", allow_fallback=False)
+            r1 = s.send("First turn")
+            r2 = s.send("Second turn")
+            self.assertEqual(r1, "Hello from OpenRouter Blue")
+            self.assertEqual(r2, "Hello from OpenRouter Blue")
+            self.assertEqual(mock_gen.call_count, 2)
+
+    def test_thread_local_isolation_of_defense_and_tool_calls(self):
+        barrier = threading.Barrier(2)
+        results = {}
+
+        def worker_off():
+            agent.configure_defense("off", blue_role="registrar_staff")
+            agent._tool_calls.clear()
+            barrier.wait()
+            agent.search_records("student_private", "S001")
+            results["off_allowed"] = "student_private" in agent._allowed_tables
+            results["off_calls"] = list(agent._tool_calls)
+
+        def worker_tools():
+            agent.configure_defense("tools", blue_role="registrar_staff")
+            agent._tool_calls.clear()
+            barrier.wait()
+            agent.search_records("student_private", "S001")
+            results["tools_allowed"] = "student_private" in agent._allowed_tables
+            results["tools_calls"] = list(agent._tool_calls)
+
+        t1 = threading.Thread(target=worker_off)
+        t2 = threading.Thread(target=worker_tools)
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
+
+        self.assertTrue(results["off_allowed"])
+        self.assertFalse(results["tools_allowed"])
+        self.assertEqual(len(results["off_calls"]), 1)
+        self.assertEqual(results["off_calls"][0]["status"], "granted")
+        self.assertEqual(len(results["tools_calls"]), 1)
+        self.assertEqual(results["tools_calls"][0]["status"], "blocked")
+
+    def test_execute_manual_turn_logs_custom_session_model(self):
+        temp_dir = tempfile.TemporaryDirectory()
+        try:
+            agent._uni_conn = agent.init_university_db(os.path.join(temp_dir.name, "uni.db"))
+            agent._res_conn = agent.init_results_db(os.path.join(temp_dir.name, "res.db"))
+            mock_session = mock.Mock()
+            mock_session.model = "gemini-3.1-flash-lite"
+            mock_session.send.return_value = "Custom model answer"
+            case = {"id": "MANUAL-MODEL-TEST", "language": "Thai", "attack_type": "direct", "prompt": "Hi", "targets": []}
+            agent.execute_manual_turn(
+                session=mock_session,
+                case=case,
+                canaries=set(),
+                defense="off",
+                turn_no=1,
+                sender="Human",
+                attack="Hi",
+                session_id="MANUAL-MODEL-TEST",
+            )
+            row = agent._res_conn.execute("SELECT blue_model FROM test_results WHERE id = 'MANUAL-MODEL-TEST'").fetchone()
+            self.assertEqual(row[0], "gemini-3.1-flash-lite")
+        finally:
+            agent.close_connections()
+            temp_dir.cleanup()
+
 
 if __name__ == "__main__":
     unittest.main()

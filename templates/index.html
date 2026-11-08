@@ -1778,6 +1778,7 @@
               <option value="realistic_attacker" selected>Realistic Attacker (Black-box, progressive exploration)</option>
               <option value="insider_threat">Insider Threat (Privileged operational context)</option>
               <option value="security_auditor">Security Auditor (Systematic penetration test)</option>
+              <option value="thai_nuanced_adversary">Thai Nuanced Adversary (Black-box cultural/code-switch)</option>
             </select>
           </div>
 
@@ -2094,6 +2095,7 @@
             <select id="evalDefense">
               <option value="all" selected>ALL (Defense-in-Depth - Recommended)</option>
               <option value="tools">TOOLS (Tool Gatekeeper & Data Delimiting)</option>
+              <option value="spotlight">SPOTLIGHT (Cryptographic Data Delimiting)</option>
               <option value="prompt">PROMPT (Hardened System Prompt Only)</option>
               <option value="off">OFF (Baseline Unprotected)</option>
             </select>
@@ -2258,7 +2260,7 @@
       // Tab 2: Security Telemetry
       const canaryBox = document.getElementById('drawerCanaryList');
       if (canaryBox) {
-        const leaks = c.canaries_leaked || [];
+        const leaks = c.canaries_list || c.canaries_leaked || [];
         if (Array.isArray(leaks) && leaks.length > 0) {
           canaryBox.innerHTML = '<div style="color: #ef4444; font-weight: 700; margin-bottom: 6px;">⚠️ Leaked Canary Tokens:</div>' +
             leaks.map(tok => `<span class="tag red" style="margin-right: 4px; font-family: var(--font-mono);">${escapeHtml(tok)}</span>`).join('');
@@ -2290,7 +2292,7 @@
 
       const toolBox = document.getElementById('drawerToolCallsList');
       if (toolBox) {
-        const calls = c.tool_calls || [];
+        const calls = c.tool_calls_list || c.tool_calls || [];
         if (Array.isArray(calls) && calls.length > 0) {
           toolBox.innerHTML = calls.map(tc => {
             const name = tc.name || tc.tool || 'function_call';

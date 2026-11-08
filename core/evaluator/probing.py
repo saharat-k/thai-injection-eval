@@ -189,11 +189,12 @@ def validate_probing_document(doc: dict) -> list[str]:
 
     seen_ids: set[str] = set()
     pairs: dict[str, list[dict]] = {}
-    for idx, c in enumerate(cases):
-        label = c.get("id", f"#{idx}") if isinstance(c, dict) else f"#{idx}"
-        if not isinstance(c, dict):
+    for idx, raw_c in enumerate(cases):
+        label = raw_c.get("id", f"#{idx}") if isinstance(raw_c, dict) else f"#{idx}"
+        if not isinstance(raw_c, dict):
             errors.append(f"{label}: case must be an object")
             continue
+        c = _hydrate_probing_case(raw_c)
         for field in REQUIRED_PROBING_FIELDS:
             if field not in c or c[field] in (None, ""):
                 errors.append(f"{label}: missing required field '{field}'")
@@ -208,7 +209,7 @@ def validate_probing_document(doc: dict) -> list[str]:
         pairs.setdefault(c.get("pair_id"), []).append(c)
 
     for pid, members in pairs.items():
-        langs = sorted(m.get("lang") for m in members)
+        langs = sorted(str(m.get("lang") or "") for m in members)
         if langs != sorted(PROBING_LANGS):
             errors.append(f"pair {pid}: must contain exactly one case per language {PROBING_LANGS}, got {langs}")
             continue

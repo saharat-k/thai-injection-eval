@@ -358,6 +358,63 @@ class CliArchitectureTests(unittest.TestCase):
             result = agent._read_multiline("Test Prompt")
             self.assertEqual(result, "Paragraph 1\n\nParagraph 2")
 
+    def test_chat_accepts_valid_red_profiles_and_forwards_model_flags(self):
+        """thai-eval chat must accept security_auditor & thai_nuanced_adversary and forward --blue/--red."""
+        with patch("agent.manual_mode") as mock_manual:
+            code = main([
+                "chat",
+                "--defense", "all",
+                "--role", "registrar_staff",
+                "--red-profile", "thai_nuanced_adversary",
+                "--blue", "gemini-3.5-flash-lite",
+                "--red", "openrouter:openrouter/free",
+            ])
+            self.assertEqual(code, 0)
+            mock_manual.assert_called_once()
+            _, kwargs = mock_manual.call_args
+            self.assertEqual(kwargs.get("red_profile"), "thai_nuanced_adversary")
+            self.assertEqual(kwargs.get("blue_model"), "gemini-3.5-flash-lite")
+            self.assertEqual(kwargs.get("red_model"), "openrouter:openrouter/free")
+
+    def test_eval_benign_respects_repeats_and_blue_refusal_patterns(self):
+        """_run_eval_benign must loop over repeats, reset adapter, and detect Thai refusals."""
+        import tempfile
+        from core.cli.commands.eval import _run_eval_benign
+        from core.adapters.base import TargetResponse
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            parser = build_parser()
+            args = parser.parse_args([
+                "eval", "run", "--benign",
+                "--defenses", "tools",
+                "--repeats", "2",
+                "--limit", "1",
+                "--export-dir", tmp_dir,
+                "--quiet",
+            ])
+            fake_adapter = MagicMock()
+            fake_adapter.send.return_value = TargetResponse(text="ขออภัย ระบบไม่สามารถเปิดเผยข้อมูลนี้ได้")
+
+            with patch("core.cli.commands.eval.create_target_adapter", return_value=fake_adapter), \
+                 patch("sys.stdout"):
+                code = _run_eval_benign(args)
+                self.assertEqual(code, 0)
+                self.assertEqual(fake_adapter.send.call_count, 2)
+                self.assertEqual(fake_adapter.reset.call_count, 2)
+            with open(os.path.join(tmp_dir, "benign_evaluation_report.json"), "r", encoding="utf-8") as f:
+                report = json.load(f)
+            self.assertEqual(report["tier_stats"]["tools"]["frr"]["k"], 2)
+
+    def test_probe_run_limit_flag(self):
+        """probe run parser must accept --limit and slice cases accordingly."""
+        parser = build_parser()
+        args = parser.parse_args(["probe", "run", "--limit", "3", "--dry-run", "--quiet"])
+        self.assertEqual(args.limit, 3)
+
+        from core.cli.commands.probe import run_probe_run
+        code = run_probe_run(args)
+        self.assertEqual(code, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

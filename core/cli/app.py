@@ -146,6 +146,7 @@ Exit Codes:
     probe_run = probe_subs.add_parser("run", parents=[common_parser], help="Run probing benchmark suite")
     probe_run.add_argument("--defenses", default="tools,all", help="Comma-separated defense tiers (default: tools,all)")
     probe_run.add_argument("--repeats", type=int, default=1, help="Repetitions per case")
+    probe_run.add_argument("--limit", type=int, default=None, help="Limit total cases to evaluate")
     probe_run.add_argument("--probing-cases", default="data/test_cases_probing.json", help="Path to probing cases file")
     probe_run.add_argument("--target", choices=["builtin", "openai", "callable"], default="builtin", help="Target adapter")
     probe_run.add_argument("--role", default="registrar_staff", help="Target role")
@@ -196,13 +197,22 @@ Exit Codes:
     subparsers.add_parser("version", parents=[common_parser], help="Display application version and system environment info")
 
     # 9. CHAT / MANUAL command (Interactive Red-Teaming Playground)
+    red_profile_choices = [
+        "realistic_attacker",
+        "insider_threat",
+        "security_auditor",
+        "thai_nuanced_adversary",
+        "script_kiddie",
+        "academic_auditor",
+        "blackbox_probe",
+    ]
     chat_parser = subparsers.add_parser("chat", parents=[common_parser], help="Interactive Red-Teaming playground & manual chat session")
     chat_parser.add_argument("--defense", choices=list(ALL_DEFENSES), default=None, help="Preset defense configuration tier (skips prompt)")
     chat_parser.add_argument("--role", "--blue-role", dest="role", choices=["student_guest", "registrar_staff", "system_admin"], default=None, help="Preset Blue Assistant role persona")
     chat_parser.add_argument("--model", default=None, help="Target Blue model identifier")
     chat_parser.add_argument("--blue", "--blue-model", dest="blue", default=None, help="Target Blue model (alias for --model)")
     chat_parser.add_argument("--red", "--red-model", dest="red", default=None, help="Red adversary model")
-    chat_parser.add_argument("--red-profile", choices=["script_kiddie", "realistic_attacker", "academic_auditor", "insider_threat", "blackbox_probe"], default=None, help="Preset Red Attacker profile")
+    chat_parser.add_argument("--red-profile", choices=red_profile_choices, default=None, help="Preset Red Attacker profile")
     chat_parser.add_argument("--lang", choices=["Thai", "English", "Mixed"], default=None, help="Preset target language")
     chat_parser.add_argument("--attack-type", choices=["direct", "indirect", "recon", "semantic", "roleplay", "fewshot", "obfuscation"], default=None, help="Preset attack category")
     chat_parser.add_argument("--targets", default=None, help="Target tables/keywords to monitor (comma-separated)")
@@ -213,7 +223,7 @@ Exit Codes:
     manual_parser.add_argument("--model", default=None, help="Target Blue model identifier")
     manual_parser.add_argument("--blue", "--blue-model", dest="blue", default=None, help="Target Blue model (alias for --model)")
     manual_parser.add_argument("--red", "--red-model", dest="red", default=None, help="Red adversary model")
-    manual_parser.add_argument("--red-profile", choices=["script_kiddie", "realistic_attacker", "academic_auditor", "insider_threat", "blackbox_probe"], default=None, help="Preset Red Attacker profile")
+    manual_parser.add_argument("--red-profile", choices=red_profile_choices, default=None, help="Preset Red Attacker profile")
     manual_parser.add_argument("--lang", choices=["Thai", "English", "Mixed"], default=None, help="Preset target language")
     manual_parser.add_argument("--attack-type", choices=["direct", "indirect", "recon", "semantic", "roleplay", "fewshot", "obfuscation"], default=None, help="Preset attack category")
     manual_parser.add_argument("--targets", default=None, help="Target tables/keywords to monitor (comma-separated)")

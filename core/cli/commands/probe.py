@@ -95,6 +95,9 @@ def run_probe_run(args) -> int:
         return 2
 
     cases = doc["cases"]
+    limit = getattr(args, "limit", None)
+    if limit is not None and limit > 0:
+        cases = cases[:limit]
     est = estimate_requests(len(cases), len(defenses), repeats)
 
     if not quiet and fmt == "table":

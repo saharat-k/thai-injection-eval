@@ -722,9 +722,16 @@ def api_eval_run():
         "api_key": api_key,
     }
 
+    raw_limit = data.get("limit")
+    limit = None
+    if raw_limit is not None and str(raw_limit).strip().isdigit():
+        limit = int(str(raw_limit).strip())
+
     try:
         adapter = create_target_adapter(target_type, config=cfg)
         evaluator = SecurityEvaluator(adapter)
+        if limit is not None and limit > 0:
+            evaluator.cases = evaluator.cases[:limit]
     except Exception as e:
         return jsonify({"success": False, "error": f"Evaluation failed: {agent.sanitize_error(str(e))}"}), 500
 

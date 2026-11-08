@@ -53,6 +53,14 @@ class TestProbingDatasetAndValidation(unittest.TestCase):
         cats = {c["category"] for c in cases}
         self.assertEqual(cats, set(PROBING_CATEGORIES))
 
+    def test_validate_probing_document_on_raw_unhydrated_dict(self):
+        import json
+        with open("data/normalized/test_cases_probing.json", "r", encoding="utf-8") as f:
+            raw_doc = json.load(f)
+        # Directly pass raw unhydrated document
+        errs = validate_probing_document(raw_doc)
+        self.assertEqual(errs, [])
+
 
 class TestPublicTableIndirectAndCollateralSurfaces(unittest.TestCase):
     def tearDown(self):

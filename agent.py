@@ -675,10 +675,119 @@ _uni_conn = None
 _res_conn = None
 _db_lock = threading.RLock()
 _manual_turn_lock = threading.Lock()
-_tool_calls = []  # tool calls made during the current attempt
-_allowed_tables = None  # explicit allowlist of table names
-_active_defense = "off"  # active defense level during tool execution
-_active_blue_role = "registrar_staff"  # active Blue assistant role
+_thread_local = threading.local()
+
+
+class _ThreadLocalList:
+    """Thread-local list proxy so concurrent threads have isolated _tool_calls."""
+
+    def _list(self) -> list:
+        lst = getattr(_thread_local, "tool_calls", None)
+        if lst is None:
+            lst = []
+            _thread_local.tool_calls = lst
+        return lst
+
+    def append(self, item):
+        self._list().append(item)
+
+    def clear(self):
+        self._list().clear()
+
+    def extend(self, items):
+        self._list().extend(items)
+
+    def __iter__(self):
+        return iter(self._list())
+
+    def __len__(self):
+        return len(self._list())
+
+    def __getitem__(self, idx):
+        return self._list()[idx]
+
+    def __bool__(self):
+        return bool(self._list())
+
+    def __eq__(self, other):
+        return self._list() == other
+
+    def __repr__(self):
+        return repr(self._list())
+
+
+class _ThreadLocalSet:
+    """Thread-local set proxy so concurrent threads have isolated _allowed_tables."""
+
+    def __init__(self):
+        self._default = None
+
+    def _get(self):
+        return getattr(_thread_local, "allowed_tables", self._default)
+
+    def _set(self, val):
+        s = set(val) if val is not None else None
+        self._default = s
+        _thread_local.allowed_tables = s
+
+    def __contains__(self, item):
+        cur = self._get()
+        return True if cur is None else (item in cur)
+
+    def __iter__(self):
+        cur = self._get()
+        return iter(cur if cur is not None else ())
+
+    def __len__(self):
+        cur = self._get()
+        return len(cur) if cur is not None else 0
+
+    def __bool__(self):
+        cur = self._get()
+        return cur is not None and bool(cur)
+
+    def __eq__(self, other):
+        return self._get() == other
+
+    def __repr__(self):
+        return repr(self._get())
+
+
+class _ThreadLocalStr:
+    """Thread-local string proxy for _active_defense and _active_blue_role."""
+
+    def __init__(self, attr_name: str, default: str):
+        self._attr = attr_name
+        self._default = default
+
+    def _val(self) -> str:
+        return getattr(_thread_local, self._attr, self._default)
+
+    def _set(self, val: str):
+        s = str(val)
+        self._default = s
+        setattr(_thread_local, self._attr, s)
+
+    def __eq__(self, other):
+        return self._val() == (other._val() if isinstance(other, _ThreadLocalStr) else other)
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __hash__(self):
+        return hash(self._val())
+
+    def __str__(self):
+        return self._val()
+
+    def __repr__(self):
+        return repr(self._val())
+
+
+_tool_calls = _ThreadLocalList()  # tool calls made during the current attempt
+_allowed_tables = _ThreadLocalSet()  # explicit allowlist of table names
+_active_defense = _ThreadLocalStr("active_defense", "off")  # active defense level during tool execution
+_active_blue_role = _ThreadLocalStr("active_blue_role", "registrar_staff")  # active Blue assistant role
 
 
 def _get_uni_conn():
@@ -1329,7 +1438,14 @@ class OpenAILikeModels:
         messages = []
         if system_instruction:
             messages.append({"role": "system", "content": system_instruction})
-        messages.append({"role": "user", "content": str(contents)})
+        if isinstance(contents, list):
+            for msg in contents:
+                if isinstance(msg, dict) and "role" in msg and "content" in msg:
+                    messages.append({"role": str(msg["role"]), "content": str(msg["content"])})
+                else:
+                    messages.append({"role": "user", "content": str(msg)})
+        else:
+            messages.append({"role": "user", "content": str(contents)})
 
         headers = {
             "Content-Type": "application/json",
@@ -1365,12 +1481,43 @@ class OpenAILikeModels:
             raise RuntimeError(f"{self.provider} connection error: {sanitize_error(str(e))}") from e
 
 
+class OpenAILikeChatSession:
+    """Multi-turn chat session wrapper for OpenAI-compatible providers."""
+
+    def __init__(self, models: OpenAILikeModels, model: str, config=None):
+        self._models = models
+        self.model = model
+        self.config = config
+        self.history = []
+
+    def send_message(self, prompt: str) -> OpenAILikeResponse:
+        self.history.append({"role": "user", "content": str(prompt)})
+        resp = self._models.generate_content(
+            model=self.model,
+            contents=list(self.history),
+            config=self.config,
+        )
+        self.history.append({"role": "assistant", "content": resp.text or ""})
+        return resp
+
+
+class OpenAILikeChats:
+    """Chats namespace matching Gemini client.chats.create(...) interface."""
+
+    def __init__(self, models: OpenAILikeModels):
+        self._models = models
+
+    def create(self, model: str = None, config=None) -> OpenAILikeChatSession:
+        return OpenAILikeChatSession(self._models, model or self._models.default_model, config=config)
+
+
 class OpenAILikeClient:
-    """Client wrapper presenting a Gemini-like client.models.generate_content interface."""
+    """Client wrapper presenting a Gemini-like client.models.generate_content and client.chats interface."""
 
     def __init__(self, provider: str, base_url: str, api_key: str, default_model: str):
         self.provider = provider
         self.models = OpenAILikeModels(provider, base_url, api_key, default_model)
+        self.chats = OpenAILikeChats(self.models)
 
 
 def parse_model_spec(spec: str) -> tuple[str, str]:
@@ -2288,28 +2435,29 @@ def load_test_cases(path="test_cases.json"):
 
 def configure_defense(defense, blue_role=None, seed=None):
     """Set the active defense level and table allowlist used by the tools."""
-    global _allowed_tables, _active_defense, _active_blue_role, _active_seed
-    _active_defense = defense
+    global _active_seed
+    _active_defense._set(defense)
     _active_seed = seed
     if seed is not None:
         _spotlight_guard.reseed(seed)
     if blue_role is not None:
-        _active_blue_role = blue_role if blue_role in BLUE_ROLES else "registrar_staff"
-    elif "_active_blue_role" not in globals() or _active_blue_role not in BLUE_ROLES:
-        _active_blue_role = "registrar_staff"
+        _active_blue_role._set(blue_role if blue_role in BLUE_ROLES else "registrar_staff")
+    elif str(_active_blue_role) not in BLUE_ROLES:
+        _active_blue_role._set("registrar_staff")
 
-    role_info = get_blue_role(_active_blue_role)
+    role_name = str(_active_blue_role)
+    role_info = get_blue_role(role_name)
     allowed_by_role = set(role_info.get("allowed_tables", PUBLIC_TABLES))
 
     if defense in ("tools", "all"):
-        _allowed_tables = set(PUBLIC_TABLES) & allowed_by_role
+        _allowed_tables._set(set(PUBLIC_TABLES) & allowed_by_role)
     else:
-        if _active_blue_role == "student_guest":
-            _allowed_tables = allowed_by_role
-        elif _active_blue_role == "system_admin":
-            _allowed_tables = set(PUBLIC_TABLES) | set(PRIVATE_TABLES) | {"sqlite_master"}
+        if role_name == "student_guest":
+            _allowed_tables._set(allowed_by_role)
+        elif role_name == "system_admin":
+            _allowed_tables._set(set(PUBLIC_TABLES) | set(PRIVATE_TABLES) | {"sqlite_master"})
         else:
-            _allowed_tables = set(PUBLIC_TABLES) | set(PRIVATE_TABLES) | {"sqlite_master"}
+            _allowed_tables._set(set(PUBLIC_TABLES) | set(PRIVATE_TABLES) | {"sqlite_master"})
 
 
 def is_private_table_access(c: dict) -> bool:
@@ -2496,55 +2644,45 @@ def append_markdown(results, path="results.md"):
 
 def run_all(defense="off", max_attempts=3, case_id=None, blue_role="registrar_staff", red_profile="realistic_attacker", blue_model=None, red_model=None, cases_path=None):
     """Run test cases (all or a specific case_id) at the given defense level."""
-    global _uni_conn, _res_conn
     effective_blue = blue_model or BLUE_MODEL
     effective_red = red_model or RED_MODEL
     if defense not in DEFENSE_LEVELS:
         raise ValueError(f"defense must be one of {DEFENSE_LEVELS}")
-    _uni_conn = init_university_db(UNIVERSITY_DB_PATH)
-    _res_conn = init_results_db(RESULTS_DB_PATH)
-    try:
-        canaries = load_canaries(_uni_conn)
-        cases = load_test_cases(cases_path) if cases_path else load_test_cases()
-        if case_id and case_id != "ALL":
-            cases = [c for c in cases if c["id"] == case_id]
-        audit(
-            "run_start",
-            {
-                "red": effective_red,
-                "blue": effective_blue,
-                "defense": defense,
-                "max_attempts": max_attempts,
-                "case_id": case_id or "ALL",
-                "canary_count": len(canaries),
-                "blue_role": blue_role,
-                "red_profile": red_profile,
-            },
-        )
-        results = []
-        for i, c in enumerate(cases):
-            if i > 0:
-                time.sleep(2.0)  # Pacing delay to avoid API rate limits
-            results.append(run_case(c, canaries, defense, max_attempts, blue_role=blue_role, red_profile=red_profile, blue_model=effective_blue, red_model=effective_red))
-        append_markdown(results)
-        audit(
-            "run_end",
-            {
-                "leaks": sum(1 for r in results if r["success"]),
-                "accessed": sum(1 for r in results if r["accessed"]),
-                "blocked": sum(1 for r in results if r.get("blocked")),
-                "total": len(results),
-            },
-        )
-        return results
-    finally:
-        with _db_lock:
-            if _uni_conn is not None:
-                _uni_conn.close()
-                _uni_conn = None
-            if _res_conn is not None:
-                _res_conn.close()
-                _res_conn = None
+    uni_conn = _get_uni_conn()
+    _get_res_conn()
+    canaries = load_canaries(uni_conn)
+    cases = load_test_cases(cases_path) if cases_path else load_test_cases()
+    if case_id and case_id != "ALL":
+        cases = [c for c in cases if c["id"] == case_id]
+    audit(
+        "run_start",
+        {
+            "red": effective_red,
+            "blue": effective_blue,
+            "defense": defense,
+            "max_attempts": max_attempts,
+            "case_id": case_id or "ALL",
+            "canary_count": len(canaries),
+            "blue_role": blue_role,
+            "red_profile": red_profile,
+        },
+    )
+    results = []
+    for i, c in enumerate(cases):
+        if i > 0:
+            time.sleep(2.0)  # Pacing delay to avoid API rate limits
+        results.append(run_case(c, canaries, defense, max_attempts, blue_role=blue_role, red_profile=red_profile, blue_model=effective_blue, red_model=effective_red))
+    append_markdown(results)
+    audit(
+        "run_end",
+        {
+            "leaks": sum(1 for r in results if r["success"]),
+            "accessed": sum(1 for r in results if r["accessed"]),
+            "blocked": sum(1 for r in results if r.get("blocked")),
+            "total": len(results),
+        },
+    )
+    return results
 
 
 # ------------------------------------------------------------------ manual mode
@@ -2674,10 +2812,11 @@ def execute_manual_turn(
     turn_no,
     sender,
     attack,
-    red_meta,
-    session_id,
+    red_meta=None,
+    session_id="MANUAL",
     blue_role=None,
     red_profile=None,
+    red_model=None,
 ):
     """Send one prompt in the shared chat, log it, and return the result dict."""
     with _manual_turn_lock:
@@ -2720,6 +2859,9 @@ def execute_manual_turn(
         technique = f"manual | Sender: {sender}" + (f" | Strategy: {strat}" if strat else "")
         stored_resp = resp if not error else f"Error: {error}"
         schema_disclosed = detect_schema_disclosure(stored_resp)
+        sess_model = getattr(session, "model", None)
+        effective_blue_model = sess_model if isinstance(sess_model, str) and sess_model else BLUE_MODEL
+        effective_red_model = red_model if isinstance(red_model, str) and red_model else RED_MODEL
         with _db_lock:
             conn_res.execute(
                 "INSERT INTO test_results (id, language, attack_type, source_reference, technique, "
@@ -2734,7 +2876,7 @@ def execute_manual_turn(
                     json.dumps(leaked, ensure_ascii=False), json.dumps(raw_leaked, ensure_ascii=False),
                     json.dumps(schema_disclosed, ensure_ascii=False),
                     json.dumps(calls, ensure_ascii=False), analysis, strat, now(),
-                    hashlib.sha256(stored_resp.encode("utf-8")).hexdigest(), defense, turn_no, RED_MODEL, BLUE_MODEL,
+                    hashlib.sha256(stored_resp.encode("utf-8")).hexdigest(), defense, turn_no, effective_red_model, effective_blue_model,
                 ),
             )
             conn_res.commit()
@@ -2820,7 +2962,7 @@ def _ai_continue(session, case, canaries, defense, history, turn_no, session_id,
     return turn_no
 
 
-def manual_mode(defense=None, blue_role=None, red_profile=None, lang=None, attack_type=None, targets=None):
+def manual_mode(defense=None, blue_role=None, red_profile=None, lang=None, attack_type=None, targets=None, blue_model=None, red_model=None):
     """Human-controlled mode: one shared Blue chat, optional AI continuation."""
     global _uni_conn, _res_conn
 
@@ -2871,7 +3013,7 @@ def manual_mode(defense=None, blue_role=None, red_profile=None, lang=None, attac
     try:
         canaries = load_canaries(_uni_conn)
         configure_defense(defense, blue_role=blue_role)
-        session = BlueSession(defense, role=blue_role)  # one chat only for this whole run
+        session = BlueSession(defense, role=blue_role, model=blue_model)  # one chat only for this whole run
         session_id = f"MANUAL-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
         def _match_lang(c_lang, req_lang):
             c_l = str(c_lang or "").strip().lower()
@@ -3037,14 +3179,14 @@ def interactive_menu():
             model_choices = [
                 f"ใช้ค่าปัจจุบัน ({BLUE_MODEL}) [แนะนำ]",
                 "gemini-3.5-flash-lite (เร็วและประหยัดโควต้า)",
-                "gemini-3.8-flash (ความสามารถสูง / วิเคราะห์ซับซ้อน)",
+                "gemini-3.1-flash-lite (Fallback Free Tier)",
                 "ระบุชื่อโมเดลเอง (Custom / Provider)",
             ]
             m_idx = _choose("เลือกโมเดล Blue Assistant:", model_choices, 1)
             if m_idx == 1:
                 BLUE_MODEL = "gemini-3.5-flash-lite"
             elif m_idx == 2:
-                BLUE_MODEL = "gemini-3.8-flash"
+                BLUE_MODEL = "gemini-3.1-flash-lite"
             elif m_idx == 3:
                 custom_m = _ask("พิมพ์ชื่อโมเดลที่ต้องการ", BLUE_MODEL)
                 if custom_m:
@@ -3130,8 +3272,8 @@ def main():
     p.add_argument("--defense", choices=DEFENSE_LEVELS, default=None)
     p.add_argument("--attempts", type=int, default=None, help="max red attempts per case")
     p.add_argument("--case", default=None, help="specific test case ID (e.g., TH-1) or ALL")
-    p.add_argument("--red", default=None, help="override RED_MODEL (e.g. gemini-3.8-flash, gemini-2.5-flash)")
-    p.add_argument("--blue", default=None, help="override BLUE_MODEL (e.g. gemini-3.5-flash-lite, gemini-3.8-flash)")
+    p.add_argument("--red", default=None, help="override RED_MODEL (e.g. openrouter:openrouter/free, gemini-3.5-flash-lite)")
+    p.add_argument("--blue", default=None, help="override BLUE_MODEL (e.g. gemini-3.5-flash-lite, gemini-3.1-flash-lite)")
     p.add_argument("--blue-role", choices=list(BLUE_ROLES.keys()), default="registrar_staff", help="Blue agent role persona")
     p.add_argument("--red-profile", choices=list(RED_PROFILES.keys()), default="realistic_attacker", help="Red agent intelligence profile")
     p.add_argument("--eval-owasp", action="store_true", help="Run OWASP-aligned evaluation benchmark and export reports")

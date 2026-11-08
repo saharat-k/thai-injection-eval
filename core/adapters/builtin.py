@@ -43,7 +43,10 @@ class BuiltinTargetAdapter(BaseTargetAdapter):
 
         tool_calls_before = len(agent._tool_calls)
         try:
-            resp_text = self.session.send(prompt)
+            raw_text = self.session.send(prompt)
+            resp_text = raw_text
+            if self.defense == "all":
+                resp_text = agent.apply_defense_output(resp_text, "all", agent.load_canaries())
             tool_calls_turn = agent._tool_calls[tool_calls_before:]
             return TargetResponse(
                 text=resp_text,
@@ -56,6 +59,7 @@ class BuiltinTargetAdapter(BaseTargetAdapter):
                     "model_used": getattr(self.session, "_chat_model", None),
                     "model_version": getattr(self.session, "last_model_version", None),
                     "timestamp": getattr(self.session, "last_timestamp", None),
+                    "raw_text": raw_text,
                 },
             )
         except Exception as e:

@@ -751,6 +751,10 @@ class WebUiTests(unittest.TestCase):
         self.assertIn('id="drawerTranscriptTabBtn"', html)
         self.assertIn('id="drawerTelemetryTabBtn"', html)
         self.assertIn('btn-inspect-case', html)
+        self.assertIn('c.canaries_list', html)
+        self.assertIn('c.tool_calls_list', html)
+        self.assertIn('value="spotlight"', html)
+        self.assertIn('value="thai_nuanced_adversary"', html)
 
     def test_index_has_pure_english_ui_labels(self):
         resp = self.client.get("/")
@@ -797,6 +801,28 @@ class WebUiTests(unittest.TestCase):
         data = resp.get_json()
         self.assertFalse(data["success"])
         self.assertIn("Evaluation failed", data["error"])
+
+    def test_eval_run_with_limit_slices_cases(self):
+        with self.client.session_transaction() as sess:
+            sess["csrf_token"] = "eval-csrf-test"
+        headers = {"X-CSRFToken": "eval-csrf-test", "Content-Type": "application/json"}
+        with mock.patch("web_ui.create_target_adapter") as mock_adapter, \
+             mock.patch("web_ui.SecurityEvaluator") as mock_eval, \
+             mock.patch("web_ui.export_report_files"):
+            fake_evaluator = mock.MagicMock()
+            fake_evaluator.cases = [{"id": f"C{i}"} for i in range(10)]
+            fake_evaluator.run_benchmark.return_value = {"kind": "owasp"}
+            mock_eval.return_value = fake_evaluator
+
+            resp = self.client.post(
+                "/api/eval/run",
+                json={"csrf_token": "eval-csrf-test", "limit": 2, "async": False},
+                headers=headers,
+            )
+            self.assertEqual(resp.status_code, 200)
+            data = resp.get_json()
+            self.assertTrue(data["success"])
+            self.assertEqual(len(fake_evaluator.cases), 2)
 
     def test_manual_send_boundary_length_accepted(self):
         with self.client.session_transaction() as sess:

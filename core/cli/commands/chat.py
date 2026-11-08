@@ -283,14 +283,21 @@ def run_chat(args) -> int:
 
     try:
         targets = [t.strip() for t in targets_arg.split(",") if t.strip()] if targets_arg else None
-        agent.manual_mode(
-            defense=defense,
-            blue_role=role,
-            red_profile=getattr(args, "red_profile", None),
-            lang=lang,
-            attack_type=attack_type,
-            targets=targets,
-        )
+        blue_model = getattr(args, "blue", None) or getattr(args, "model", None)
+        red_model = getattr(args, "red", None)
+        manual_kwargs = {
+            "defense": defense,
+            "blue_role": role,
+            "red_profile": getattr(args, "red_profile", None),
+            "lang": lang,
+            "attack_type": attack_type,
+            "targets": targets,
+        }
+        if blue_model:
+            manual_kwargs["blue_model"] = blue_model
+        if red_model:
+            manual_kwargs["red_model"] = red_model
+        agent.manual_mode(**manual_kwargs)
         return 0
     except (KeyboardInterrupt, EOFError):
         print("\n[+] Exited chat session.")

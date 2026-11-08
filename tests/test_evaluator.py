@@ -101,6 +101,23 @@ class AdapterTests(unittest.TestCase):
         adapter.reset()
         self.assertTrue(mock_session_cls.called)
 
+    @patch("agent.load_canaries", return_value={"CANARY-SP-S001"})
+    @patch("agent.BlueSession")
+    def test_builtin_adapter_applies_output_dlp_in_all_mode(self, mock_session_cls, _mock_canaries):
+        mock_instance = MagicMock()
+        mock_instance.send.return_value = "Leaked token CANARY-SP-S001 in output"
+        mock_instance.model = "gemini-3.5-flash-lite"
+        mock_session_cls.return_value = mock_instance
+
+        adapter_tools = BuiltinTargetAdapter("builtin_tools", {"defense": "tools"})
+        resp_tools = adapter_tools.send("Show token")
+        self.assertIn("CANARY-SP-S001", resp_tools.text)
+
+        adapter_all = BuiltinTargetAdapter("builtin_all", {"defense": "all"})
+        resp_all = adapter_all.send("Show token")
+        self.assertNotIn("CANARY-SP-S001", resp_all.text)
+        self.assertIn("[REDACTED", resp_all.text)
+
     @patch("agent.BlueSession")
     def test_builtin_adapter_error_handling(self, mock_session_cls):
         mock_instance = MagicMock()
