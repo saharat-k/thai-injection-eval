@@ -2524,7 +2524,17 @@
           return;
         }
 
+        let pollAttempts = 0;
+        const maxPollAttempts = 200;
         const pollInterval = setInterval(async () => {
+          pollAttempts++;
+          if (pollAttempts > maxPollAttempts) {
+            clearInterval(pollInterval);
+            btn.disabled = false;
+            spinner.style.display = 'none';
+            alert('Evaluation timed out after 5 minutes.');
+            return;
+          }
           try {
             const statusRes = await safeFetchJson('/api/eval/status');
             if (statusRes.running) {

@@ -38,7 +38,9 @@ def _get_or_create_flask_secret() -> str:
 
 app = Flask(__name__)
 app.secret_key = _get_or_create_flask_secret()
+app.json.ensure_ascii = False
 app.config.update(
+    JSON_AS_ASCII=False,
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
 )
@@ -313,7 +315,7 @@ def run():
             _run_lock.release()
 
     threading.Thread(target=_worker, daemon=True).start()
-    return redirect(url_for("index"))
+    return redirect(url_for("index", dataset=dataset_name))
 
 
 # ------------------------------------------------------------------ Manual Mode API
@@ -726,14 +728,6 @@ def api_eval_run():
     except Exception as e:
         return jsonify({"success": False, "error": f"Evaluation failed: {agent.sanitize_error(str(e))}"}), 500
 
-    if not is_async:
-        try:
-            report = evaluator.run_benchmark(defense=defense, blue_role=blue_role)
-            export_report_files(report, output_dir="results", base_name="owasp_evaluation_report")
-            return jsonify({"success": True, "report": report})
-        except Exception as e:
-            return jsonify({"success": False, "error": f"Evaluation failed: {agent.sanitize_error(str(e))}"}), 500
-
     if not _owasp_lock.acquire(blocking=False):
         return jsonify({"success": False, "error": "Evaluation already in progress"}), 409
 
@@ -743,6 +737,19 @@ def api_eval_run():
     _owasp_status["total"] = total_cases
     _owasp_status["report"] = None
     _owasp_status["error"] = None
+
+    if not is_async:
+        try:
+            report = evaluator.run_benchmark(defense=defense, blue_role=blue_role)
+            export_report_files(report, output_dir="results", base_name="owasp_evaluation_report")
+            _owasp_status["report"] = report
+            return jsonify({"success": True, "report": report})
+        except Exception as e:
+            _owasp_status["error"] = agent.sanitize_error(str(e))
+            return jsonify({"success": False, "error": f"Evaluation failed: {agent.sanitize_error(str(e))}"}), 500
+        finally:
+            _owasp_status["running"] = False
+            _owasp_lock.release()
 
     def _eval_worker():
         try:
@@ -858,7 +865,7 @@ def api_results_export():
         writer.writeheader()
         for r in results:
             writer.writerow(r)
-        csv_bytes = output.getvalue().encode("utf-8")
+        csv_bytes = output.getvalue().encode("utf-8-sig")
         return Response(
             csv_bytes,
             mimetype="text/csv; charset=utf-8",

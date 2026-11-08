@@ -886,6 +886,56 @@ class WebUiTests(unittest.TestCase):
         self.assertNotIn("เกิดข้อผิดพลาดในการประเมิน", html)
         self.assertNotIn("การประเมินผลขัดข้อง", html)
 
+    def test_flask_json_ensure_ascii_is_false(self):
+        self.assertFalse(web_ui.app.json.ensure_ascii)
+        with web_ui.app.test_request_context():
+            resp = web_ui.jsonify({"test": "ทดสอบภาษาไทย"})
+            raw_text = resp.get_data(as_text=True)
+            self.assertIn("ทดสอบภาษาไทย", raw_text)
+            self.assertNotIn("\\u0e", raw_text)
+
+    def test_results_export_csv_utf8_sig_bom(self):
+        resp = self.client.get("/api/results/export?format=csv")
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.data.startswith(b"\xef\xbb\xbf"), "CSV export must include UTF-8 BOM for Windows Excel compatibility")
+
+    def test_eval_report_serves_markdown_file_with_headers(self):
+        dummy_md = "# OWASP Evaluation Test Report\n\nAll clear."
+        dummy_json = json.dumps({"report": "dummy"}, ensure_ascii=False)
+        with mock.patch("os.path.exists", return_value=True), \
+             mock.patch("builtins.open", mock.mock_open(read_data=dummy_md)):
+            resp = self.client.get("/api/eval/report")
+            self.assertEqual(resp.status_code, 200)
+            self.assertIn("text/markdown", resp.content_type)
+            self.assertIn("OWASP Evaluation Test Report", resp.get_data(as_text=True))
+
+        with mock.patch("os.path.exists", return_value=True), \
+             mock.patch("builtins.open", mock.mock_open(read_data=dummy_json)):
+            resp_json = self.client.get("/api/eval/report?format=json")
+            self.assertEqual(resp_json.status_code, 200)
+            self.assertIn("application/json", resp_json.content_type)
+
+    def test_eval_run_async_and_conflict_handling(self):
+        with self.client.session_transaction() as sess:
+            sess["csrf_token"] = "eval-csrf-async"
+        headers = {"X-CSRFToken": "eval-csrf-async", "Content-Type": "application/json"}
+
+        # Simulate busy lock by acquiring the real lock -> returns 409 Conflict
+        web_ui._owasp_lock.acquire()
+        try:
+            resp = self.client.post(
+                "/api/eval/run",
+                json={"target_type": "builtin", "defense": "off", "async": True},
+                headers=headers,
+            )
+            self.assertEqual(resp.status_code, 409)
+            data = resp.get_json()
+            self.assertFalse(data["success"])
+            self.assertIn("Evaluation already in progress", data["error"])
+        finally:
+            web_ui._owasp_lock.release()
+
+
 
 
 
