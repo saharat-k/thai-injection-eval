@@ -360,7 +360,7 @@ class WebUiTests(unittest.TestCase):
         # ai-step with empty history
         resp = self.client.post("/api/manual/ai-step", json={"csrf_token": "valid-token", "session_id": "test-sess"}, headers=headers)
         self.assertEqual(resp.status_code, 400)
-        self.assertIn("ยังไม่มีคำตอบในบทสนทนา", resp.get_json()["error"])
+        self.assertIn("No response in conversation", resp.get_json()["error"])
 
         # Oversized prompt (> 10,000 characters)
         oversized = "A" * (web_ui.MAX_PROMPT_LENGTH + 1)
@@ -370,7 +370,7 @@ class WebUiTests(unittest.TestCase):
             headers=headers,
         )
         self.assertEqual(resp.status_code, 400)
-        self.assertIn("ต้องไม่เกิน", resp.get_json()["error"])
+        self.assertIn("exceeds", resp.get_json()["error"])
 
         web_ui._manual_sessions.pop("test-sess", None)
 
@@ -447,7 +447,7 @@ class WebUiTests(unittest.TestCase):
             self.assertTrue(data["should_stop"], "Target leak must stop AI continuation")
             self.assertTrue(data["is_target_met"])
             self.assertIn("CANARY-PR-P002", data["target_leaked"])
-            self.assertIn("🎯 สำเร็จ!", data["stop_reason"])
+            self.assertIn("🎯 Success!", data["stop_reason"])
 
         web_ui._manual_sessions.pop(session_id, None)
 
@@ -463,13 +463,13 @@ class WebUiTests(unittest.TestCase):
         # 2. Empty description -> 400
         resp = self.client.post("/api/manual/generate-prompt", json={"csrf_token": "valid-csrf", "description": "  "}, headers=headers)
         self.assertEqual(resp.status_code, 400)
-        self.assertIn("กรุณากรอกคำอธิบาย", resp.get_json()["error"])
+        self.assertIn("Please enter a description", resp.get_json()["error"])
 
         # 3. Oversized description -> 400
         oversized = "a" * (web_ui.MAX_PROMPT_LENGTH + 10)
         resp = self.client.post("/api/manual/generate-prompt", json={"csrf_token": "valid-csrf", "description": oversized}, headers=headers)
         self.assertEqual(resp.status_code, 400)
-        self.assertIn("ต้องไม่เกิน", resp.get_json()["error"])
+        self.assertIn("exceeds", resp.get_json()["error"])
 
         # 4. Successful generation standalone
         mock_ret = {

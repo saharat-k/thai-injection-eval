@@ -710,7 +710,7 @@ def api_eval_run():
     base_url = (data.get("base_url") or "http://localhost:8000/v1").strip()
     model = (data.get("model") or "default").strip()
     api_key = (data.get("api_key") or "").strip()
-    is_sync = bool(data.get("sync", False))
+    is_async = bool(data.get("async", False))
 
     cfg = {
         "defense": defense,
@@ -726,7 +726,7 @@ def api_eval_run():
     except Exception as e:
         return jsonify({"success": False, "error": f"Evaluation failed: {agent.sanitize_error(str(e))}"}), 500
 
-    if is_sync:
+    if not is_async:
         try:
             report = evaluator.run_benchmark(defense=defense, blue_role=blue_role)
             export_report_files(report, output_dir="results", base_name="owasp_evaluation_report")
