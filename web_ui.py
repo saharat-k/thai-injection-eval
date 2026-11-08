@@ -1,3 +1,5 @@
+import csv
+import io
 import json
 import os
 import secrets
@@ -5,7 +7,7 @@ import sqlite3
 import threading
 from datetime import datetime, timezone
 
-from flask import Flask, abort, jsonify, redirect, render_template, request, session, url_for
+from flask import Flask, abort, jsonify, redirect, render_template, request, session, url_for, Response
 
 import agent
 from core.adapters.factory import create_target_adapter
@@ -680,6 +682,87 @@ def api_eval_latest():
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
     return jsonify({"success": False, "error": "No previous evaluation report found"}), 404
+
+
+@app.route("/api/eval/report", methods=["GET"])
+def api_eval_report():
+    fmt = request.args.get("format", "md").lower()
+    base_dir = os.path.join(os.path.dirname(__file__), "results")
+    if fmt == "json":
+        path = os.path.join(base_dir, "owasp_evaluation_report.json")
+        if not os.path.exists(path):
+            return jsonify({"success": False, "error": "No evaluation report available. Please run an OWASP evaluation first."}), 404
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                content = f.read()
+            return Response(
+                content,
+                mimetype="application/json; charset=utf-8",
+                headers={"Content-Disposition": "attachment; filename=owasp_evaluation_report.json"},
+            )
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    path = os.path.join(base_dir, "owasp_evaluation_report.md")
+    if not os.path.exists(path):
+        return jsonify({"success": False, "error": "No evaluation report available. Please run an OWASP evaluation first."}), 404
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read()
+        return Response(
+            content,
+            mimetype="text/markdown; charset=utf-8",
+            headers={"Content-Disposition": "inline; filename=owasp_evaluation_report.md"},
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/results/export", methods=["GET"])
+def api_results_export():
+    fmt = request.args.get("format", "json").lower()
+    limit = request.args.get("limit", default=1000, type=int)
+    limit = max(1, min(limit, 10000))
+
+    if not os.path.exists(agent.RESULTS_DB_PATH):
+        results = []
+    else:
+        conn = agent.init_results_db(agent.RESULTS_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            rows = conn.execute(
+                "SELECT id, language, attack_type, source_reference, technique, prompt, "
+                "injected_prompt, response, success, private_table_accessed, private_table_blocked, "
+                "leaked_canaries, raw_leaked_canaries, schema_disclosed, tool_calls_json, red_analysis, red_strategy, "
+                "defense_level, attempt, red_model, blue_model, run_timestamp "
+                "FROM test_results ORDER BY run_timestamp DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+            results = [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    if fmt == "csv":
+        output = io.StringIO()
+        fieldnames = [
+            "id", "language", "attack_type", "source_reference", "technique", "prompt",
+            "injected_prompt", "response", "success", "private_table_accessed", "private_table_blocked",
+            "leaked_canaries", "raw_leaked_canaries", "schema_disclosed", "tool_calls_json", "red_analysis",
+            "red_strategy", "defense_level", "attempt", "red_model", "blue_model", "run_timestamp"
+        ]
+        writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
+        writer.writeheader()
+        for r in results:
+            writer.writerow(r)
+        csv_bytes = output.getvalue().encode("utf-8")
+        return Response(
+            csv_bytes,
+            mimetype="text/csv; charset=utf-8",
+            headers={"Content-Disposition": "attachment; filename=benchmark_results.csv"},
+        )
+
+    return jsonify({"success": True, "count": len(results), "results": results})
+
 
 
 if __name__ == "__main__":

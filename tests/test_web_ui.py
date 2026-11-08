@@ -1,3 +1,4 @@
+import json
 import os
 os.environ.setdefault("GEMINI_API_KEY", "offline-test-key")  # tests never call the live API
 import sys
@@ -840,6 +841,26 @@ class WebUiTests(unittest.TestCase):
             )
             self.assertEqual(resp.status_code, 200)
             self.assertTrue(resp.get_json()["success"])
+
+    def test_eval_report_endpoint_serves_markdown_or_json(self):
+        resp = self.client.get("/api/eval/report")
+        self.assertIn(resp.status_code, (200, 404))
+        resp_json = self.client.get("/api/eval/report?format=json")
+        self.assertIn(resp_json.status_code, (200, 404))
+
+    def test_results_export_endpoint_serves_csv_and_json(self):
+        resp = self.client.get("/api/results/export?format=json")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.content_type, "application/json")
+        data = json.loads(resp.data)
+        self.assertTrue(data.get("success"))
+        self.assertIn("results", data)
+        self.assertIsInstance(data["results"], list)
+
+        resp_csv = self.client.get("/api/results/export?format=csv")
+        self.assertEqual(resp_csv.status_code, 200)
+        self.assertIn("text/csv", resp_csv.content_type)
+
 
 
 
