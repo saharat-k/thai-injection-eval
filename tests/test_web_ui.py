@@ -176,6 +176,7 @@ class WebUiTests(unittest.TestCase):
         self.assertIn('value="obfuscation"', html)
 
         # Accessibility and Form Controls
+        self.assertIn('id="dataset-select"', html)
         self.assertIn('.visually-hidden', html)
         self.assertIn('<label for="manualPromptInput" class="visually-hidden">', html)
         self.assertIn('id="manualPromptInput"', html)
@@ -708,6 +709,7 @@ class WebUiTests(unittest.TestCase):
                 case_id="ALL",
                 blue_model="gemini-3.5-flash-lite",
                 red_model="openrouter:openrouter/free",
+                cases_path="test_cases.json",
             )
 
     def test_manual_start_propagates_blue_model(self):
@@ -860,6 +862,16 @@ class WebUiTests(unittest.TestCase):
         resp_csv = self.client.get("/api/results/export?format=csv")
         self.assertEqual(resp_csv.status_code, 200)
         self.assertIn("text/csv", resp_csv.content_type)
+
+    def test_api_datasets_endpoint_returns_normalized_suites(self):
+        resp = self.client.get("/api/datasets")
+        self.assertEqual(resp.status_code, 200)
+        data = json.loads(resp.data)
+        self.assertTrue(data.get("success"))
+        datasets = [d["name"] for d in data.get("datasets", [])]
+        self.assertIn("test_cases.json", datasets)
+        self.assertIn("test_cases_linguistic.json", datasets)
+
 
 
 

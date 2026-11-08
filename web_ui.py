@@ -159,6 +159,29 @@ def manual_history(limit=50):
         conn.close()
 
 
+def list_normalized_datasets():
+    datasets = []
+    norm_dir = os.path.join(os.path.dirname(__file__), "data", "normalized")
+    if os.path.exists(norm_dir):
+        for f in sorted(os.listdir(norm_dir)):
+            if f.endswith(".json") and f.startswith("test_cases"):
+                fp = os.path.join(norm_dir, f)
+                try:
+                    with open(fp, "r", encoding="utf-8") as jf:
+                        content = json.load(jf)
+                    cases = content.get("cases", content) if isinstance(content, dict) else content
+                    count = len(cases) if isinstance(cases, list) else 0
+                except Exception:
+                    count = 0
+                datasets.append({"name": f, "path": fp, "count": count})
+    return datasets
+
+
+@app.route("/api/datasets", methods=["GET"])
+def api_datasets():
+    return jsonify({"success": True, "datasets": list_normalized_datasets()})
+
+
 @app.route("/")
 def index():
     all_results = latest_results(limit=100)
@@ -171,8 +194,14 @@ def index():
     valid_runs = len(leaked_results) + len(safe_results)
     leak_rate = round((len(leaked_results) / valid_runs * 100), 1) if valid_runs > 0 else 0.0
 
+    datasets = list_normalized_datasets()
+    selected_dataset = request.args.get("dataset", "test_cases.json").strip()
+    dataset_names = {d["name"] for d in datasets}
+    if selected_dataset not in dataset_names:
+        selected_dataset = "test_cases.json"
+
     try:
-        test_cases = agent.load_test_cases()
+        test_cases = agent.load_test_cases(selected_dataset)
     except Exception:
         test_cases = []
 
@@ -195,6 +224,8 @@ def index():
         blue_roles=agent.BLUE_ROLES,
         red_profiles=agent.RED_PROFILES,
         test_cases=test_cases,
+        datasets=datasets,
+        selected_dataset=selected_dataset,
         run_status= dict(_run_status, is_locked=_run_lock.locked()),
         csrf_token=get_csrf_token(),
     )
@@ -223,8 +254,19 @@ def run():
     if defense not in agent.DEFENSE_LEVELS:
         defense = "off"
 
+    dataset_name = (request.form.get("dataset") or "test_cases.json").strip()
+    datasets = list_normalized_datasets()
+    valid_datasets = {d["name"] for d in datasets}
+    if dataset_name not in valid_datasets:
+        dataset_name = "test_cases.json"
+
+    try:
+        dataset_cases = agent.load_test_cases(dataset_name)
+    except Exception:
+        dataset_cases = []
+
     case_id = request.form.get("case_id", "ALL").strip() or "ALL"
-    valid_case_ids = {"ALL"} | {c["id"] for c in agent.load_test_cases()}
+    valid_case_ids = {"ALL"} | {c["id"] for c in dataset_cases}
     if case_id not in valid_case_ids:
         case_id = "ALL"
 
@@ -246,10 +288,18 @@ def run():
     _run_status["started_at"] = agent.now()
     _run_status["blue_model"] = blue_model or agent.BLUE_MODEL
     _run_status["red_model"] = red_model or agent.RED_MODEL
+    _run_status["dataset"] = dataset_name
 
     def _worker():
         try:
-            agent.run_all(defense=defense, max_attempts=attempts, case_id=case_id, blue_model=blue_model, red_model=red_model)
+            agent.run_all(
+                defense=defense,
+                max_attempts=attempts,
+                case_id=case_id,
+                blue_model=blue_model,
+                red_model=red_model,
+                cases_path=dataset_name,
+            )
         finally:
             _run_status["running"] = False
             _run_lock.release()

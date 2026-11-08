@@ -2494,7 +2494,7 @@ def append_markdown(results, path="results.md"):
         f.writelines(lines)
 
 
-def run_all(defense="off", max_attempts=3, case_id=None, blue_role="registrar_staff", red_profile="realistic_attacker", blue_model=None, red_model=None):
+def run_all(defense="off", max_attempts=3, case_id=None, blue_role="registrar_staff", red_profile="realistic_attacker", blue_model=None, red_model=None, cases_path=None):
     """Run test cases (all or a specific case_id) at the given defense level."""
     global _uni_conn, _res_conn
     effective_blue = blue_model or BLUE_MODEL
@@ -2505,7 +2505,7 @@ def run_all(defense="off", max_attempts=3, case_id=None, blue_role="registrar_st
     _res_conn = init_results_db(RESULTS_DB_PATH)
     try:
         canaries = load_canaries(_uni_conn)
-        cases = load_test_cases()
+        cases = load_test_cases(cases_path) if cases_path else load_test_cases()
         if case_id and case_id != "ALL":
             cases = [c for c in cases if c["id"] == case_id]
         audit(

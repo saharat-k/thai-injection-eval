@@ -1467,6 +1467,13 @@
       <form id="eval-form" method="post" action="/run" class="zone-controls">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
+        <label for="dataset-select" class="visually-hidden">Benchmark Dataset</label>
+        <select id="dataset-select" name="dataset" class="bar-select" style="max-width: 170px;" onchange="window.location.href='/?dataset=' + encodeURIComponent(this.value)">
+          {% for ds in datasets %}
+          <option value="{{ ds.name }}" {% if ds.name == selected_dataset %}selected{% endif %}>{{ ds.name }} ({{ ds.count }})</option>
+          {% endfor %}
+        </select>
+
         <label for="case-select" class="visually-hidden">Select Test Case</label>
         <select id="case-select" name="case_id" class="bar-select" style="max-width: 250px;">
           <option value="ALL">ALL (Run all {{ test_cases | length }} cases)</option>
