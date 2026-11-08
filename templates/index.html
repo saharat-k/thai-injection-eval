@@ -2486,6 +2486,7 @@
       const spinner = document.getElementById('evalRunSpinner');
       btn.disabled = true;
       spinner.style.display = 'inline-block';
+      spinner.textContent = '⏳ Evaluating OWASP Matrix...';
 
       const payload = {
         csrf_token: CSRF_TOKEN,
@@ -2498,7 +2499,7 @@
       };
 
       try {
-        const data = await safeFetchJson('/api/eval/run', {
+        const startRes = await safeFetchJson('/api/eval/run', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -2507,15 +2508,49 @@
           body: JSON.stringify(payload),
         });
 
-        if (data && data.success && data.report) {
-          latestBenchmarkData = data.report;
-          renderEvalReport(data.report);
-        } else {
-          alert('การประเมินผลขัดข้อง: ' + (data.error || 'Unknown error'));
+        if (!startRes || !startRes.success) {
+          alert('Evaluation error: ' + (startRes ? startRes.error : 'Unknown error'));
+          btn.disabled = false;
+          spinner.style.display = 'none';
+          return;
         }
+
+        if (startRes.report) {
+          latestBenchmarkData = startRes.report;
+          renderEvalReport(startRes.report);
+          btn.disabled = false;
+          spinner.style.display = 'none';
+          return;
+        }
+
+        const pollInterval = setInterval(async () => {
+          try {
+            const statusRes = await safeFetchJson('/api/eval/status');
+            if (statusRes.running) {
+              const cur = statusRes.current || 0;
+              const tot = statusRes.total || 0;
+              spinner.textContent = `⏳ Evaluating OWASP Matrix: ${cur}/${tot}...`;
+            } else {
+              clearInterval(pollInterval);
+              btn.disabled = false;
+              spinner.style.display = 'none';
+              if (statusRes.error) {
+                alert('Evaluation error: ' + statusRes.error);
+              } else if (statusRes.report) {
+                latestBenchmarkData = statusRes.report;
+                renderEvalReport(statusRes.report);
+              }
+            }
+          } catch (pollErr) {
+            clearInterval(pollInterval);
+            btn.disabled = false;
+            spinner.style.display = 'none';
+            alert('Evaluation status polling failed: ' + pollErr.message);
+          }
+        }, 1500);
+
       } catch (err) {
-        alert('เกิดข้อผิดพลาดในการประเมิน: ' + err.message);
-      } finally {
+        alert('Evaluation error: ' + err.message);
         btn.disabled = false;
         spinner.style.display = 'none';
       }

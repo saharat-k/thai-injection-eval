@@ -50,6 +50,14 @@ _run_status = {
     "attempts": 2,
     "started_at": None,
 }
+_owasp_lock = threading.Lock()
+_owasp_status = {
+    "running": False,
+    "current": 0,
+    "total": 0,
+    "report": None,
+    "error": None,
+}
 
 
 @app.errorhandler(400)
@@ -702,6 +710,7 @@ def api_eval_run():
     base_url = (data.get("base_url") or "http://localhost:8000/v1").strip()
     model = (data.get("model") or "default").strip()
     api_key = (data.get("api_key") or "").strip()
+    is_sync = bool(data.get("sync", False))
 
     cfg = {
         "defense": defense,
@@ -714,11 +723,56 @@ def api_eval_run():
     try:
         adapter = create_target_adapter(target_type, config=cfg)
         evaluator = SecurityEvaluator(adapter)
-        report = evaluator.run_benchmark(defense=defense, blue_role=blue_role)
-        export_report_files(report, output_dir="results", base_name="owasp_evaluation_report")
-        return jsonify({"success": True, "report": report})
     except Exception as e:
         return jsonify({"success": False, "error": f"Evaluation failed: {agent.sanitize_error(str(e))}"}), 500
+
+    if is_sync:
+        try:
+            report = evaluator.run_benchmark(defense=defense, blue_role=blue_role)
+            export_report_files(report, output_dir="results", base_name="owasp_evaluation_report")
+            return jsonify({"success": True, "report": report})
+        except Exception as e:
+            return jsonify({"success": False, "error": f"Evaluation failed: {agent.sanitize_error(str(e))}"}), 500
+
+    if not _owasp_lock.acquire(blocking=False):
+        return jsonify({"success": False, "error": "Evaluation already in progress"}), 409
+
+    total_cases = len(evaluator.cases)
+    _owasp_status["running"] = True
+    _owasp_status["current"] = 0
+    _owasp_status["total"] = total_cases
+    _owasp_status["report"] = None
+    _owasp_status["error"] = None
+
+    def _eval_worker():
+        try:
+            def progress_cb(cur, tot, case_res):
+                _owasp_status["current"] = cur
+                _owasp_status["total"] = tot
+
+            report = evaluator.run_benchmark(defense=defense, blue_role=blue_role, progress_callback=progress_cb)
+            export_report_files(report, output_dir="results", base_name="owasp_evaluation_report")
+            _owasp_status["report"] = report
+        except Exception as ex:
+            _owasp_status["error"] = agent.sanitize_error(str(ex))
+        finally:
+            _owasp_status["running"] = False
+            _owasp_lock.release()
+
+    threading.Thread(target=_eval_worker, daemon=True).start()
+    return jsonify({"success": True, "running": True, "total": total_cases})
+
+
+@app.route("/api/eval/status", methods=["GET"])
+def api_eval_status():
+    return jsonify({
+        "success": True,
+        "running": _owasp_status.get("running", False),
+        "current": _owasp_status.get("current", 0),
+        "total": _owasp_status.get("total", 0),
+        "error": _owasp_status.get("error"),
+        "report": _owasp_status.get("report"),
+    })
 
 
 @app.route("/api/eval/latest", methods=["GET"])

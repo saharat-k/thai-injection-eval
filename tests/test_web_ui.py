@@ -872,6 +872,13 @@ class WebUiTests(unittest.TestCase):
         self.assertIn("test_cases.json", datasets)
         self.assertIn("test_cases_linguistic.json", datasets)
 
+    def test_owasp_eval_status_endpoint(self):
+        resp = self.client.get("/api/eval/status")
+        self.assertEqual(resp.status_code, 200)
+        data = json.loads(resp.data)
+        self.assertIn("running", data)
+
+
 
 
 
