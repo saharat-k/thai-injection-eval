@@ -340,6 +340,47 @@ class WebUiTests(unittest.TestCase):
         finally:
             web_ui._run_lock.release()
 
+    def test_manual_session_restored_from_db_after_memory_loss(self):
+        with self.client.session_transaction() as sess:
+            sess["csrf_token"] = "restore-token"
+        headers = {"X-CSRFToken": "restore-token", "Content-Type": "application/json"}
+
+        resp = self.client.post("/api/manual/start", json={"defense": "off"}, headers=headers)
+        session_id = resp.get_json()["session_id"]
+        fake_blue = mock.Mock()
+        fake_blue.send.return_value = "first answer"
+        web_ui._manual_sessions[session_id]["blue_session"] = fake_blue
+        resp = self.client.post("/api/manual/send", json={"session_id": session_id, "prompt": "first prompt"}, headers=headers)
+        self.assertTrue(resp.get_json()["success"])
+
+        # Simulate server restart / stale purge: in-memory session is gone, DB row remains.
+        web_ui._manual_sessions.pop(session_id)
+        restored_blue = mock.Mock()
+        restored_blue.send.return_value = "second answer"
+        with mock.patch.object(agent, "BlueSession", return_value=restored_blue) as ctor:
+            resp = self.client.post(
+                "/api/manual/send",
+                json={"session_id": session_id, "prompt": "second prompt", "blue_role": "student_guest"},
+                headers=headers,
+            )
+        data = resp.get_json()
+        self.assertEqual(resp.status_code, 200, data)
+        self.assertTrue(data["success"])
+        self.assertEqual(data["turn_no"], 2)
+        self.assertEqual(ctor.call_args.kwargs["role"], "student_guest")
+        restored_blue.restore_history.assert_called_once_with([("first prompt", "first answer")])
+
+    def test_manual_unknown_session_returns_actionable_error(self):
+        with self.client.session_transaction() as sess:
+            sess["csrf_token"] = "gone-token"
+        headers = {"X-CSRFToken": "gone-token", "Content-Type": "application/json"}
+        for path in ("/api/manual/send", "/api/manual/ai-step"):
+            resp = self.client.post(path, json={"session_id": "MANUAL-does-not-exist", "prompt": "hi"}, headers=headers)
+            self.assertEqual(resp.status_code, 400)
+            body = resp.get_json()
+            self.assertEqual(body["code"], "session_not_found")
+            self.assertIn("Start a new session", body["error"])
+
     def test_manual_input_validation_errors(self):
         with self.client.session_transaction() as sess:
             sess["csrf_token"] = "valid-token"

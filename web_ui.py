@@ -460,6 +460,85 @@ def manual_start():
     })
 
 
+def _restore_manual_session(session_id, data):
+    """Rebuild an in-memory manual session from stored turns (no LLM calls).
+
+    Sessions live only in server memory, so they vanish on restart, after the
+    stale-session purge, or when a past session is loaded from history. Returns
+    the restored session dict, or None when no stored turns exist for the id.
+    """
+    if not session_id or not os.path.exists(agent.RESULTS_DB_PATH):
+        return None
+    conn = agent.init_results_db(agent.RESULTS_DB_PATH)
+    try:
+        rows = conn.execute(
+            "SELECT language, attack_type, defense_level, injected_prompt, response, success, attempt, blue_model "
+            "FROM test_results WHERE id = ? ORDER BY attempt ASC",
+            (session_id,),
+        ).fetchall()
+    finally:
+        conn.close()
+    if not rows:
+        return None
+
+    first = rows[0]
+    language = first[0] if first[0] in ("Thai", "English", "Mixed") else "Thai"
+    attack_type = first[1] or "direct"
+    defense = first[2] if first[2] in agent.DEFENSE_LEVELS else "off"
+    blue_role = data.get("blue_role")
+    if blue_role not in agent.BLUE_ROLES:
+        blue_role = "registrar_staff"
+    red_profile = data.get("red_profile")
+    if red_profile not in agent.RED_PROFILES:
+        red_profile = "realistic_attacker"
+    raw_targets = data.get("targets") or []
+    if isinstance(raw_targets, str):
+        raw_targets = raw_targets.split(",")
+    targets = [str(t).strip() for t in raw_targets if str(t).strip()]
+
+    history = [(r[3], r[4]) for r in rows if r[5] != -1 and r[3] is not None]
+    blue_model = (first[7] or "").strip() or None
+    blue_session = agent.BlueSession(defense, role=blue_role, model=blue_model)
+    blue_session.restore_history(list(history))
+    case = {
+        "id": session_id,
+        "language": language,
+        "attack_type": attack_type,
+        "prompt": history[0][0] if history else "",
+        "source_reference": "manual",
+        "targets": targets,
+    }
+    sess = {
+        "session_id": session_id,
+        "defense": defense,
+        "language": language,
+        "attack_type": attack_type,
+        "blue_role": blue_role,
+        "red_profile": red_profile,
+        "blue_model": blue_model or agent.BLUE_MODEL,
+        "blue_session": blue_session,
+        "canaries": agent.load_canaries(),
+        "case": case,
+        "history": history,
+        "turn_no": max(int(r[6] or 0) for r in rows) + 1,
+        "created_at": agent.now(),
+    }
+    with _manual_lock:
+        _manual_sessions.setdefault(session_id, sess)
+        agent.audit("manual_restore", {"id": session_id, "turns": len(rows), "source": "web_ui"})
+        return _manual_sessions[session_id]
+
+
+SESSION_GONE_MESSAGE = (
+    "This chat session is no longer available (the server restarted or the session was cleared). "
+    "Start a new session to continue."
+)
+
+
+def _session_gone_response():
+    return jsonify({"success": False, "error": SESSION_GONE_MESSAGE, "code": "session_not_found"}), 400
+
+
 @app.route("/api/manual/send", methods=["POST"])
 def manual_send():
     verify_csrf()
@@ -467,8 +546,10 @@ def manual_send():
     session_id = data.get("session_id")
     prompt = (data.get("prompt") or "").strip()
 
-    if not session_id or session_id not in _manual_sessions:
-        return jsonify({"success": False, "error": "Invalid or expired session"}), 400
+    if not session_id:
+        return _session_gone_response()
+    if session_id not in _manual_sessions and not _restore_manual_session(session_id, data):
+        return _session_gone_response()
     if not prompt:
         return jsonify({"success": False, "error": "Prompt message cannot be empty"}), 400
     if len(prompt) > MAX_PROMPT_LENGTH:
@@ -527,8 +608,10 @@ def manual_ai_step():
     data = request.get_json(silent=True) or request.form
     session_id = data.get("session_id")
 
-    if not session_id or session_id not in _manual_sessions:
-        return jsonify({"success": False, "error": "Invalid or expired session"}), 400
+    if not session_id:
+        return _session_gone_response()
+    if session_id not in _manual_sessions and not _restore_manual_session(session_id, data):
+        return _session_gone_response()
 
     sess = _manual_sessions[session_id]
     if not sess["history"]:

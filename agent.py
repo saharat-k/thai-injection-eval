@@ -1507,8 +1507,11 @@ class OpenAILikeChats:
     def __init__(self, models: OpenAILikeModels):
         self._models = models
 
-    def create(self, model: str = None, config=None) -> OpenAILikeChatSession:
-        return OpenAILikeChatSession(self._models, model or self._models.default_model, config=config)
+    def create(self, model: str = None, config=None, history=None) -> OpenAILikeChatSession:
+        chat = OpenAILikeChatSession(self._models, model or self._models.default_model, config=config)
+        if history:
+            chat.history = list(history)
+        return chat
 
 
 class OpenAILikeClient:
@@ -1658,9 +1661,27 @@ class BlueSession:
         self.last_model_version = None
         self.last_timestamp = None
 
-    def _new_chat(self, model):
+    def restore_history(self, pairs):
+        """Rebuild conversation memory from stored (prompt, response) pairs without any LLM call."""
+        if not pairs:
+            return
+        if hasattr(self.client, "provider"):  # OpenAI-compatible provider
+            hist = []
+            for p, r in pairs:
+                hist.append({"role": "user", "content": str(p)})
+                hist.append({"role": "assistant", "content": str(r)})
+        else:  # Gemini
+            hist = []
+            for p, r in pairs:
+                hist.append(types.Content(role="user", parts=[types.Part(text=str(p))]))
+                hist.append(types.Content(role="model", parts=[types.Part(text=str(r))]))
+        self._chat = self._new_chat(self.model, history=hist)
+        self._chat_model = self.model
+
+    def _new_chat(self, model, history=None):
         return self.client.chats.create(
             model=model,
+            history=history,
             config=types.GenerateContentConfig(
                 system_instruction=self.system,
                 temperature=BLUE_TEMPERATURE,

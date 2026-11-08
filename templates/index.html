@@ -3510,6 +3510,16 @@
         .replace(/'/g, '&#039;');
     }
 
+    function sessionRestoreContext() {
+      // Lets the server rebuild a session that left memory (restart, purge, "Load in Chat").
+      const s = activeManualSession || {};
+      return {
+        blue_role: s.blue_role,
+        red_profile: s.red_profile,
+        targets: s.targets || [],
+      };
+    }
+
     async function sendManualPrompt() {
       if (!activeManualSession) {
         alert('Please start a session first.');
@@ -3536,11 +3546,16 @@
           body: JSON.stringify({
             session_id: activeManualSession.session_id,
             prompt: prompt,
+            ...sessionRestoreContext(),
           }),
         });
 
         if (!res.success) {
-          alert('Error: ' + (res.error || 'Unknown error'));
+          if (res.code === 'session_not_found') {
+            showAlertBanner(res.error, 'leak');
+          } else {
+            alert('Error: ' + (res.error || 'Unknown error'));
+          }
           return;
         }
 
@@ -3571,6 +3586,7 @@
         },
         body: JSON.stringify({
           session_id: activeManualSession.session_id,
+          ...sessionRestoreContext(),
         }),
       });
 
