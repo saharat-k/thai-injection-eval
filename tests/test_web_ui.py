@@ -200,11 +200,16 @@ class WebUiTests(unittest.TestCase):
         # CSRF in headers
         self.assertIn("'X-CSRFToken': CSRF_TOKEN", html)
 
-        # Manual History Elements in Playground
+        # Manual History Elements in Playground & Slide-over Drawer
         self.assertIn('id="manualHistoryCard"', html)
         self.assertIn('id="manualHistoryTableWrapper"', html)
         self.assertIn('id="manualHistoryCountBadge"', html)
         self.assertIn('refreshManualHistory', html)
+        self.assertIn('id="playgroundHistoryDrawer"', html)
+        self.assertIn('id="chatJumpBottomBtn"', html)
+        self.assertIn('openPlaygroundHistoryDrawer', html)
+        self.assertIn('scrollToLatestTurn', html)
+        self.assertIn('initChatScrollEvents', html)
 
     def test_index_html_with_various_records(self):
         fake_results = [

@@ -947,6 +947,9 @@
       border-radius: 6px;
       overflow: hidden;
       background: var(--bg-surface);
+      height: calc(100vh - 125px);
+      min-height: 560px;
+      position: relative;
     }
     .chat-header-bar {
       background: var(--bg-surface-sub);
@@ -968,14 +971,49 @@
       font-family: var(--font-mono);
     }
     .chat-scroll-area {
-      height: 480px;
+      flex: 1 1 auto;
       overflow-y: auto;
+      overscroll-behavior: contain;
       border-bottom: 1px solid var(--border-subtle);
       background: var(--bg-base);
-      padding: 12px;
+      padding: 14px 16px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 12px;
+      position: relative;
+    }
+    .chat-jump-bottom-btn {
+      position: absolute;
+      bottom: 145px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #0f172a;
+      border: 1px solid #38bdf8;
+      color: #38bdf8;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 6px 14px;
+      border-radius: 20px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6), 0 0 12px rgba(56, 189, 248, 0.3);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      z-index: 30;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .chat-jump-bottom-btn:hover {
+      background: #1e293b;
+      color: var(--text-white);
+      transform: translateX(-50%) translateY(-2px);
+    }
+    .history-drawer {
+      width: min(880px, 96vw) !important;
+      right: -920px;
+    }
+    .history-drawer.open {
+      right: 0 !important;
     }
     .chat-turn-card {
       background: var(--bg-surface);
@@ -1117,15 +1155,15 @@
       margin: 0;
       font-family: var(--font-mono);
       font-size: 12px;
-      line-height: 1.55;
+      line-height: 1.6;
       background: var(--bg-input);
       border: 1px solid var(--border-subtle);
       border-radius: 4px;
-      padding: 8px 10px;
+      padding: 8px 12px;
       white-space: pre-wrap;
       word-break: break-word;
-      max-height: 380px;
-      overflow-y: auto;
+      max-height: none;
+      overflow-y: visible;
       color: var(--text-main);
     }
     .turn-telemetry-ribbon {
@@ -1300,15 +1338,14 @@
     /* Prompt Input Panel */
     .prompt-control-panel {
       background: var(--bg-surface);
-      padding: 10px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
+      padding: 10px 14px;
       display: flex;
       flex-direction: column;
       gap: 8px;
       border-radius: 0 0 5px 5px;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 10;
     }
     .mode-switch-group {
       display: flex;
@@ -1629,7 +1666,7 @@
   </div> <!-- end viewDashboard -->
 
   <!-- Slide-Over Detail Drawer Backdrop -->
-  <div id="drawerBackdrop" class="drawer-backdrop" onclick="closeCaseDrawer()" style="display: none;"></div>
+  <div id="drawerBackdrop" class="drawer-backdrop" onclick="closeAllDrawers()" style="display: none;"></div>
 
   <!-- Slide-Over Detail Drawer Container -->
   <aside id="caseDetailDrawer" class="case-detail-drawer" aria-hidden="true">
@@ -1719,234 +1756,23 @@
     </div>
   </aside>
 
-  <script id="benchmarkDataJson" type="application/json">{{ results | tojson }}</script>
-
-  <!-- TAB 2: Interactive Playground -->
-  <div id="viewPlayground" style="display: none;">
-    <div class="playground-wrapper">
-      <div id="manualSetupCard" class="card-panel">
-        <div class="card-panel-title">
-          <span>⚙️ Interactive Session Configuration (Human-in-the-Loop Playground)</span>
-        </div>
-        <div class="card-panel-sub">
-          Conduct interactive multi-turn security testing. The blue assistant maintains conversation memory across turns. Inject custom prompts manually or orchestrate multi-turn adversarial red teaming.
-        </div>
-        <form id="manualStartForm" onsubmit="startManualSession(event)" class="form-grid">
-          <div class="field-group">
-            <label for="manualDefense">Defense Level:</label>
-            <select id="manualDefense" name="defense">
-              {% for lvl in defense_levels %}
-              <option value="{{ lvl }}" {% if lvl == 'off' %}selected{% endif %}>{{ lvl | upper }}</option>
-              {% endfor %}
-            </select>
-          </div>
-
-          <div class="field-group">
-            <label for="manualLang">Evaluation Language:</label>
-            <select id="manualLang" name="language" onchange="onManualLangOrTypeChange()">
-              <option value="Thai" selected>Thai</option>
-              <option value="English">English</option>
-              <option value="Mixed">Mixed (Thai & English)</option>
-            </select>
-          </div>
-
-          <div class="field-group">
-            <label for="manualAttackType">Attack Strategy:</label>
-            <select id="manualAttackType" name="attack_type" onchange="onManualLangOrTypeChange()">
-              <option value="direct" selected>DIRECT (White-Box known tables)</option>
-              <option value="indirect">INDIRECT (Stored/Database-injected)</option>
-              <option value="recon">RECON (Black-Box schema discovery)</option>
-              <option value="semantic">SEMANTIC (Black-Box concept extraction)</option>
-              <option value="roleplay">ROLEPLAY (Social engineering & emergency override)</option>
-              <option value="fewshot">FEWSHOT (In-Context Hijacking)</option>
-              <option value="obfuscation">OBFUSCATION (Encoding & character camouflage)</option>
-            </select>
-          </div>
-
-          <div class="field-group">
-            <label for="manualBlueRole">Target Blue Persona:</label>
-            <select id="manualBlueRole" name="blue_role">
-              <option value="registrar_staff" selected>Registrar Staff (Recommended)</option>
-              <option value="student_guest">Student / Guest</option>
-              <option value="system_admin">System Administrator</option>
-            </select>
-          </div>
-
-          <div class="field-group">
-            <label for="manualRedProfile">Adversary Red Profile:</label>
-            <select id="manualRedProfile" name="red_profile">
-              <option value="realistic_attacker" selected>Realistic Attacker (Black-box, progressive exploration)</option>
-              <option value="insider_threat">Insider Threat (Privileged operational context)</option>
-              <option value="security_auditor">Security Auditor (Systematic penetration test)</option>
-              <option value="thai_nuanced_adversary">Thai Nuanced Adversary (Black-box cultural/code-switch)</option>
-            </select>
-          </div>
-
-          <div class="field-group field-group-wide">
-            <label for="manualTargets">Additional Stop Targets (e.g. table names, comma separated):</label>
-            <input type="text" id="manualTargets" name="targets" placeholder="e.g. internal_secrets, student_private, national_id (optional)" style="width: 100%;">
-          </div>
-
-          <div class="field-group">
-            <button type="submit" id="manualStartBtn" class="btn-run-action" style="padding: 7px 16px;">
-              🚀 Launch Interactive Session
-            </button>
-          </div>
-        </form>
+  <!-- Slide-Over Playground History Drawer Container -->
+  <aside id="playgroundHistoryDrawer" class="case-detail-drawer history-drawer" aria-hidden="true">
+    <div class="drawer-header">
+      <div class="drawer-title-group">
+        <span class="drawer-case-badge">AUDIT LOG</span>
+        <span style="font-weight: 700; color: var(--text-white); font-size: 13px;">Interactive Session History</span>
+        <span id="manualHistoryCountBadge" class="tag blue" style="font-size: 11px;">{{ manual_results | length }} runs</span>
       </div>
-
-      <div id="manualChatArea" class="chat-console-container" style="display: none;">
-        <div class="chat-header-bar">
-          <div class="chat-header-info">
-            <span style="font-weight: 700; color: #38bdf8;">ACTIVE SESSION:</span>
-            <span id="activeSessionBadge" class="tag" style="background:#1e293b;color:#f8fafc;">-</span>
-            <span id="activeDefenseBadge" class="tag blue">-</span>
-            <span id="activeBlueRoleBadge" class="tag green">-</span>
-            <span id="activeRedProfileBadge" class="tag red">-</span>
-            <span id="activeLangBadge" class="tag amber">-</span>
-            <span id="activeTypeBadge" class="tag red">-</span>
-            <span id="activeTargetsBadge" class="tag" style="display:none;">-</span>
-            <span id="activeTurnBadge" class="tag blue">Turn 1</span>
-          </div>
-          <div>
-            <button type="button" class="btn-run-action" onclick="resetManualSession()" style="background:#dc2626;border-color:#b91c1c;padding:3px 8px;font-size:11px;">
-              🔄 Reset Session
-            </button>
-          </div>
-        </div>
-
-        <div id="turnNavBar" class="turn-nav-bar">
-          <span class="turn-nav-bar-label">⚡ TURNS:</span>
-          <span id="turnNavEmptyText" style="font-size:11px;color:var(--text-dim);font-style:italic;">No turns yet</span>
-        </div>
-
-        <div id="chatStatusAlert" class="status-alert-box" style="display: none;">
-          <span id="chatStatusAlertMsg"></span>
-          <div style="display: flex; gap: 6px;">
-            <button type="button" class="btn-run-action" onclick="continueInCurrentChat()" style="background:#15803d;border-color:#166534;font-size:11px;padding:3px 8px;">
-              💬 Continue Chat
-            </button>
-            <button type="button" class="btn-run-action" onclick="resetManualSession()" style="background:#475569;border-color:#334155;font-size:11px;padding:3px 8px;">
-              🔄 Start New Session
-            </button>
-          </div>
-        </div>
-
-        <div id="chatScrollArea" class="chat-scroll-area">
-          <div id="chatEmptyPlaceholder" style="text-align: center; color: var(--text-dim); padding: 50px 20px; font-style: italic;">
-            ✨ Conversation ready: Type a message below or select an attack template to begin.
-          </div>
-        </div>
-
-        <div class="prompt-control-panel">
-          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-            <div class="mode-switch-group">
-              <span style="font-weight: 600; font-size: 11px; color: var(--text-muted);">Prompt Mode:</span>
-              <button type="button" id="pillTemplate" class="mode-pill active" onclick="switchPromptMode('template')">Attack Library</button>
-              <button type="button" id="pillCustom" class="mode-pill" onclick="switchPromptMode('custom')">Custom Payload</button>
-              <button type="button" id="pillAiGenerate" class="mode-pill" onclick="switchPromptMode('ai_generate')" style="border-color:var(--color-emerald);color:#6ee7b7;">🤖 AI Draft Payload</button>
-            </div>
-            <div id="templateSelectRow" style="display: flex; align-items: center; gap: 6px;">
-              <label for="manualTemplatePicker" style="font-size: 11px; font-weight: 600;">Template:</label>
-              <select id="manualTemplatePicker" onchange="onTemplateSelected()" style="max-width: 300px; font-size: 11px;">
-                <option value="">-- Select Attack Template --</option>
-              </select>
-            </div>
-          </div>
-
-          <div id="aiGeneratePanel" style="display: none; background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.3); padding: 10px; border-radius: 4px; flex-direction: column; gap: 6px;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="font-size: 12px; font-weight: 700; color: #6ee7b7;">💡 AI Prompt Architect</span>
-              <span class="tag green" style="font-size:10px;">Pro Mode</span>
-            </div>
-            <textarea id="aiPromptIdeaInput" rows="2" placeholder="Describe red-teaming objective or attack idea..." style="width: 100%; padding: 6px; font-size: 12px; border-radius: 3px; resize: vertical;"></textarea>
-            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
-              <div style="display: flex; align-items: center; gap: 5px;">
-                <label for="aiTechniqueSelect" style="font-size: 11px; font-weight: 600; color: #6ee7b7;">Technique:</label>
-                <select id="aiTechniqueSelect" style="font-size: 11px; padding: 3px 6px;">
-                  <option value="auto" selected>Auto (Dynamic Selection)</option>
-                  <option value="audit">Academic Audit</option>
-                  <option value="roleplay">Roleplay</option>
-                  <option value="fewshot">Few-Shot</option>
-                  <option value="obfuscation">Obfuscation</option>
-                  <option value="context_coupled">Context Coupling</option>
-                  <option value="semantic">Semantic Goal</option>
-                </select>
-              </div>
-              <button type="button" id="btnRunAiGenerate" class="btn-run-action" onclick="generatePromptWithAi()" style="background:#16a34a;border-color:#15803d;padding:4px 10px;font-size:11px;">
-                ✨ Generate Payload
-              </button>
-            </div>
-
-            <div id="aiArchitectResultCard" style="display: none; background: var(--bg-surface); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 3px; padding: 8px; margin-top: 4px; flex-direction: column; gap: 4px;">
-              <div style="font-size: 11px;">
-                <b style="color: #6ee7b7;">Analysis:</b>
-                <div id="aiResultAnalysis" style="background: var(--bg-input); padding: 4px; border-radius: 3px; margin-top: 2px;"></div>
-              </div>
-              <div style="font-size: 11px;">
-                <b style="color: #38bdf8;">Strategy:</b>
-                <div id="aiResultTactic" style="background: var(--bg-input); padding: 4px; border-radius: 3px; margin-top: 2px;"></div>
-              </div>
-              <div style="font-size: 11px;">
-                <b style="color: #f87171;">Drafted Payload:</b>
-                <pre id="aiResultPrompt" class="data-text" style="min-height: 35px; max-height: 80px; margin-top: 2px;"></pre>
-              </div>
-              <div style="display: flex; justify-content: flex-end; margin-top: 2px;">
-                <button type="button" class="btn-run-action" onclick="applyGeneratedPromptToInput()" style="font-size:10px;padding:3px 8px;">
-                  📥 Insert into Input
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <label for="manualPromptInput" class="visually-hidden">Adversarial Injected Prompt</label>
-          <textarea id="manualPromptInput" rows="3" placeholder="Type adversarial payload or query here... (Press Ctrl+Enter or Cmd+Enter to send)" style="width: 100%; padding: 8px; font-family: var(--font-mono); font-size: 12px; resize: vertical;"></textarea>
-
-          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; border-top: 1px solid var(--border-subtle); padding-top: 8px;">
-            <button type="button" id="manualSendBtn" class="btn-run-action" onclick="sendManualPrompt()" style="padding: 6px 16px;">
-              ▶ Send Turn
-            </button>
-
-            <div style="display: flex; align-items: center; gap: 6px; background: rgba(244, 63, 94, 0.08); border: 1px solid rgba(244, 63, 94, 0.25); padding: 3px 6px; border-radius: 3px;">
-              <label for="aiRoundsCount" style="font-size: 11px; font-weight: 600; color: #fca5a5;">🤖 AI Automation:</label>
-              <select id="aiRoundsCount" style="font-size: 11px; padding: 2px 4px;">
-                <option value="1">1 Turn</option>
-                <option value="2">2 Turns</option>
-                <option value="3" selected>3 Turns (Recommended)</option>
-                <option value="5">5 Turns</option>
-                <option value="10">10 Turns</option>
-                <option value="until_found">⚡ Run until breach or max turns</option>
-              </select>
-              <button type="button" id="aiContinueBtn" class="btn-run-action" onclick="startAiContinue()" style="background:#dc2626;border-color:#b91c1c;padding:3px 8px;font-size:11px;">
-                ⚡ Run Multi-Turn Attack
-              </button>
-              <button type="button" id="aiStopBtn" class="btn-run-action" onclick="stopAiContinue()" style="background:#0f172a;border-color:#0f172a;padding:3px 8px;font-size:11px;display:none;">
-                🛑 Stop Attack
-              </button>
-            </div>
-          </div>
-
-          <div id="aiLiveSpinner" style="display: none; font-size: 11px; color: #fca5a5; font-weight: 600; padding: 2px 0;">
-            ⏳ Processing: Red Team is analyzing telemetry and orchestrating next turn...
-          </div>
-        </div>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <button type="button" class="btn-refresh" onclick="refreshManualHistory()" style="font-size: 11px; padding: 3px 8px;">🔄 Refresh</button>
+        <button type="button" class="drawer-close-btn" onclick="closePlaygroundHistoryDrawer()" aria-label="Close History Drawer">✕</button>
       </div>
-
-      <!-- Manual Interaction History & Telemetry Log Section -->
-      <div id="manualHistoryCard" class="card-panel" style="margin-top: 14px;">
-        <div class="card-panel-title" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span>📜 Interactive Session History & Audit Logs</span>
-            <span id="manualHistoryCountBadge" class="tag blue" style="font-size: 11px;">{{ manual_results | length }} runs</span>
-          </div>
-          <div style="display: flex; gap: 6px; align-items: center;">
-            <button type="button" class="btn-run-action" onclick="refreshManualHistory()" style="background: var(--bg-surface); border: 1px solid var(--border-subtle); color: var(--text-white); font-size: 11px; padding: 3px 8px;">
-              🔄 Refresh History
-            </button>
-          </div>
-        </div>
-        <div class="card-panel-sub">
-          Audit log of injected prompts and target responses in interactive mode. Expand any turn to inspect security telemetry or copy payload.
+    </div>
+    <div class="drawer-content-scroll" style="padding: 14px; overflow-y: auto; flex: 1;">
+      <div id="manualHistoryCard">
+        <div class="card-panel-sub" style="margin-bottom: 12px;">
+          Audit log of injected prompts and target responses in interactive mode. Expand any turn to inspect security telemetry or click 'Load in Chat' to resume.
         </div>
 
         <div id="manualHistoryEmpty" style="{% if manual_results %}display: none;{% endif %} text-align: center; color: var(--text-dim); padding: 30px 15px; font-style: italic; background: var(--bg-surface); border: 1px dashed var(--border-subtle); border-radius: 4px; margin-top: 10px;">
@@ -2067,6 +1893,231 @@
               {% endfor %}
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <script id="benchmarkDataJson" type="application/json">{{ results | tojson }}</script>
+
+  <!-- TAB 2: Interactive Playground -->
+  <div id="viewPlayground" style="display: none;">
+    <div class="playground-wrapper">
+      <div id="manualSetupCard" class="card-panel">
+        <div class="card-panel-title" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <span>⚙️ Interactive Session Configuration (Human-in-the-Loop Playground)</span>
+          <button type="button" class="btn-run-action" onclick="openPlaygroundHistoryDrawer()" style="background: var(--bg-surface); border: 1px solid var(--border-light); color: var(--text-white); font-size: 11px; padding: 3px 8px;">
+            📜 Session History (<span id="setupHistoryCount">{{ manual_results | length }}</span>)
+          </button>
+        </div>
+        <div class="card-panel-sub">
+          Conduct interactive multi-turn security testing. The blue assistant maintains conversation memory across turns. Inject custom prompts manually or orchestrate multi-turn adversarial red teaming.
+        </div>
+        <form id="manualStartForm" onsubmit="startManualSession(event)" class="form-grid">
+          <div class="field-group">
+            <label for="manualDefense">Defense Level:</label>
+            <select id="manualDefense" name="defense">
+              {% for lvl in defense_levels %}
+              <option value="{{ lvl }}" {% if lvl == 'off' %}selected{% endif %}>{{ lvl | upper }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="field-group">
+            <label for="manualLang">Evaluation Language:</label>
+            <select id="manualLang" name="language" onchange="onManualLangOrTypeChange()">
+              <option value="Thai" selected>Thai</option>
+              <option value="English">English</option>
+              <option value="Mixed">Mixed (Thai & English)</option>
+            </select>
+          </div>
+
+          <div class="field-group">
+            <label for="manualAttackType">Attack Strategy:</label>
+            <select id="manualAttackType" name="attack_type" onchange="onManualLangOrTypeChange()">
+              <option value="direct" selected>DIRECT (White-Box known tables)</option>
+              <option value="indirect">INDIRECT (Stored/Database-injected)</option>
+              <option value="recon">RECON (Black-Box schema discovery)</option>
+              <option value="semantic">SEMANTIC (Black-Box concept extraction)</option>
+              <option value="roleplay">ROLEPLAY (Social engineering & emergency override)</option>
+              <option value="fewshot">FEWSHOT (In-Context Hijacking)</option>
+              <option value="obfuscation">OBFUSCATION (Encoding & character camouflage)</option>
+            </select>
+          </div>
+
+          <div class="field-group">
+            <label for="manualBlueRole">Target Blue Persona:</label>
+            <select id="manualBlueRole" name="blue_role">
+              <option value="registrar_staff" selected>Registrar Staff (Recommended)</option>
+              <option value="student_guest">Student / Guest</option>
+              <option value="system_admin">System Administrator</option>
+            </select>
+          </div>
+
+          <div class="field-group">
+            <label for="manualRedProfile">Adversary Red Profile:</label>
+            <select id="manualRedProfile" name="red_profile">
+              <option value="realistic_attacker" selected>Realistic Attacker (Black-box, progressive exploration)</option>
+              <option value="insider_threat">Insider Threat (Privileged operational context)</option>
+              <option value="security_auditor">Security Auditor (Systematic penetration test)</option>
+              <option value="thai_nuanced_adversary">Thai Nuanced Adversary (Black-box cultural/code-switch)</option>
+            </select>
+          </div>
+
+          <div class="field-group field-group-wide">
+            <label for="manualTargets">Additional Stop Targets (e.g. table names, comma separated):</label>
+            <input type="text" id="manualTargets" name="targets" placeholder="e.g. internal_secrets, student_private, national_id (optional)" style="width: 100%;">
+          </div>
+
+          <div class="field-group">
+            <button type="submit" id="manualStartBtn" class="btn-run-action" style="padding: 7px 16px;">
+              🚀 Launch Interactive Session
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div id="manualChatArea" class="chat-console-container" style="display: none;">
+        <div class="chat-header-bar">
+          <div class="chat-header-info">
+            <span style="font-weight: 700; color: #38bdf8;">ACTIVE SESSION:</span>
+            <span id="activeSessionBadge" class="tag" style="background:#1e293b;color:#f8fafc;">-</span>
+            <span id="activeDefenseBadge" class="tag blue">-</span>
+            <span id="activeBlueRoleBadge" class="tag green">-</span>
+            <span id="activeRedProfileBadge" class="tag red">-</span>
+            <span id="activeLangBadge" class="tag amber">-</span>
+            <span id="activeTypeBadge" class="tag red">-</span>
+            <span id="activeTargetsBadge" class="tag" style="display:none;">-</span>
+            <span id="activeTurnBadge" class="tag blue">Turn 1</span>
+          </div>
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <button type="button" class="btn-run-action" onclick="openPlaygroundHistoryDrawer()" style="background: var(--bg-surface); border: 1px solid var(--border-light); color: var(--text-white); padding: 3px 8px; font-size: 11px;">
+              📜 Session History (<span id="headerHistoryCount">{{ manual_results | length }}</span>)
+            </button>
+            <button type="button" class="btn-run-action" onclick="resetManualSession()" style="background:#dc2626;border-color:#b91c1c;padding:3px 8px;font-size:11px;">
+              🔄 Reset Session
+            </button>
+          </div>
+        </div>
+
+        <div id="turnNavBar" class="turn-nav-bar">
+          <span class="turn-nav-bar-label">⚡ TURNS:</span>
+          <span id="turnNavEmptyText" style="font-size:11px;color:var(--text-dim);font-style:italic;">No turns yet</span>
+        </div>
+
+        <div id="chatStatusAlert" class="status-alert-box" style="display: none;">
+          <span id="chatStatusAlertMsg"></span>
+          <div style="display: flex; gap: 6px;">
+            <button type="button" class="btn-run-action" onclick="continueInCurrentChat()" style="background:#15803d;border-color:#166534;font-size:11px;padding:3px 8px;">
+              💬 Continue Chat
+            </button>
+            <button type="button" class="btn-run-action" onclick="resetManualSession()" style="background:#475569;border-color:#334155;font-size:11px;padding:3px 8px;">
+              🔄 Start New Session
+            </button>
+          </div>
+        </div>
+
+        <div id="chatScrollArea" class="chat-scroll-area">
+          <div id="chatEmptyPlaceholder" style="text-align: center; color: var(--text-dim); padding: 50px 20px; font-style: italic;">
+            ✨ Conversation ready: Type a message below or select an attack template to begin.
+          </div>
+        </div>
+
+        <button type="button" id="chatJumpBottomBtn" class="chat-jump-bottom-btn" style="display: none;" onclick="scrollToLatestTurn(true)">
+          ↓ Jump to latest
+        </button>
+
+        <div class="prompt-control-panel">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+            <div class="mode-switch-group">
+              <span style="font-weight: 600; font-size: 11px; color: var(--text-muted);">Prompt Mode:</span>
+              <button type="button" id="pillTemplate" class="mode-pill active" onclick="switchPromptMode('template')">Attack Library</button>
+              <button type="button" id="pillCustom" class="mode-pill" onclick="switchPromptMode('custom')">Custom Payload</button>
+              <button type="button" id="pillAiGenerate" class="mode-pill" onclick="switchPromptMode('ai_generate')" style="border-color:var(--color-emerald);color:#6ee7b7;">🤖 AI Draft Payload</button>
+            </div>
+            <div id="templateSelectRow" style="display: flex; align-items: center; gap: 6px;">
+              <label for="manualTemplatePicker" style="font-size: 11px; font-weight: 600;">Template:</label>
+              <select id="manualTemplatePicker" onchange="onTemplateSelected()" style="max-width: 300px; font-size: 11px;">
+                <option value="">-- Select Attack Template --</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="aiGeneratePanel" style="display: none; background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.3); padding: 10px; border-radius: 4px; flex-direction: column; gap: 6px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 12px; font-weight: 700; color: #6ee7b7;">💡 AI Prompt Architect</span>
+              <span class="tag green" style="font-size:10px;">Pro Mode</span>
+            </div>
+            <textarea id="aiPromptIdeaInput" rows="2" placeholder="Describe red-teaming objective or attack idea..." style="width: 100%; padding: 6px; font-size: 12px; border-radius: 3px; resize: vertical;"></textarea>
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+              <div style="display: flex; align-items: center; gap: 5px;">
+                <label for="aiTechniqueSelect" style="font-size: 11px; font-weight: 600; color: #6ee7b7;">Technique:</label>
+                <select id="aiTechniqueSelect" style="font-size: 11px; padding: 3px 6px;">
+                  <option value="auto" selected>Auto (Dynamic Selection)</option>
+                  <option value="audit">Academic Audit</option>
+                  <option value="roleplay">Roleplay</option>
+                  <option value="fewshot">Few-Shot</option>
+                  <option value="obfuscation">Obfuscation</option>
+                  <option value="context_coupled">Context Coupling</option>
+                  <option value="semantic">Semantic Goal</option>
+                </select>
+              </div>
+              <button type="button" id="btnRunAiGenerate" class="btn-run-action" onclick="generatePromptWithAi()" style="background:#16a34a;border-color:#15803d;padding:4px 10px;font-size:11px;">
+                ✨ Generate Payload
+              </button>
+            </div>
+
+            <div id="aiArchitectResultCard" style="display: none; background: var(--bg-surface); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 3px; padding: 8px; margin-top: 4px; flex-direction: column; gap: 4px;">
+              <div style="font-size: 11px;">
+                <b style="color: #6ee7b7;">Analysis:</b>
+                <div id="aiResultAnalysis" style="background: var(--bg-input); padding: 4px; border-radius: 3px; margin-top: 2px;"></div>
+              </div>
+              <div style="font-size: 11px;">
+                <b style="color: #38bdf8;">Strategy:</b>
+                <div id="aiResultTactic" style="background: var(--bg-input); padding: 4px; border-radius: 3px; margin-top: 2px;"></div>
+              </div>
+              <div style="font-size: 11px;">
+                <b style="color: #f87171;">Drafted Payload:</b>
+                <pre id="aiResultPrompt" class="data-text" style="min-height: 35px; max-height: 80px; margin-top: 2px;"></pre>
+              </div>
+              <div style="display: flex; justify-content: flex-end; margin-top: 2px;">
+                <button type="button" class="btn-run-action" onclick="applyGeneratedPromptToInput()" style="font-size:10px;padding:3px 8px;">
+                  📥 Insert into Input
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <label for="manualPromptInput" class="visually-hidden">Adversarial Injected Prompt</label>
+          <textarea id="manualPromptInput" rows="3" placeholder="Type adversarial payload or query here... (Press Ctrl+Enter or Cmd+Enter to send)" style="width: 100%; padding: 8px; font-family: var(--font-mono); font-size: 12px; resize: vertical;"></textarea>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; border-top: 1px solid var(--border-subtle); padding-top: 8px;">
+            <button type="button" id="manualSendBtn" class="btn-run-action" onclick="sendManualPrompt()" style="padding: 6px 16px;">
+              ▶ Send Turn
+            </button>
+
+            <div style="display: flex; align-items: center; gap: 6px; background: rgba(244, 63, 94, 0.08); border: 1px solid rgba(244, 63, 94, 0.25); padding: 3px 6px; border-radius: 3px;">
+              <label for="aiRoundsCount" style="font-size: 11px; font-weight: 600; color: #fca5a5;">🤖 AI Automation:</label>
+              <select id="aiRoundsCount" style="font-size: 11px; padding: 2px 4px;">
+                <option value="1">1 Turn</option>
+                <option value="2">2 Turns</option>
+                <option value="3" selected>3 Turns (Recommended)</option>
+                <option value="5">5 Turns</option>
+                <option value="10">10 Turns</option>
+                <option value="until_found">⚡ Run until breach or max turns</option>
+              </select>
+              <button type="button" id="aiContinueBtn" class="btn-run-action" onclick="startAiContinue()" style="background:#dc2626;border-color:#b91c1c;padding:3px 8px;font-size:11px;">
+                ⚡ Run Multi-Turn Attack
+              </button>
+              <button type="button" id="aiStopBtn" class="btn-run-action" onclick="stopAiContinue()" style="background:#0f172a;border-color:#0f172a;padding:3px 8px;font-size:11px;display:none;">
+                🛑 Stop Attack
+              </button>
+            </div>
+          </div>
+
+          <div id="aiLiveSpinner" style="display: none; font-size: 11px; color: #fca5a5; font-weight: 600; padding: 2px 0;">
+            ⏳ Processing: Red Team is analyzing telemetry and orchestrating next turn...
+          </div>
         </div>
       </div>
     </div>
@@ -2350,11 +2401,51 @@
         drawer.classList.remove('open');
         drawer.setAttribute('aria-hidden', 'true');
       }
-      if (backdrop) {
-        backdrop.classList.remove('open');
-        backdrop.style.display = 'none';
+      const historyDrawer = document.getElementById('playgroundHistoryDrawer');
+      if (!historyDrawer || !historyDrawer.classList.contains('open')) {
+        if (backdrop) {
+          backdrop.classList.remove('open');
+          backdrop.style.display = 'none';
+        }
+        document.body.style.overflow = '';
       }
-      document.body.style.overflow = '';
+    }
+
+    function openPlaygroundHistoryDrawer() {
+      const drawer = document.getElementById('playgroundHistoryDrawer');
+      const backdrop = document.getElementById('drawerBackdrop');
+      if (drawer) {
+        drawer.classList.add('open');
+        drawer.setAttribute('aria-hidden', 'false');
+      }
+      if (backdrop) {
+        backdrop.classList.add('open');
+        backdrop.style.display = 'block';
+      }
+      document.body.style.overflow = 'hidden';
+      refreshManualHistory();
+    }
+
+    function closePlaygroundHistoryDrawer() {
+      const drawer = document.getElementById('playgroundHistoryDrawer');
+      const backdrop = document.getElementById('drawerBackdrop');
+      if (drawer) {
+        drawer.classList.remove('open');
+        drawer.setAttribute('aria-hidden', 'true');
+      }
+      const caseDrawer = document.getElementById('caseDetailDrawer');
+      if (!caseDrawer || !caseDrawer.classList.contains('open')) {
+        if (backdrop) {
+          backdrop.classList.remove('open');
+          backdrop.style.display = 'none';
+        }
+        document.body.style.overflow = '';
+      }
+    }
+
+    function closeAllDrawers() {
+      closeCaseDrawer();
+      closePlaygroundHistoryDrawer();
     }
 
     function switchDrawerTab(tabName) {
@@ -2422,7 +2513,7 @@
 
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
-        closeCaseDrawer();
+        closeAllDrawers();
       }
     });
 
@@ -2956,6 +3047,9 @@
 
         document.getElementById('manualSetupCard').style.display = 'none';
         document.getElementById('manualChatArea').style.display = 'flex';
+        isUserScrolledUp = false;
+        unreadTurnsCount = 0;
+        hideJumpToBottomButton();
 
         document.getElementById('chatScrollArea').innerHTML = `
           <div id="chatEmptyPlaceholder" style="text-align: center; color: var(--text-dim); padding: 50px 20px; font-style: italic;">
@@ -2976,6 +3070,53 @@
       } finally {
         startBtn.disabled = false;
         startBtn.textContent = '🚀 Start Live Chat Session';
+      }
+    }
+
+    let isUserScrolledUp = false;
+    let unreadTurnsCount = 0;
+
+    function initChatScrollEvents() {
+      const scrollArea = document.getElementById('chatScrollArea');
+      if (!scrollArea) return;
+      scrollArea.addEventListener('scroll', onChatScroll, { passive: true });
+    }
+
+    function onChatScroll() {
+      const scrollArea = document.getElementById('chatScrollArea');
+      if (!scrollArea) return;
+      const distanceFromBottom = scrollArea.scrollHeight - scrollArea.scrollTop - scrollArea.clientHeight;
+      if (distanceFromBottom > 70) {
+        isUserScrolledUp = true;
+      } else {
+        isUserScrolledUp = false;
+        unreadTurnsCount = 0;
+        hideJumpToBottomButton();
+      }
+    }
+
+    function showJumpToBottomButton(count = 0) {
+      const btn = document.getElementById('chatJumpBottomBtn');
+      if (!btn) return;
+      btn.innerHTML = count > 0 ? `↓ ${count} new turn${count > 1 ? 's' : ''} (Jump to latest)` : `↓ Jump to latest`;
+      btn.style.display = 'flex';
+    }
+
+    function hideJumpToBottomButton() {
+      const btn = document.getElementById('chatJumpBottomBtn');
+      if (btn) btn.style.display = 'none';
+    }
+
+    function scrollToLatestTurn(smooth = true) {
+      const scrollArea = document.getElementById('chatScrollArea');
+      if (!scrollArea) return;
+      isUserScrolledUp = false;
+      unreadTurnsCount = 0;
+      hideJumpToBottomButton();
+      if (smooth) {
+        scrollArea.scrollTo({ top: scrollArea.scrollHeight, behavior: 'smooth' });
+      } else {
+        scrollArea.scrollTop = scrollArea.scrollHeight;
       }
     }
 
@@ -3240,7 +3381,12 @@
 
       scrollArea.appendChild(card);
       if (shouldScroll) {
-        scrollArea.scrollTop = scrollArea.scrollHeight;
+        if (!isUserScrolledUp) {
+          scrollToLatestTurn(true);
+        } else {
+          unreadTurnsCount++;
+          showJumpToBottomButton(unreadTurnsCount);
+        }
       }
       document.getElementById('activeTurnBadge').textContent = 'Turn ' + (turnNo + 1);
 
@@ -3271,14 +3417,18 @@
       const card = document.getElementById(`chat-turn-${turnNo}`);
       const scrollArea = document.getElementById('chatScrollArea');
       if (card && scrollArea) {
-        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        const targetTop = card.offsetTop - scrollArea.offsetTop - 12;
+        scrollArea.scrollTo({ top: targetTop, behavior: 'smooth' });
         card.classList.remove('turn-card-highlight');
         void card.offsetWidth;
         card.classList.add('turn-card-highlight');
 
         document.querySelectorAll('.turn-nav-pill').forEach(p => p.classList.remove('active'));
         const activePill = document.getElementById(`turn-nav-pill-${turnNo}`);
-        if (activePill) activePill.classList.add('active');
+        if (activePill) {
+          activePill.classList.add('active');
+          activePill.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
+        }
       }
     }
 
@@ -3337,9 +3487,11 @@
           navBar.innerHTML = '<span class="turn-nav-bar-label">⚡ TURNS:</span>';
         }
 
-        turns.forEach((t, idx) => {
-          appendTurnToChat(t, idx === turns.length - 1);
+        turns.forEach((t) => {
+          appendTurnToChat(t, false);
         });
+        scrollToLatestTurn(false);
+        closePlaygroundHistoryDrawer();
 
         loadTemplatesOnce();
         updateTemplateDropdown();
@@ -3506,6 +3658,9 @@
           });
         } catch (_) {}
         activeManualSession = null;
+        isUserScrolledUp = false;
+        unreadTurnsCount = 0;
+        hideJumpToBottomButton();
         document.getElementById('manualChatArea').style.display = 'none';
         document.getElementById('manualSetupCard').style.display = 'block';
         document.getElementById('chatStatusAlert').style.display = 'none';
@@ -3523,11 +3678,12 @@
       const input = document.getElementById('manualPromptInput');
       if (input && activeManualSession) {
         input.value = text;
-        input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        closePlaygroundHistoryDrawer();
         input.focus();
       } else {
         navigator.clipboard.writeText(text).then(() => {
           alert('Prompt copied! Please launch an active session to test.');
+          closePlaygroundHistoryDrawer();
           const startCard = document.getElementById('manualSetupCard');
           if (startCard) startCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }).catch(() => {
@@ -3553,6 +3709,10 @@
       const badge = document.getElementById('manualHistoryCountBadge');
 
       if (badge) badge.textContent = `${history.length} runs`;
+      const setupBadge = document.getElementById('setupHistoryCount');
+      if (setupBadge) setupBadge.textContent = history.length;
+      const headerBadge = document.getElementById('headerHistoryCount');
+      if (headerBadge) headerBadge.textContent = history.length;
 
       if (!history || history.length === 0) {
         if (emptyEl) emptyEl.style.display = 'block';
@@ -3692,6 +3852,7 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
+      initChatScrollEvents();
       const initialTab = window.location.hash.replace('#', '');
       if (initialTab === 'playground' || initialTab === 'owasp' || initialTab === 'dashboard') {
         switchMainTab(initialTab);
