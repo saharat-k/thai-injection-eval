@@ -1193,15 +1193,18 @@
           <div class="model-tags">
             <div class="tag-model">
               <span style="color:var(--text-dim);">Red:</span>
-              <span style="color:#F87171;">{{ red_model }}</span>
+              <span id="sidebarRedModelText" style="color:#F87171;">{{ red_model }}</span>
             </div>
             <div class="tag-model">
               <span style="color:var(--text-dim);">Blue:</span>
-              <span style="color:#38BDF8;">{{ blue_model }}</span>
+              <span id="sidebarBlueModelText" style="color:#38BDF8;">{{ blue_model }}</span>
             </div>
           </div>
         </div>
-        <a href="/" class="btn-refresh">↻ Refresh</a>
+        <div style="display:flex;gap:6px;">
+          <button type="button" id="btnOpenModelConfig" class="btn-refresh" style="flex:1;cursor:pointer;background:var(--bg-surface-sub);color:var(--text-white);" onclick="openModal('modelConfigModal')">⚙️ Change Models</button>
+          <a href="/" class="btn-refresh" title="Reload page" style="width:36px;text-align:center;">↻</a>
+        </div>
       </div>
     </aside>
 
@@ -1911,6 +1914,24 @@
             <input id="attempts-input" name="attempts" type="number" min="1" max="5" value="2" required title="Evaluation Turns">
           </div>
 
+          <div class="form-field-group">
+            <label for="runBlueModel">Target Model (Blue Agent):</label>
+            <select id="runBlueModel" name="blue_model">
+              {% for m in blue_models %}
+              <option value="{{ m.id }}" {% if m.id == blue_model %}selected{% endif %}>{{ m.name }} {{ m.badge }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-field-group">
+            <label for="runRedModel">Adversary Model (Red Agent):</label>
+            <select id="runRedModel" name="red_model">
+              {% for m in red_models %}
+              <option value="{{ m.id }}" {% if m.id == red_model %}selected{% endif %}>{{ m.name }} {{ m.badge }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
           <!-- Quota Safety & Cost Control -->
           <div style="background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 10px;">
             <div style="display: flex; align-items: center; justify-content: space-between;">
@@ -2007,12 +2028,69 @@
             <label for="manualTargets">Additional Stop Targets (optional):</label>
             <input type="text" id="manualTargets" name="targets" placeholder="e.g. internal_secrets, student_private, national_id">
           </div>
+
+          <div class="form-field-group">
+            <label for="manualBlueModel">Target Model (Blue Agent):</label>
+            <select id="manualBlueModel" name="blue_model">
+              {% for m in blue_models %}
+              <option value="{{ m.id }}" {% if m.id == blue_model %}selected{% endif %}>{{ m.name }} {{ m.badge }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-field-group">
+            <label for="manualRedModel">Adversary Model (Red Agent):</label>
+            <select id="manualRedModel" name="red_model">
+              {% for m in red_models %}
+              <option value="{{ m.id }}" {% if m.id == red_model %}selected{% endif %}>{{ m.name }} {{ m.badge }}</option>
+              {% endfor %}
+            </select>
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn-secondary" onclick="closeModal('launchPlaygroundModal')">Cancel</button>
           <button type="submit" id="manualStartBtn" class="btn-primary-action">
             🚀 Launch Session
           </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 3: Model Configuration Modal -->
+  <div id="modelConfigModal" class="modal-overlay" onclick="handleModalBackdropClick(event, 'modelConfigModal')">
+    <div class="modal-card">
+      <div class="modal-header">
+        <span class="modal-title">⚙️ Active Model Configuration</span>
+        <button type="button" class="modal-close-btn" onclick="closeModal('modelConfigModal')">&times;</button>
+      </div>
+      <form id="modelConfigForm" onsubmit="saveGlobalModels(event)">
+        <div class="modal-body">
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;line-height:1.4;">
+            Configure default active models across the entire evaluation session. Badges indicate quota status under the Strict 100% Free-Tier policy.
+          </div>
+
+          <div class="form-field-group">
+            <label for="globalBlueModel">Blue Target Model (Evaluated Agent):</label>
+            <select id="globalBlueModel" name="blue_model">
+              {% for m in blue_models %}
+              <option value="{{ m.id }}" {% if m.id == blue_model %}selected{% endif %}>{{ m.name }} {{ m.badge }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-field-group">
+            <label for="globalRedModel">Red Adversary Model (Attacking Agent):</label>
+            <select id="globalRedModel" name="red_model">
+              {% for m in red_models %}
+              <option value="{{ m.id }}" {% if m.id == red_model %}selected{% endif %}>{{ m.name }} {{ m.badge }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" onclick="closeModal('modelConfigModal')">Cancel</button>
+          <button type="submit" id="btnSaveGlobalModels" class="btn-primary-action">Save Active Models</button>
         </div>
       </form>
     </div>
@@ -2159,6 +2237,49 @@
     function handleModalBackdropClick(event, id) {
       if (event.target.id === id) {
         closeModal(id);
+      }
+    }
+
+    async function saveGlobalModels(event) {
+      if (event) event.preventDefault();
+      const btn = document.getElementById("btnSaveGlobalModels");
+      const blueSelect = document.getElementById("globalBlueModel");
+      const redSelect = document.getElementById("globalRedModel");
+      if (!blueSelect || !redSelect) return;
+
+      const blueModel = blueSelect.value;
+      const redModel = redSelect.value;
+      const origText = btn ? btn.textContent : "";
+      if (btn) btn.textContent = "Saving...";
+
+      try {
+        const resp = await fetch("/api/models/active", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            'X-CSRFToken': CSRF_TOKEN,
+          },
+          body: JSON.stringify({
+            blue_model: blueModel,
+            red_model: redModel,
+            csrf_token: CSRF_TOKEN,
+          }),
+        });
+        const data = await resp.json();
+        if (data.success) {
+          const blueText = document.getElementById("sidebarBlueModelText");
+          const redText = document.getElementById("sidebarRedModelText");
+          if (blueText) blueText.textContent = data.active_blue;
+          if (redText) redText.textContent = data.active_red;
+          closeModal("modelConfigModal");
+        } else {
+          alert("Failed to update models: " + (data.error || "Unknown error"));
+        }
+      } catch (err) {
+        console.error("Save models error:", err);
+        alert("Failed to communicate with server");
+      } finally {
+        if (btn) btn.textContent = origText || "Save Active Models";
       }
     }
 
@@ -2384,6 +2505,8 @@
         attack_type: document.getElementById("manualAttackType").value,
         blue_role: document.getElementById("manualBlueRole").value,
         red_profile: document.getElementById("manualRedProfile").value,
+        blue_model: document.getElementById("manualBlueModel") ? document.getElementById("manualBlueModel").value : "",
+        red_model: document.getElementById("manualRedModel") ? document.getElementById("manualRedModel").value : "",
         targets: document.getElementById("manualTargets").value
       };
 

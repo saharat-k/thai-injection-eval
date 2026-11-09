@@ -1063,6 +1063,86 @@ class WebUiTests(unittest.TestCase):
         self.assertTrue(data["dry_run"])
         self.assertIn("estimated_requests", data)
 
+    def test_get_models_catalog_api(self):
+        resp = self.client.get("/api/models")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertTrue(data["success"])
+        self.assertIn("active_blue", data)
+        self.assertIn("active_red", data)
+        self.assertIn("blue_models", data)
+        self.assertIn("red_models", data)
+        self.assertGreater(len(data["blue_models"]), 0)
+        self.assertGreater(len(data["red_models"]), 0)
+
+    def test_set_active_models_api(self):
+        with self.client.session_transaction() as sess:
+            sess["csrf_token"] = "model-csrf-token"
+
+        headers = {"X-CSRFToken": "model-csrf-token", "Content-Type": "application/json"}
+        resp = self.client.post("/api/models/active", json={
+            "csrf_token": "model-csrf-token",
+            "blue_model": "gemini-3.1-flash-lite",
+            "red_model": "openrouter:openrouter/free",
+        }, headers=headers)
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertTrue(data["success"])
+        self.assertEqual(data["active_blue"], "gemini-3.1-flash-lite")
+        self.assertEqual(data["active_red"], "openrouter:openrouter/free")
+        self.assertEqual(agent.BLUE_MODEL, "gemini-3.1-flash-lite")
+        self.assertEqual(agent.RED_MODEL, "openrouter:openrouter/free")
+
+    def test_set_active_models_requires_csrf(self):
+        resp = self.client.post("/api/models/active", json={
+            "blue_model": "gemini-3.5-flash-lite",
+            "red_model": "gemini-3.5-flash-lite",
+        })
+        self.assertEqual(resp.status_code, 403)
+
+    def test_index_contains_model_selection_modal_and_controls(self):
+        resp = self.client.get("/")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertIn('id="btnOpenModelConfig"', html)
+        self.assertIn('id="modelConfigModal"', html)
+        self.assertIn('id="globalBlueModel"', html)
+        self.assertIn('id="globalRedModel"', html)
+        self.assertIn('id="sidebarBlueModelText"', html)
+        self.assertIn('id="sidebarRedModelText"', html)
+        self.assertIn('saveGlobalModels', html)
+
+    def test_per_run_model_override_controls(self):
+        resp = self.client.get("/")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertIn('id="runBlueModel"', html)
+        self.assertIn('id="runRedModel"', html)
+        self.assertIn('id="manualBlueModel"', html)
+        self.assertIn('id="manualRedModel"', html)
+
+    def test_manual_start_with_model_override(self):
+        with self.client.session_transaction() as sess:
+            sess["csrf_token"] = "test-csrf-override"
+
+        headers = {"X-CSRFToken": "test-csrf-override", "Content-Type": "application/json"}
+        resp = self.client.post("/api/manual/start", json={
+            "csrf_token": "test-csrf-override",
+            "defense": "off",
+            "blue_model": "gemini-3.1-flash-lite",
+            "red_model": "openrouter:openrouter/free",
+        }, headers=headers)
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertTrue(data["success"])
+        sid = data["session_id"]
+        from web_ui import _manual_sessions
+        self.assertEqual(_manual_sessions[sid]["blue_model"], "gemini-3.1-flash-lite")
+        self.assertEqual(_manual_sessions[sid]["red_model"], "openrouter:openrouter/free")
+
+
+
+
 
 
 

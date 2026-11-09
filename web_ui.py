@@ -196,6 +196,19 @@ def api_datasets():
     return jsonify({"success": True, "datasets": list_normalized_datasets()})
 
 
+AVAILABLE_BLUE_MODELS = [
+    {"id": "gemini-3.5-flash-lite", "name": "Gemini 3.5 Flash Lite", "provider": "Google Gemini", "badge": "[Gemini Free]", "free": True, "recommended": True},
+    {"id": "gemini-3.1-flash-lite", "name": "Gemini 3.1 Flash Lite", "provider": "Google Gemini", "badge": "[Gemini Free]", "free": True, "recommended": False},
+    {"id": "custom", "name": "Custom Model Identifier", "provider": "OpenAI / Local", "badge": "[Custom / Local]", "free": False, "recommended": False},
+]
+
+AVAILABLE_RED_MODELS = [
+    {"id": "gemini-3.5-flash-lite", "name": "Gemini 3.5 Flash Lite", "provider": "Google Gemini", "badge": "[Gemini Free]", "free": True, "recommended": True},
+    {"id": "openrouter:openrouter/free", "name": "OpenRouter Free Router", "provider": "OpenRouter", "badge": "[OpenRouter Free]", "free": True, "recommended": False},
+    {"id": "custom", "name": "Custom Model Identifier", "provider": "OpenAI / Local", "badge": "[Custom / Local]", "free": False, "recommended": False},
+]
+
+
 @app.route("/")
 def index():
     all_results = latest_results(limit=100)
@@ -234,6 +247,8 @@ def index():
         model=agent.MODEL_NAME,
         red_model=agent.RED_MODEL,
         blue_model=agent.BLUE_MODEL,
+        blue_models=AVAILABLE_BLUE_MODELS,
+        red_models=AVAILABLE_RED_MODELS,
         defense_levels=agent.DEFENSE_LEVELS,
         blue_roles=agent.BLUE_ROLES,
         red_profiles=agent.RED_PROFILES,
@@ -424,6 +439,40 @@ def api_benchmark_leaderboard():
     })
 
 
+@app.route("/api/models", methods=["GET"])
+def api_models():
+    return jsonify({
+        "success": True,
+        "active_blue": agent.BLUE_MODEL,
+        "active_red": agent.RED_MODEL,
+        "blue_models": AVAILABLE_BLUE_MODELS,
+        "red_models": AVAILABLE_RED_MODELS,
+    })
+
+
+@app.route("/api/models/active", methods=["POST"])
+def api_set_active_models():
+    verify_csrf()
+    data = request.get_json(silent=True) or request.form or {}
+    blue = (data.get("blue_model") or "").strip()
+    red = (data.get("red_model") or "").strip()
+
+    if blue:
+        agent.BLUE_MODEL = blue
+        session["blue_model"] = blue
+    if red:
+        agent.RED_MODEL = red
+        session["red_model"] = red
+
+    agent.MODEL_NAME = f"Red: {agent.RED_MODEL} | Blue: {agent.BLUE_MODEL}"
+
+    return jsonify({
+        "success": True,
+        "active_blue": agent.BLUE_MODEL,
+        "active_red": agent.RED_MODEL,
+    })
+
+
 # ------------------------------------------------------------------ Manual Mode API
 MAX_PROMPT_LENGTH = 10_000
 MAX_MANUAL_SESSIONS = 50
@@ -518,6 +567,7 @@ def manual_start():
                 _manual_sessions.pop(sorted_sids.pop(0), None)
 
         blue_model = (data.get("blue_model") or "").strip() or None
+        red_model = (data.get("red_model") or "").strip() or None
         blue_session = agent.BlueSession(defense, role=blue_role, model=blue_model)
         canaries = agent.load_canaries()
         case = {
@@ -536,6 +586,7 @@ def manual_start():
             "blue_role": blue_role,
             "red_profile": red_profile,
             "blue_model": blue_model or agent.BLUE_MODEL,
+            "red_model": red_model or agent.RED_MODEL,
             "blue_session": blue_session,
             "canaries": canaries,
             "case": case,
@@ -733,7 +784,14 @@ def manual_ai_step():
         red_profile = sess.get("red_profile", "realistic_attacker")
 
         try:
-            attack, meta = agent.ask_red(sess["case"], sess["history"], turn_no, red_profile=red_profile, blue_role=blue_role)
+            attack, meta = agent.ask_red(
+                sess["case"],
+                sess["history"],
+                turn_no,
+                red_profile=red_profile,
+                blue_role=blue_role,
+                red_model=sess.get("red_model"),
+            )
         except Exception as e:
             agent.audit("red_error", {"id": session_id, "turn": turn_no, "error": str(e)[:300]})
             attack, meta = agent.build_fallback_attack(sess["case"], turn_no, last_resp)
