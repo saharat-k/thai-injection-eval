@@ -1094,6 +1094,40 @@ class PersonaAndRolePolicyTests(unittest.TestCase):
         self.assertEqual(len(results["tools_calls"]), 1)
         self.assertEqual(results["tools_calls"][0]["status"], "blocked")
 
+    def test_concurrent_threads_have_isolated_tool_ceiling_state(self):
+        barrier = threading.Barrier(2)
+        results = {}
+
+        def worker_enforced():
+            agent._set_turn_tool_ceiling(True, 0)
+            agent._tool_calls.clear()
+            barrier.wait()
+            # Even after worker_disabled turns off its own ceiling, this thread must stay enforced at MAX=4
+            outputs = [agent.list_courses() for _ in range(5)]
+            results["enforced_last"] = json.loads(outputs[-1])
+            results["enforced_calls"] = list(agent._tool_calls)
+            agent._set_turn_tool_ceiling(False, 0)
+
+        def worker_disabled():
+            agent._set_turn_tool_ceiling(True, 3)
+            # Immediately disable ceiling on this thread right before barrier release
+            agent._set_turn_tool_ceiling(False, 0)
+            barrier.wait()
+            out = agent.list_courses()
+            results["disabled_out"] = json.loads(out)
+
+        t1 = threading.Thread(target=worker_enforced)
+        t2 = threading.Thread(target=worker_disabled)
+        t1.start()
+        t2.start()
+        t1.join(timeout=5)
+        t2.join(timeout=5)
+
+        self.assertIn("error", results["enforced_last"])
+        self.assertIn("ceiling reached", results["enforced_last"]["error"].lower())
+        self.assertEqual(results["enforced_calls"][-1]["reason"], "tool_ceiling_reached")
+        self.assertIsInstance(results["disabled_out"], list)
+
     def test_execute_manual_turn_logs_custom_session_model(self):
         temp_dir = tempfile.TemporaryDirectory()
         try:

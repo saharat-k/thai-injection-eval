@@ -8,6 +8,7 @@ import json
 import os
 import re
 import sqlite3
+import sys
 import threading
 import time
 import unicodedata
@@ -54,8 +55,6 @@ BLUE_MAX_OUTPUT_TOKENS = int(os.getenv("BLUE_MAX_OUTPUT_TOKENS", "1024"))
 # Note: Tier 'all' combines tools + hardened prompt + output DLP, and does NOT include spotlight.
 DEFENSE_LEVELS = ("off", "prompt", "tools", "all", "spotlight")
 MAX_TOOL_CALLS_PER_TURN = 4
-_turn_tool_ceiling_enabled = False
-_turn_tool_call_count = 0
 _spotlight_guard = SpotlightingGuard(seed=None)
 _active_seed = None
 PUBLIC_TABLES = (
@@ -789,10 +788,123 @@ class _ThreadLocalStr:
         return repr(self._val())
 
 
+class _ThreadLocalBool:
+    """Thread-local bool proxy for _turn_tool_ceiling_enabled."""
+
+    def __init__(self, attr_name: str, default: bool = False):
+        self._attr = attr_name
+        self._default = bool(default)
+
+    def _val(self) -> bool:
+        return bool(getattr(_thread_local, self._attr, self._default))
+
+    def _set(self, val: bool):
+        b = bool(val)
+        self._default = b
+        setattr(_thread_local, self._attr, b)
+
+    def __bool__(self):
+        return self._val()
+
+    def __eq__(self, other):
+        return self._val() == (other._val() if isinstance(other, _ThreadLocalBool) else bool(other))
+
+    def __repr__(self):
+        return repr(self._val())
+
+
+class _ThreadLocalInt:
+    """Thread-local int proxy for _turn_tool_call_count."""
+
+    def __init__(self, attr_name: str, default: int = 0):
+        self._attr = attr_name
+        self._default = int(default)
+
+    def _val(self) -> int:
+        return int(getattr(_thread_local, self._attr, self._default))
+
+    def _set(self, val: int):
+        i = int(val)
+        self._default = i
+        setattr(_thread_local, self._attr, i)
+
+    def increment(self, delta: int = 1) -> int:
+        new_val = self._val() + delta
+        setattr(_thread_local, self._attr, new_val)
+        return new_val
+
+    def __int__(self):
+        return self._val()
+
+    def __index__(self):
+        return self._val()
+
+    def __eq__(self, other):
+        return self._val() == (other._val() if isinstance(other, _ThreadLocalInt) else other)
+
+    def __ge__(self, other):
+        return self._val() >= (other._val() if isinstance(other, _ThreadLocalInt) else other)
+
+    def __gt__(self, other):
+        return self._val() > (other._val() if isinstance(other, _ThreadLocalInt) else other)
+
+    def __le__(self, other):
+        return self._val() <= (other._val() if isinstance(other, _ThreadLocalInt) else other)
+
+    def __lt__(self, other):
+        return self._val() < (other._val() if isinstance(other, _ThreadLocalInt) else other)
+
+    def __add__(self, other):
+        return self._val() + (other._val() if isinstance(other, _ThreadLocalInt) else other)
+
+    def __sub__(self, other):
+        return self._val() - (other._val() if isinstance(other, _ThreadLocalInt) else other)
+
+    def __iadd__(self, delta: int):
+        self.increment(int(delta))
+        return self
+
+    def __isub__(self, delta: int):
+        self.increment(-int(delta))
+        return self
+
+    def __repr__(self):
+        return repr(self._val())
+
+
 _tool_calls = _ThreadLocalList()  # tool calls made during the current attempt
 _allowed_tables = _ThreadLocalSet()  # explicit allowlist of table names
 _active_defense = _ThreadLocalStr("active_defense", "off")  # active defense level during tool execution
 _active_blue_role = _ThreadLocalStr("active_blue_role", "registrar_staff")  # active Blue assistant role
+_turn_tool_ceiling_enabled = _ThreadLocalBool("turn_tool_ceiling_enabled", False)
+_turn_tool_call_count = _ThreadLocalInt("turn_tool_call_count", 0)
+
+
+def _set_turn_tool_ceiling(enabled: bool, count: int = 0) -> None:
+    """Configure turn-level tool ceiling in thread-local storage."""
+    _turn_tool_ceiling_enabled._set(enabled)
+    _turn_tool_call_count._set(count)
+
+
+class _AgentModule(sys.modules[__name__].__class__):
+    @property
+    def _turn_tool_ceiling_enabled(self):
+        return _turn_tool_ceiling_enabled._val()
+
+    @_turn_tool_ceiling_enabled.setter
+    def _turn_tool_ceiling_enabled(self, val):
+        _turn_tool_ceiling_enabled._set(val)
+
+    @property
+    def _turn_tool_call_count(self):
+        return _turn_tool_call_count._val()
+
+    @_turn_tool_call_count.setter
+    def _turn_tool_call_count(self, val):
+        _turn_tool_call_count._set(val)
+
+
+sys.modules[__name__].__class__ = _AgentModule
 
 
 def _get_uni_conn():
@@ -1708,10 +1820,8 @@ class BlueSession:
         )
 
     def send(self, prompt):
-        global _turn_tool_ceiling_enabled, _turn_tool_call_count
         configure_defense(self.defense, blue_role=self.role)
-        _turn_tool_ceiling_enabled = True
-        _turn_tool_call_count = 0
+        _set_turn_tool_ceiling(True, 0)
         try:
             last_err = None
             for m in self.models_to_try:
@@ -1742,7 +1852,7 @@ class BlueSession:
                 raise last_err
             return ""
         finally:
-            _turn_tool_ceiling_enabled = False
+            _set_turn_tool_ceiling(False, 0)
 
 
 def ask_blue(prompt, defense, role="registrar_staff", model: Optional[str] = None):
