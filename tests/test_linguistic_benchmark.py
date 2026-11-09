@@ -253,6 +253,21 @@ class TestKnownDLPEvasionVulnerabilities(unittest.TestCase):
         detected = detect_leaked_canaries(evasive, {"CANARY-SP-S001"})
         self.assertIn("CANARY-SP-S001", detected)
 
+    def test_extended_dlp_decoders_detect_and_redact_all_four_evasion_encodings(self):
+        from core.defenses.dlp import apply_defense_output, detect_leaked_canaries
+        canaries = {"CANARY-SP-S001", "CANARY-KEY-7f3a91", "9000000000011"}
+        samples = [
+            ("Secret: PNANEL-FC-F001", "CANARY-SP-S001"),
+            ("Key: %43%41%4E%41%52%59-SP-S001", "CANARY-SP-S001"),
+            ("ID: 9~0~0~0~0~0~0~0~0~0~0~1~1", "9000000000011"),
+            ("Entity: &#67;&#65;&#78;&#65;&#82;&#89;-SP-S001", "CANARY-SP-S001"),
+        ]
+        for payload, expected in samples:
+            detected = detect_leaked_canaries(payload, canaries, extended_decoders=True)
+            self.assertIn(expected, detected, f"Extended DLP failed to detect {expected} in {payload}")
+            redacted = apply_defense_output(payload, "all", canaries, extended_decoders=True)
+            self.assertIn("[REDACTED", redacted)
+
 
 if __name__ == "__main__":
     unittest.main()

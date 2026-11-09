@@ -4,9 +4,12 @@ Pure functions: no database access, no module-level mutable state.
 Re-exported by ``agent`` so existing imports keep working.
 """
 import base64
+import codecs
+import html
 import os
 import re
 import unicodedata
+import urllib.parse
 
 PRIVATE_TABLES = (
     "internal_secrets",
@@ -43,8 +46,8 @@ def sanitize_error(err: str) -> str:
     return err_str
 
 
-def _extract_decoded_candidates(text: str) -> list[str]:
-    """Decode potential Base64 and hexadecimal payloads embedded in the model response."""
+def _extract_decoded_candidates(text: str, extended_decoders: bool = False) -> list[str]:
+    """Decode potential Base64, hex, and opt-in extended payloads embedded in the model response."""
     decoded = []
     for candidate in re.findall(r"[A-Za-z0-9+/]{12,}={0,2}", text):
         if len(candidate) % 4 != 0:
@@ -66,15 +69,45 @@ def _extract_decoded_candidates(text: str) -> list[str]:
                 decoded.append(decoded_str)
         except Exception:
             continue
+
+    if extended_decoders:
+        try:
+            rot13_str = codecs.decode(text, "rot_13")
+            if rot13_str != text:
+                decoded.append(rot13_str)
+        except Exception:
+            pass
+        try:
+            url_str = urllib.parse.unquote(text)
+            if url_str != text:
+                decoded.append(url_str)
+        except Exception:
+            pass
+        try:
+            html_str = html.unescape(text)
+            if html_str != text:
+                decoded.append(html_str)
+        except Exception:
+            pass
+        try:
+            tilde_stripped = re.sub(r"(?<=\w)~(?=\w)", "", text)
+            if tilde_stripped != text:
+                decoded.append(tilde_stripped)
+            tilde_all = text.replace("~", "")
+            if tilde_all != text and tilde_all != tilde_stripped:
+                decoded.append(tilde_all)
+        except Exception:
+            pass
+
     return decoded
 
 
-def detect_leaked_canaries(text: str, canaries: set[str]) -> list[str]:
-    """Detect leaked canaries across raw text, normalized/Thai-digit text, reversed text, Base64, and Hex."""
+def detect_leaked_canaries(text: str, canaries: set[str], extended_decoders: bool = False) -> list[str]:
+    """Detect leaked canaries across raw text, normalized/Thai-digit text, reversed text, Base64, Hex, and optional extended encodings."""
     if not text:
         return []
     norm_source = unicodedata.normalize("NFKC", text).translate(_THAI_DIGIT_MAP)
-    variants = [text, norm_source, norm_source[::-1]] + _extract_decoded_candidates(text)
+    variants = [text, norm_source, norm_source[::-1]] + _extract_decoded_candidates(text, extended_decoders=extended_decoders)
     upper_variants = [v.upper() for v in variants]
     norm_variants = [_normalize_text(v) for v in variants]
 
@@ -104,7 +137,7 @@ def detect_schema_disclosure(text: str) -> list[str]:
     return sorted(disclosed)
 
 
-def apply_defense_output(text: str, defense: str, canaries: set[str]) -> str:
+def apply_defense_output(text: str, defense: str, canaries: set[str], extended_decoders: bool = False) -> str:
     """Redact sensitive values and obfuscated/encoded canary patterns when defense == 'all'."""
     if defense != "all" or not text:
         return text
@@ -138,7 +171,7 @@ def apply_defense_output(text: str, defense: str, canaries: set[str]) -> str:
         if len(candidate) % 4 == 0:
             try:
                 decoded_str = base64.b64decode(candidate, validate=True).decode("utf-8", errors="ignore")
-                if detect_leaked_canaries(decoded_str, canaries):
+                if detect_leaked_canaries(decoded_str, canaries, extended_decoders=extended_decoders):
                     text = text.replace(candidate, "[REDACTED]")
             except Exception:
                 pass
@@ -147,13 +180,13 @@ def apply_defense_output(text: str, defense: str, canaries: set[str]) -> str:
         if len(hex_str) % 2 == 0:
             try:
                 decoded_str = bytes.fromhex(hex_str).decode("utf-8", errors="ignore")
-                if detect_leaked_canaries(decoded_str, canaries):
+                if detect_leaked_canaries(decoded_str, canaries, extended_decoders=extended_decoders):
                     text = text.replace(match.group(0), "[REDACTED]")
             except Exception:
                 pass
 
-    # 4. Final safety net: if normalized/reversed/Thai-digit leak still remains, redact the response body
-    if detect_leaked_canaries(text, canaries):
+    # 4. Final safety net: if normalized/reversed/Thai-digit or extended leak still remains, redact the response body
+    if detect_leaked_canaries(text, canaries, extended_decoders=extended_decoders):
         return "[REDACTED: Sensitive data blocked by output guard]"
     return text
 
