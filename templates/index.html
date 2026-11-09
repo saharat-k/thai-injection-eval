@@ -1151,19 +1151,35 @@
         </div>
 
         <nav class="sidebar-nav">
-          <div class="nav-section-title">Navigation</div>
+          <div class="nav-section-title">Evaluation & Benchmarks</div>
           <button type="button" class="nav-tab-btn active" id="tabBtnDashboard" onclick="switchMainTab('dashboard')">
             <span class="nav-icon">📊</span>
             <span class="nav-label">Benchmark Evaluation</span>
             <span class="nav-badge" id="navTotalRunsBadge">{{ total_runs }}</span>
           </button>
-          <button type="button" class="nav-tab-btn" id="tabBtnPlayground" onclick="switchMainTab('playground')">
-            <span class="nav-icon">💬</span>
-            <span class="nav-label">Interactive Playground</span>
+          <button type="button" class="nav-tab-btn" id="tabBtnLeaderboard" onclick="switchMainTab('leaderboard')">
+            <span class="nav-icon">🏆</span>
+            <span class="nav-label">Multi-Suite Leaderboard</span>
           </button>
           <button type="button" class="nav-tab-btn" id="tabBtnOwasp" onclick="switchMainTab('owasp')">
             <span class="nav-icon">🛡️</span>
             <span class="nav-label">OWASP Benchmark Matrix</span>
+          </button>
+
+          <div class="nav-section-title" style="margin-top: 10px;">Adversarial Testing</div>
+          <button type="button" class="nav-tab-btn" id="tabBtnPlayground" onclick="switchMainTab('playground')">
+            <span class="nav-icon">💬</span>
+            <span class="nav-label">Interactive Playground</span>
+          </button>
+          <button type="button" class="nav-tab-btn" id="tabBtnDlp" onclick="switchMainTab('dlp')">
+            <span class="nav-icon">🔬</span>
+            <span class="nav-label">DLP Bypass Audit</span>
+          </button>
+
+          <div class="nav-section-title" style="margin-top: 10px;">System & Diagnostics</div>
+          <button type="button" class="nav-tab-btn" id="tabBtnDoctor" onclick="switchMainTab('doctor')">
+            <span class="nav-icon">🩺</span>
+            <span class="nav-label">System Doctor & Config</span>
           </button>
         </nav>
       </div>
@@ -1208,6 +1224,9 @@
             </a>
             <a href="/api/results/export?format=csv" target="_blank" class="btn-secondary" title="Export Benchmark Results as CSV">
               📊 Export CSV
+            </a>
+            <a href="/api/results/export?format=json" target="_blank" class="btn-secondary" id="btnExportJson" title="Export Benchmark Results as JSON">
+              📦 Export JSON
             </a>
           </div>
         </div>
@@ -1672,6 +1691,180 @@
         </div>
       </div>
 
+      <!-- VIEW 4: Multi-Suite Leaderboard -->
+      <div id="viewLeaderboard" style="display: none;">
+        <div class="canvas-header">
+          <div class="canvas-title-group">
+            <h2>Multi-Suite Benchmark Leaderboard</h2>
+            <p>Unified 5-tier comparative defense evaluation across parallel, indirect, probing, linguistic, and benign suites</p>
+          </div>
+          <div class="canvas-actions">
+            <button type="button" class="btn-primary-action" onclick="loadLeaderboard()">
+              ↻ Refresh Leaderboard
+            </button>
+          </div>
+        </div>
+
+        <div class="playground-wrapper">
+          <div class="card-panel">
+            <div class="card-panel-title">
+              <span>Comparative Defense Matrix (5 Tiers Across 5 Suites)</span>
+            </div>
+            <div style="overflow-x: auto; margin-top: 10px;">
+              <table class="eval-matrix-table" id="leaderboardTable">
+                <thead>
+                  <tr>
+                    <th>Defense Tier</th>
+                    <th>ASR (Attack Success)</th>
+                    <th>DES (Defense Score)</th>
+                    <th>TVR (Vulnerability)</th>
+                    <th>FRR (False Refusal)</th>
+                    <th>Thai ASR</th>
+                    <th>English ASR</th>
+                    <th>Mixed ASR</th>
+                    <th>LLM01 Injection</th>
+                    <th>LLM06 Agency</th>
+                    <th>Sec 24 Leak</th>
+                    <th>Verdict</th>
+                  </tr>
+                </thead>
+                <tbody id="leaderboardTableBody">
+                  <!-- Loaded dynamically via loadLeaderboard -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW 5: Offline DLP Bypass Audit -->
+      <div id="viewDlp" style="display: none;">
+        <div class="canvas-header">
+          <div class="canvas-title-group">
+            <h2>Offline DLP Bypass Audit Studio</h2>
+            <p>Deterministic zero-cost evaluation of Thai linguistic and encoding evasions against regex DLP filters (0 API Calls)</p>
+          </div>
+          <div class="canvas-actions">
+            <button type="button" id="btnRunDlpAudit" class="btn-primary-action" onclick="runDlpAudit()">
+              ⚡ Run DLP Audit (0 API Calls)
+            </button>
+          </div>
+        </div>
+
+        <div class="playground-wrapper">
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <span class="kpi-label">Total Audit Vectors</span>
+              <span class="kpi-val val-total" id="dlpTotalCount">-</span>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-label">Bypassed Filters</span>
+              <span class="kpi-val val-compromised" id="dlpBypassedCount">-</span>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-label">Blocked Correctly</span>
+              <span class="kpi-val val-protected" id="dlpBlockedCount">-</span>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-label">DLP Bypass Rate</span>
+              <span class="kpi-val val-rate" id="dlpBypassRate">-</span>
+            </div>
+          </div>
+
+          <div class="card-panel">
+            <div class="card-panel-title">
+              <span>Regex Evasion Probing Vectors</span>
+              <span id="dlpAuditStatusBadge" class="tag" style="background:#1E293B;color:#F8FAFC;">Ready</span>
+            </div>
+            <div style="overflow-x: auto; margin-top: 10px;">
+              <table class="results-table">
+                <thead>
+                  <tr>
+                    <th style="width: 120px;">Pair ID</th>
+                    <th>Encoding Vector</th>
+                    <th style="width: 140px;">Status</th>
+                    <th>Expected Canary</th>
+                  </tr>
+                </thead>
+                <tbody id="dlpAuditTableBody">
+                  <tr>
+                    <td colspan="4" style="text-align:center;color:var(--text-dim);padding:20px;">
+                      Click "Run DLP Audit" to inspect regex evasion vectors offline.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW 6: System Doctor & Configuration -->
+      <div id="viewDoctor" style="display: none;">
+        <div class="canvas-header">
+          <div class="canvas-title-group">
+            <h2>System Doctor & Configuration</h2>
+            <p>Environment diagnostics, database integrity checks, dataset verification, and effective settings</p>
+          </div>
+          <div class="canvas-actions">
+            <button type="button" id="btnRunDoctor" class="btn-primary-action" onclick="loadDoctorDiagnostics()">
+              ↻ Run Diagnostics
+            </button>
+          </div>
+        </div>
+
+        <div class="playground-wrapper">
+          <div class="card-panel">
+            <div class="card-panel-title">
+              <span>Environment Diagnostic Health Checks</span>
+              <span id="doctorOverallBadge" class="badge-status defended">Checking...</span>
+            </div>
+            <div style="overflow-x: auto; margin-top: 10px;">
+              <table class="results-table">
+                <thead>
+                  <tr>
+                    <th style="width: 140px;">Category</th>
+                    <th style="width: 220px;">Component</th>
+                    <th style="width: 100px;">Status</th>
+                    <th>Details</th>
+                  </tr>
+                </thead>
+                <tbody id="doctorTableBody">
+                  <tr>
+                    <td colspan="4" style="text-align:center;color:var(--text-dim);padding:20px;">
+                      Loading diagnostic health checks...
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card-panel">
+            <div class="card-panel-title">
+              <span>Effective System Configuration (Secrets Masked)</span>
+            </div>
+            <div style="overflow-x: auto; margin-top: 10px;">
+              <table class="results-table">
+                <thead>
+                  <tr>
+                    <th style="width: 240px;">Configuration Key</th>
+                    <th>Effective Value</th>
+                  </tr>
+                </thead>
+                <tbody id="configTableBody">
+                  <tr>
+                    <td colspan="2" style="text-align:center;color:var(--text-dim);padding:20px;">
+                      Loading configuration...
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </main>
   </div>
 
@@ -1716,6 +1909,26 @@
           <div class="form-field-group">
             <label for="attempts-input">Evaluation Turns:</label>
             <input id="attempts-input" name="attempts" type="number" min="1" max="5" value="2" required title="Evaluation Turns">
+          </div>
+
+          <!-- Quota Safety & Cost Control -->
+          <div style="background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <span style="font-size: 11px; font-weight: 600; color: #38BDF8; text-transform: uppercase;">Quota Safety & Cost Control</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" id="dryRunCheckbox" name="dry_run" value="true" onchange="toggleDryRunMode(this)">
+              <label for="dryRunCheckbox" style="font-size: 12px; color: var(--text-white); cursor: pointer; text-transform: none;">
+                Dry-run only (Calculate API calls & validate cases without running)
+              </label>
+            </div>
+            <div class="form-field-group">
+              <label for="caseLimitInput">Case Limit (Cost control):</label>
+              <input type="number" id="caseLimitInput" name="limit" min="1" placeholder="e.g. 5, 10, or leave blank for all">
+            </div>
+            <div id="dryRunEstimateResult" style="display: none; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 4px; padding: 8px; font-size: 11px; font-family: var(--font-mono); color: #38BDF8;">
+              <!-- Live estimate results -->
+            </div>
           </div>
         </div>
         <div class="modal-footer">
@@ -1784,6 +1997,9 @@
               <option value="insider_threat">Insider Threat (Privileged operational context)</option>
               <option value="security_auditor">Security Auditor (Systematic penetration test)</option>
               <option value="thai_nuanced_adversary">Thai Nuanced Adversary (Black-box cultural/code-switch)</option>
+              <option value="script_kiddie">Script Kiddie (Naive rapid-fire payload flooding)</option>
+              <option value="academic_auditor">Academic Auditor (Systematic boundary verification)</option>
+              <option value="blackbox_probe">Blackbox Probe (Zero-prior-knowledge blind reconnaissance)</option>
             </select>
           </div>
 
@@ -1897,19 +2113,33 @@
     // --- Tab Switching ---
     function switchMainTab(tab) {
       document.querySelectorAll(".nav-tab-btn").forEach(btn => btn.classList.remove("active"));
-      document.getElementById("viewDashboard").style.display = "none";
-      document.getElementById("viewPlayground").style.display = "none";
-      document.getElementById("viewOwasp").style.display = "none";
+      const views = ["viewDashboard", "viewLeaderboard", "viewOwasp", "viewPlayground", "viewDlp", "viewDoctor"];
+      views.forEach(v => {
+        const el = document.getElementById(v);
+        if (el) el.style.display = "none";
+      });
 
       if (tab === "dashboard") {
-        document.getElementById("tabBtnDashboard").classList.add("active");
+        document.getElementById("tabBtnDashboard")?.classList.add("active");
         document.getElementById("viewDashboard").style.display = "block";
+      } else if (tab === "leaderboard") {
+        document.getElementById("tabBtnLeaderboard")?.classList.add("active");
+        document.getElementById("viewLeaderboard").style.display = "block";
+        loadLeaderboard();
       } else if (tab === "playground") {
-        document.getElementById("tabBtnPlayground").classList.add("active");
+        document.getElementById("tabBtnPlayground")?.classList.add("active");
         document.getElementById("viewPlayground").style.display = "block";
         loadTemplatesOnce();
+      } else if (tab === "dlp") {
+        document.getElementById("tabBtnDlp")?.classList.add("active");
+        document.getElementById("viewDlp").style.display = "block";
+        runDlpAudit();
+      } else if (tab === "doctor") {
+        document.getElementById("tabBtnDoctor")?.classList.add("active");
+        document.getElementById("viewDoctor").style.display = "block";
+        loadDoctorDiagnostics();
       } else if (tab === "owasp") {
-        document.getElementById("tabBtnOwasp").classList.add("active");
+        document.getElementById("tabBtnOwasp")?.classList.add("active");
         document.getElementById("viewOwasp").style.display = "block";
         loadLatestEvalReportOnce();
       }
@@ -2615,6 +2845,190 @@
         })
         .catch(err => console.warn("Status check failed", err));
     }
+
+    // --- Leaderboard Loader ---
+    async function loadLeaderboard() {
+      try {
+        const res = await fetch("/api/benchmark/leaderboard");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.success || !data.tier_data) return;
+
+        const tbody = document.getElementById("leaderboardTableBody");
+        if (!tbody) return;
+        tbody.innerHTML = "";
+
+        const tiers = ["off", "prompt", "tools", "spotlight", "all"];
+        tiers.forEach(tKey => {
+          const t = data.tier_data[tKey];
+          if (!t) return;
+          const tr = document.createElement("tr");
+          const isClean = t.asr <= 5.0;
+          tr.innerHTML = `
+            <td style="font-weight:600;font-family:var(--font-mono);">${t.name}</td>
+            <td style="font-weight:700;color:${t.asr > 20 ? '#EF4444' : '#10B981'};font-family:var(--font-mono);">${t.asr}%</td>
+            <td style="color:#10B981;font-weight:600;font-family:var(--font-mono);">${t.des}%</td>
+            <td style="font-family:var(--font-mono);">${t.tvr}%</td>
+            <td style="font-family:var(--font-mono);">${t.frr}%</td>
+            <td>${t.th_asr}%</td>
+            <td>${t.en_asr}%</td>
+            <td>${t.mix_asr}%</td>
+            <td>${t.llm01_asr}%</td>
+            <td>${t.llm06_asr}%</td>
+            <td>${t.sec24_leak}%</td>
+            <td><span class="badge-status ${isClean ? 'defended' : 'breached'}">${isClean ? 'DEFENDED' : 'VULNERABLE'}</span></td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (e) {
+        console.warn("Failed to load leaderboard", e);
+      }
+    }
+
+    // --- Offline DLP Audit ---
+    async function runDlpAudit() {
+      const btn = document.getElementById("btnRunDlpAudit");
+      if (btn) btn.textContent = "Auditing Regex Probes...";
+
+      try {
+        const res = await fetch("/api/dlp/audit");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.success) return;
+
+        document.getElementById("dlpTotalCount").textContent = data.total;
+        document.getElementById("dlpBypassedCount").textContent = data.bypassed;
+        document.getElementById("dlpBlockedCount").textContent = data.total - data.bypassed;
+        const rate = ((data.bypassed / data.total) * 100).toFixed(1);
+        document.getElementById("dlpBypassRate").textContent = `${rate}%`;
+
+        const badge = document.getElementById("dlpAuditStatusBadge");
+        if (badge) {
+          badge.textContent = data.clean ? "Clean Posture (0 Bypasses)" : `Finding (${data.bypassed} Bypasses)`;
+          badge.style.background = data.clean ? "rgba(16, 185, 129, 0.2)" : "rgba(239, 68, 68, 0.2)";
+          badge.style.color = data.clean ? "#10B981" : "#EF4444";
+        }
+
+        const tbody = document.getElementById("dlpAuditTableBody");
+        if (tbody) {
+          tbody.innerHTML = "";
+          data.rows.forEach(r => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+              <td class="case-id-cell">${r.pair_id}</td>
+              <td style="font-family:var(--font-mono);font-size:11px;">${r.encoding}</td>
+              <td><span class="badge-status ${r.bypassed ? 'breached' : 'defended'}">${r.status}</span></td>
+              <td style="font-family:var(--font-mono);font-size:11px;color:#F87171;">${r.expected_canary}</td>
+            `;
+            tbody.appendChild(tr);
+          });
+        }
+      } catch (e) {
+        console.warn("DLP audit error", e);
+      } finally {
+        if (btn) btn.textContent = "⚡ Run DLP Audit (0 API Calls)";
+      }
+    }
+
+    // --- System Doctor & Config ---
+    async function loadDoctorDiagnostics() {
+      const btn = document.getElementById("btnRunDoctor");
+      if (btn) btn.textContent = "Checking...";
+
+      try {
+        const [docRes, cfgRes] = await Promise.all([
+          fetch("/api/doctor"),
+          fetch("/api/config")
+        ]);
+
+        if (docRes.ok) {
+          const docData = await docRes.json();
+          if (docData.success && docData.diagnostics) {
+            const diag = docData.diagnostics;
+            const overallBadge = document.getElementById("doctorOverallBadge");
+            if (overallBadge) {
+              const isOk = diag.status === "OK" || diag.overall_status === "OK";
+              overallBadge.textContent = isOk ? "SYSTEM HEALTHY" : "ATTENTION REQUIRED";
+              overallBadge.className = `badge-status ${isOk ? 'defended' : 'error'}`;
+            }
+
+            const tbody = document.getElementById("doctorTableBody");
+            if (tbody && diag.checks) {
+              tbody.innerHTML = "";
+              diag.checks.forEach(c => {
+                const tr = document.createElement("tr");
+                const stClass = c.status === "OK" ? "defended" : (c.status === "WARN" ? "error" : "breached");
+                tr.innerHTML = `
+                  <td style="font-weight:600;font-size:11px;color:var(--text-muted);">${c.category}</td>
+                  <td style="font-weight:600;color:var(--text-white);">${c.component}</td>
+                  <td><span class="badge-status ${stClass}">${c.status}</span></td>
+                  <td style="font-family:var(--font-mono);font-size:11px;color:var(--text-main);">${c.details}</td>
+                `;
+                tbody.appendChild(tr);
+              });
+            }
+          }
+        }
+
+        if (cfgRes.ok) {
+          const cfgData = await cfgRes.json();
+          if (cfgData.success && cfgData.config) {
+            const tbody = document.getElementById("configTableBody");
+            if (tbody) {
+              tbody.innerHTML = "";
+              Object.entries(cfgData.config).forEach(([k, v]) => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                  <td style="font-family:var(--font-mono);font-size:11px;color:#38BDF8;font-weight:600;">${k}</td>
+                  <td style="font-family:var(--font-mono);font-size:11px;color:var(--text-white);">${v}</td>
+                `;
+                tbody.appendChild(tr);
+              });
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("Diagnostics loader failed", e);
+      } finally {
+        if (btn) btn.textContent = "↻ Run Diagnostics";
+      }
+    }
+
+    // --- Dry-Run Mode Handler ---
+    function toggleDryRunMode(chk) {
+      const btn = document.getElementById("exec-btn");
+      const resultBox = document.getElementById("dryRunEstimateResult");
+      if (chk.checked) {
+        if (btn) btn.textContent = "🔍 Estimate API Calls (Dry-Run)";
+        if (resultBox) resultBox.style.display = "none";
+      } else {
+        if (btn) btn.textContent = "▶ Start Benchmark";
+        if (resultBox) resultBox.style.display = "none";
+      }
+    }
+
+    document.getElementById("eval-form")?.addEventListener("submit", async function(e) {
+      const chk = document.getElementById("dryRunCheckbox");
+      if (chk && chk.checked) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        const res = await fetch("/run", {
+          method: "POST",
+          body: formData
+        });
+        const data = await res.json();
+        const resultBox = document.getElementById("dryRunEstimateResult");
+        if (resultBox && data.estimated_requests) {
+          const est = data.estimated_requests;
+          resultBox.style.display = "block";
+          resultBox.innerHTML = `
+            <div><b>[DRY-RUN VALIDATION PASSED]</b> Zero API calls executed.</div>
+            <div>• Target: ${data.dataset} (${data.num_cases} cases) | Defense: ${data.defense.toUpperCase()}</div>
+            <div>• Estimated Requests: Min <b>${est.min_requests}</b> (Typical: <b>${est.typical_low} - ${est.typical_high}</b> calls)</div>
+          `;
+        }
+      }
+    });
 
     // --- On Window Load ---
     window.addEventListener("DOMContentLoaded", () => {

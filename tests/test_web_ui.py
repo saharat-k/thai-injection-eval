@@ -1007,6 +1007,63 @@ class WebUiTests(unittest.TestCase):
         finally:
             web_ui._owasp_lock.release()
 
+    def test_doctor_api(self):
+        resp = self.client.get("/api/doctor")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertTrue(data["success"])
+        self.assertIn("diagnostics", data)
+        self.assertIn("checks", data["diagnostics"])
+        self.assertIn("overall_status", data["diagnostics"])
+
+    def test_config_api(self):
+        resp = self.client.get("/api/config")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertTrue(data["success"])
+        self.assertIn("config", data)
+        self.assertIn("DEFAULT_RED_MODEL", data["config"])
+        self.assertIn("GEMINI_API_KEY", data["config"])
+
+    def test_dlp_audit_api(self):
+        resp = self.client.get("/api/dlp/audit")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertTrue(data["success"])
+        self.assertIn("total", data)
+        self.assertIn("bypassed", data)
+        self.assertIn("rows", data)
+        self.assertGreater(data["total"], 0)
+
+    def test_benchmark_leaderboard_api(self):
+        resp = self.client.get("/api/benchmark/leaderboard")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertTrue(data["success"])
+        self.assertIn("tier_data", data)
+        self.assertIn("off", data["tier_data"])
+        self.assertIn("tools", data["tier_data"])
+        self.assertIn("all", data["tier_data"])
+
+    def test_run_dry_run_estimation(self):
+        with self.client.session_transaction() as sess:
+            sess["csrf_token"] = "dry-run-token"
+
+        resp = self.client.post("/run", data={
+            "csrf_token": "dry-run-token",
+            "defense": "tools",
+            "case_id": "ALL",
+            "attempts": "2",
+            "dry_run": "true",
+            "limit": "5",
+        })
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertTrue(data["success"])
+        self.assertTrue(data["dry_run"])
+        self.assertIn("estimated_requests", data)
+
+
 
 
 

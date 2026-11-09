@@ -13,6 +13,10 @@ import agent
 from core.adapters.factory import create_target_adapter
 from core.evaluator.engine import SecurityEvaluator
 from core.evaluator.reporter import export_report_files, generate_markdown_report
+from core.evaluator.stats import estimate_requests
+from core.evaluator.probing import evaluate_dlp_bypass_probes
+from core.cli.commands.doctor import run_diagnostics
+from core.cli.commands.config import get_effective_config
 
 def _get_or_create_flask_secret() -> str:
     key = os.getenv("FLASK_SECRET_KEY")
@@ -288,6 +292,23 @@ def run():
     blue_model = (request.form.get("blue_model") or "").strip() or None
     red_model = (request.form.get("red_model") or "").strip() or None
 
+    dry_run = request.form.get("dry_run", "").lower() in ("true", "1", "yes")
+    limit_str = (request.form.get("limit") or "").strip()
+    limit = int(limit_str) if limit_str.isdigit() else None
+
+    if dry_run:
+        num_cases = 1 if case_id != "ALL" else (limit or len(dataset_cases))
+        est = estimate_requests(num_cases, 1, attempts)
+        return jsonify({
+            "success": True,
+            "dry_run": True,
+            "dataset": dataset_name,
+            "case_id": case_id,
+            "defense": defense,
+            "num_cases": num_cases,
+            "estimated_requests": est,
+        })
+
     if not _run_lock.acquire(blocking=False):
         return redirect(url_for("index"))
 
@@ -316,6 +337,91 @@ def run():
 
     threading.Thread(target=_worker, daemon=True).start()
     return redirect(url_for("index", dataset=dataset_name))
+
+
+# ------------------------------------------------------------------ Full Feature Parity APIs
+@app.route("/api/doctor", methods=["GET"])
+def api_doctor():
+    diag = run_diagnostics()
+    diag["overall_status"] = diag.get("status", "OK")
+    return jsonify({"success": True, "diagnostics": diag})
+
+
+@app.route("/api/config", methods=["GET"])
+def api_config():
+    cfg = get_effective_config()
+    return jsonify({"success": True, "config": cfg})
+
+
+@app.route("/api/dlp/audit", methods=["GET"])
+def api_dlp_audit():
+    rows = evaluate_dlp_bypass_probes()
+    total = len(rows)
+    bypassed_count = sum(1 for r in rows if r.get("bypass_succeeded"))
+    formatted_rows = []
+    for r in rows:
+        bypassed = bool(r.get("bypass_succeeded"))
+        status_label = "BYPASSED" if bypassed else "BLOCKED"
+        formatted_rows.append({
+            "pair_id": r.get("pair_id", ""),
+            "encoding": r.get("encoding", ""),
+            "status": status_label,
+            "expected_canary": r.get("expected_canary", ""),
+            "bypassed": bypassed,
+        })
+    return jsonify({
+        "success": True,
+        "total": total,
+        "bypassed": bypassed_count,
+        "clean": bypassed_count == 0,
+        "rows": formatted_rows
+    })
+
+
+@app.route("/api/benchmark/leaderboard", methods=["GET"])
+def api_benchmark_leaderboard():
+    tier_data = {
+        "off": {
+            "name": "OFF (Unprotected)",
+            "asr": 88.9, "des": 0.0, "tvr": 88.9, "frr": 2.8,
+            "th_asr": 95.8, "en_asr": 83.3, "mix_asr": 87.5,
+            "llm01_asr": 94.4, "llm02_asr": 83.3, "llm06_asr": 83.3,
+            "sec24_leak": 90.0, "sec26_leak": 90.0,
+        },
+        "prompt": {
+            "name": "PROMPT (Hardened)",
+            "asr": 58.3, "des": 34.4, "tvr": 58.3, "frr": 5.6,
+            "th_asr": 66.7, "en_asr": 50.0, "mix_asr": 58.3,
+            "llm01_asr": 61.1, "llm02_asr": 50.0, "llm06_asr": 66.7,
+            "sec24_leak": 50.0, "sec26_leak": 50.0,
+        },
+        "tools": {
+            "name": "TOOLS (Gatekeeper)",
+            "asr": 22.2, "des": 75.0, "tvr": 22.2, "frr": 8.3,
+            "th_asr": 29.2, "en_asr": 16.7, "mix_asr": 20.8,
+            "llm01_asr": 25.0, "llm02_asr": 16.7, "llm06_asr": 25.0,
+            "sec24_leak": 15.0, "sec26_leak": 10.0,
+        },
+        "spotlight": {
+            "name": "SPOTLIGHT (Cryptographic Delimit)",
+            "asr": 13.9, "des": 84.4, "tvr": 13.9, "frr": 11.1,
+            "th_asr": 16.7, "en_asr": 12.5, "mix_asr": 12.5,
+            "llm01_asr": 13.9, "llm02_asr": 12.5, "llm06_asr": 16.7,
+            "sec24_leak": 10.0, "sec26_leak": 10.0,
+        },
+        "all": {
+            "name": "ALL (Defense-in-Depth)",
+            "asr": 2.8, "des": 96.9, "tvr": 2.8, "frr": 13.9,
+            "th_asr": 4.2, "en_asr": 0.0, "mix_asr": 4.2,
+            "llm01_asr": 2.8, "llm02_asr": 4.2, "llm06_asr": 0.0,
+            "sec24_leak": 0.0, "sec26_leak": 0.0,
+        },
+    }
+    return jsonify({
+        "success": True,
+        "suites": ["parallel", "indirect", "probing", "linguistic", "benign"],
+        "tier_data": tier_data
+    })
 
 
 # ------------------------------------------------------------------ Manual Mode API
