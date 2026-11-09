@@ -1,0 +1,296 @@
+  <!-- MODAL 1: Run Benchmark Evaluation Modal -->
+  <div id="runBenchmarkModal" class="modal-overlay" onclick="handleModalBackdropClick(event, 'runBenchmarkModal')">
+    <div class="modal-card">
+      <div class="modal-header">
+        <span class="modal-title">▶ Run Benchmark Evaluation</span>
+        <button type="button" class="modal-close-btn" onclick="closeModal('runBenchmarkModal')">&times;</button>
+      </div>
+      <form id="eval-form" method="post" action="/run">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="modal-body">
+          <div class="form-field-group">
+            <label for="dataset-select">Benchmark Dataset:</label>
+            <select id="dataset-select" name="dataset" onchange="window.location.href='/?dataset=' + encodeURIComponent(this.value)">
+              {% for ds in datasets %}
+              <option value="{{ ds.name }}" {% if ds.name == selected_dataset %}selected{% endif %}>{{ ds.name }} ({{ ds.count }} cases)</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-field-group">
+            <label for="case-select">Select Test Case:</label>
+            <select id="case-select" name="case_id">
+              <option value="ALL">ALL (Run all {{ test_cases | length }} cases)</option>
+              {% for c in test_cases %}
+              <option value="{{ c.id }}">[{{ c.id }}] {{ c.language }} ({{ c.attack_type }}) - {{ c.technique[:36] }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-field-group">
+            <label for="defense-select">Defense Level:</label>
+            <select id="defense-select" name="defense">
+              {% for lvl in defense_levels %}
+              <option value="{{ lvl }}">{{ lvl | upper }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-field-group">
+            <label for="attempts-input">Evaluation Turns:</label>
+            <input id="attempts-input" name="attempts" type="number" min="1" max="5" value="2" required title="Evaluation Turns">
+          </div>
+
+          <div class="form-field-group">
+            <label for="runBlueModel">Target Model (Blue Agent):</label>
+            <select id="runBlueModel" name="blue_model">
+              {% for m in blue_models %}
+              <option value="{{ m.id }}" {% if m.id == blue_model %}selected{% endif %}>{{ m.name }} {{ m.badge }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-field-group">
+            <label for="runRedModel">Adversary Model (Red Agent):</label>
+            <select id="runRedModel" name="red_model">
+              {% for m in red_models %}
+              <option value="{{ m.id }}" {% if m.id == red_model %}selected{% endif %}>{{ m.name }} {{ m.badge }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <!-- Quota Safety & Cost Control -->
+          <div style="background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <span style="font-size: 11px; font-weight: 600; color: #38BDF8; text-transform: uppercase;">Quota Safety & Cost Control</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" id="dryRunCheckbox" name="dry_run" value="true" onchange="toggleDryRunMode(this)">
+              <label for="dryRunCheckbox" style="font-size: 12px; color: var(--text-white); cursor: pointer; text-transform: none;">
+                Dry-run only (Calculate API calls & validate cases without running)
+              </label>
+            </div>
+            <div class="form-field-group">
+              <label for="caseLimitInput">Case Limit (Cost control):</label>
+              <input type="number" id="caseLimitInput" name="limit" min="1" placeholder="e.g. 5, 10, or leave blank for all">
+            </div>
+            <div id="dryRunEstimateResult" style="display: none; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 4px; padding: 8px; font-size: 11px; font-family: var(--font-mono); color: #38BDF8;">
+              <!-- Live estimate results -->
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" onclick="closeModal('runBenchmarkModal')">Cancel</button>
+          <button id="exec-btn" class="btn-primary-action" type="submit" {% if run_status.is_locked %}disabled{% endif %}>
+            {% if run_status.is_locked %}⏳ Running Evaluation...{% else %}▶ Start Benchmark{% endif %}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 2: Launch Interactive Session Modal -->
+  <div id="launchPlaygroundModal" class="modal-overlay" onclick="handleModalBackdropClick(event, 'launchPlaygroundModal')">
+    <div class="modal-card">
+      <div class="modal-header">
+        <span class="modal-title">🚀 Launch Interactive Session</span>
+        <button type="button" class="modal-close-btn" onclick="closeModal('launchPlaygroundModal')">&times;</button>
+      </div>
+      <form id="manualStartForm" onsubmit="startManualSession(event)">
+        <div class="modal-body">
+          <div class="form-field-group">
+            <label for="manualDefense">Defense Level:</label>
+            <select id="manualDefense" name="defense">
+              {% for lvl in defense_levels %}
+              <option value="{{ lvl }}" {% if lvl == 'off' %}selected{% endif %}>{{ lvl | upper }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-field-group">
+            <label for="manualLang">Evaluation Language:</label>
+            <select id="manualLang" name="language" onchange="onManualLangOrTypeChange()">
+              <option value="Thai" selected>Thai</option>
+              <option value="English">English</option>
+              <option value="Mixed">Mixed (Thai & English)</option>
+            </select>
+          </div>
+
+          <div class="form-field-group">
+            <label for="manualAttackType">Attack Strategy:</label>
+            <select id="manualAttackType" name="attack_type" onchange="onManualLangOrTypeChange()">
+              <option value="direct" selected>DIRECT (White-Box known tables)</option>
+              <option value="indirect">INDIRECT (Stored/Database-injected)</option>
+              <option value="recon">RECON (Black-Box schema discovery)</option>
+              <option value="semantic">SEMANTIC (Black-Box concept extraction)</option>
+              <option value="roleplay">ROLEPLAY (Social engineering & emergency override)</option>
+              <option value="fewshot">FEWSHOT (In-Context Hijacking)</option>
+              <option value="obfuscation">OBFUSCATION (Encoding & character camouflage)</option>
+            </select>
+          </div>
+
+          <div class="form-field-group">
+            <label for="manualBlueRole">Target Blue Persona:</label>
+            <select id="manualBlueRole" name="blue_role">
+              <option value="registrar_staff" selected>Registrar Staff (Recommended)</option>
+              <option value="student_guest">Student / Guest</option>
+              <option value="system_admin">System Administrator</option>
+            </select>
+          </div>
+
+          <div class="form-field-group">
+            <label for="manualRedProfile">Adversary Red Profile:</label>
+            <select id="manualRedProfile" name="red_profile">
+              <option value="realistic_attacker" selected>Realistic Attacker (Black-box, progressive exploration)</option>
+              <option value="insider_threat">Insider Threat (Privileged operational context)</option>
+              <option value="security_auditor">Security Auditor (Systematic penetration test)</option>
+              <option value="thai_nuanced_adversary">Thai Nuanced Adversary (Black-box cultural/code-switch)</option>
+              <option value="script_kiddie">Script Kiddie (Naive rapid-fire payload flooding)</option>
+              <option value="academic_auditor">Academic Auditor (Systematic boundary verification)</option>
+              <option value="blackbox_probe">Blackbox Probe (Zero-prior-knowledge blind reconnaissance)</option>
+            </select>
+          </div>
+
+          <div class="form-field-group">
+            <label for="manualTargets">Additional Stop Targets (optional):</label>
+            <input type="text" id="manualTargets" name="targets" placeholder="e.g. internal_secrets, student_private, national_id">
+          </div>
+
+          <div class="form-field-group">
+            <label for="manualBlueModel">Target Model (Blue Agent):</label>
+            <select id="manualBlueModel" name="blue_model">
+              {% for m in blue_models %}
+              <option value="{{ m.id }}" {% if m.id == blue_model %}selected{% endif %}>{{ m.name }} {{ m.badge }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-field-group">
+            <label for="manualRedModel">Adversary Model (Red Agent):</label>
+            <select id="manualRedModel" name="red_model">
+              {% for m in red_models %}
+              <option value="{{ m.id }}" {% if m.id == red_model %}selected{% endif %}>{{ m.name }} {{ m.badge }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" onclick="closeModal('launchPlaygroundModal')">Cancel</button>
+          <button type="submit" id="manualStartBtn" class="btn-primary-action">
+            🚀 Launch Session
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 3: Model Configuration Modal -->
+  <div id="modelConfigModal" class="modal-overlay" onclick="handleModalBackdropClick(event, 'modelConfigModal')">
+    <div class="modal-card">
+      <div class="modal-header">
+        <span class="modal-title">⚙️ Active Model Configuration</span>
+        <button type="button" class="modal-close-btn" onclick="closeModal('modelConfigModal')">&times;</button>
+      </div>
+      <form id="modelConfigForm" onsubmit="saveGlobalModels(event)">
+        <div class="modal-body">
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;line-height:1.4;">
+            Configure default active models across the entire evaluation session. Badges indicate quota status under the Strict 100% Free-Tier policy.
+          </div>
+
+          <div class="form-field-group">
+            <label for="globalBlueModel">Blue Target Model (Evaluated Agent):</label>
+            <select id="globalBlueModel" name="blue_model">
+              {% for m in blue_models %}
+              <option value="{{ m.id }}" {% if m.id == blue_model %}selected{% endif %}>{{ m.name }} {{ m.badge }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-field-group">
+            <label for="globalRedModel">Red Adversary Model (Attacking Agent):</label>
+            <select id="globalRedModel" name="red_model">
+              {% for m in red_models %}
+              <option value="{{ m.id }}" {% if m.id == red_model %}selected{% endif %}>{{ m.name }} {{ m.badge }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" onclick="closeModal('modelConfigModal')">Cancel</button>
+          <button type="submit" id="btnSaveGlobalModels" class="btn-primary-action">Save Active Models</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- SLIDE-OVER DRAWER 1: Case Detail Drawer -->
+  <div id="caseDetailDrawer" class="slide-over-drawer">
+    <div class="drawer-header">
+      <div>
+        <div id="drawerCaseId" style="font-weight: 700; font-size: 14px; color: var(--text-white); font-family: var(--font-mono);">-</div>
+        <div id="drawerCaseMeta" style="font-size: 11px; color: var(--text-dim); margin-top: 2px;">-</div>
+      </div>
+      <button type="button" class="modal-close-btn" onclick="closeCaseDrawer()">&times;</button>
+    </div>
+
+    <div class="drawer-tabs">
+      <button type="button" class="drawer-tab-btn active" id="drawerTranscriptTabBtn" onclick="switchDrawerTab('transcript')">Transcript</button>
+      <button type="button" class="drawer-tab-btn" id="drawerTelemetryTabBtn" onclick="switchDrawerTab('telemetry')">Telemetry & Signals</button>
+    </div>
+
+    <div class="drawer-body">
+      <!-- Tab 1: Transcript -->
+      <div id="drawerTabTranscript" style="display: flex; flex-direction: column; gap: 14px;">
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Injected Prompt</span>
+            <button type="button" class="btn-secondary" style="font-size: 10px; padding: 2px 6px;" onclick="copyDrawerPayload()">Copy</button>
+          </div>
+          <pre id="drawerPayload" style="background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 10px; font-family: var(--font-mono); font-size: 12px; white-space: pre-wrap; word-break: break-word; color: #DBEAFE;"></pre>
+        </div>
+
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Target Agent Response</span>
+            <button type="button" class="btn-secondary" style="font-size: 10px; padding: 2px 6px;" onclick="copyDrawerResponse()">Copy</button>
+          </div>
+          <pre id="drawerResponse" style="background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 10px; font-family: var(--font-ui); font-size: 12px; white-space: pre-wrap; word-break: break-word; color: var(--text-white);"></pre>
+        </div>
+      </div>
+
+      <!-- Tab 2: Telemetry -->
+      <div id="drawerTabTelemetry" style="display: none; flex-direction: column; gap: 14px;">
+        <div>
+          <span style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Canaries Detected</span>
+          <div id="drawerCanariesList" style="margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px;">-</div>
+        </div>
+
+        <div>
+          <span style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Executed Tool Calls</span>
+          <div id="drawerToolCallsList" style="margin-top: 6px; display: flex; flex-direction: column; gap: 6px;">-</div>
+        </div>
+
+        <div>
+          <span style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Red Strategy & Analysis</span>
+          <div id="drawerRedAnalysis" style="margin-top: 6px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 10px; font-size: 12px; color: var(--text-muted);">-</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE-OVER DRAWER 2: Playground History Drawer -->
+  <div id="playgroundHistoryDrawer" class="slide-over-drawer">
+    <div class="drawer-header">
+      <span style="font-weight: 600; font-size: 14px; color: var(--text-white);">Playground Session History</span>
+      <button type="button" class="modal-close-btn" onclick="closePlaygroundHistoryDrawer()">&times;</button>
+    </div>
+    <div class="drawer-body">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 12px; color: var(--text-muted);">Saved Multi-turn Sessions</span>
+        <button type="button" class="btn-secondary" style="font-size: 11px; padding: 3px 8px;" onclick="refreshManualHistory()">Refresh</button>
+      </div>
+      <div id="drawerHistoryList" style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+        <!-- Populated dynamically via refreshManualHistory -->
+      </div>
+    </div>
+  </div>

@@ -1150,6 +1150,14 @@ class WebUiTests(unittest.TestCase):
         self.assertIn("max-height: calc(100vh", html)
         self.assertIn("flex-shrink: 0", html)
 
+    def test_index_template_is_modularized_into_partials(self):
+        for partial in ("_styles.html", "_modals_and_drawers.html", "_scripts.html"):
+            path = os.path.join("templates", "partials", partial)
+            self.assertTrue(os.path.exists(path), f"Missing template partial: {path}")
+        with open(os.path.join("templates", "index.html"), "r", encoding="utf-8") as f:
+            index_lines = f.readlines()
+        self.assertLess(len(index_lines), 850, "templates/index.html should be < 850 lines after partial extraction")
+
 
 
 

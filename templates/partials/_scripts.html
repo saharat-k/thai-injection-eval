@@ -1,0 +1,991 @@
+  <script id="benchmarkDataJson" type="application/json">{{ results | tojson }}</script>
+
+  <script>
+    const CSRF_TOKEN = "{{ csrf_token }}";
+    let benchmarkData = [];
+    try {
+      const dataEl = document.getElementById("benchmarkDataJson");
+      if (dataEl && dataEl.textContent) {
+        benchmarkData = JSON.parse(dataEl.textContent);
+      }
+    } catch (e) {
+      console.warn("Failed to parse benchmarkDataJson", e);
+    }
+
+    let activeSessionId = null;
+    let currentDrawerCase = null;
+    let aiStepInProgress = false;
+    let shouldStopAi = false;
+    let attackTemplates = [];
+
+    // --- Tab Switching ---
+    function switchMainTab(tab) {
+      document.querySelectorAll(".nav-tab-btn").forEach(btn => btn.classList.remove("active"));
+      const views = ["viewDashboard", "viewLeaderboard", "viewOwasp", "viewPlayground", "viewDlp", "viewDoctor"];
+      views.forEach(v => {
+        const el = document.getElementById(v);
+        if (el) el.style.display = "none";
+      });
+
+      if (tab === "dashboard") {
+        document.getElementById("tabBtnDashboard")?.classList.add("active");
+        document.getElementById("viewDashboard").style.display = "block";
+      } else if (tab === "leaderboard") {
+        document.getElementById("tabBtnLeaderboard")?.classList.add("active");
+        document.getElementById("viewLeaderboard").style.display = "block";
+        loadLeaderboard();
+      } else if (tab === "playground") {
+        document.getElementById("tabBtnPlayground")?.classList.add("active");
+        document.getElementById("viewPlayground").style.display = "block";
+        loadTemplatesOnce();
+      } else if (tab === "dlp") {
+        document.getElementById("tabBtnDlp")?.classList.add("active");
+        document.getElementById("viewDlp").style.display = "block";
+        runDlpAudit();
+      } else if (tab === "doctor") {
+        document.getElementById("tabBtnDoctor")?.classList.add("active");
+        document.getElementById("viewDoctor").style.display = "block";
+        loadDoctorDiagnostics();
+      } else if (tab === "owasp") {
+        document.getElementById("tabBtnOwasp")?.classList.add("active");
+        document.getElementById("viewOwasp").style.display = "block";
+        loadLatestEvalReportOnce();
+      }
+    }
+
+    // --- Modal Management ---
+    function openModal(id) {
+      const modal = document.getElementById(id);
+      if (modal) modal.style.display = "flex";
+    }
+
+    function closeModal(id) {
+      const modal = document.getElementById(id);
+      if (modal) modal.style.display = "none";
+    }
+
+    function handleModalBackdropClick(event, id) {
+      if (event.target.id === id) {
+        closeModal(id);
+      }
+    }
+
+    async function saveGlobalModels(event) {
+      if (event) event.preventDefault();
+      const btn = document.getElementById("btnSaveGlobalModels");
+      const blueSelect = document.getElementById("globalBlueModel");
+      const redSelect = document.getElementById("globalRedModel");
+      if (!blueSelect || !redSelect) return;
+
+      const blueModel = blueSelect.value;
+      const redModel = redSelect.value;
+      const origText = btn ? btn.textContent : "";
+      if (btn) btn.textContent = "Saving...";
+
+      try {
+        const resp = await fetch("/api/models/active", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            'X-CSRFToken': CSRF_TOKEN,
+          },
+          body: JSON.stringify({
+            blue_model: blueModel,
+            red_model: redModel,
+            csrf_token: CSRF_TOKEN,
+          }),
+        });
+        const data = await resp.json();
+        if (data.success) {
+          const blueText = document.getElementById("sidebarBlueModelText");
+          const redText = document.getElementById("sidebarRedModelText");
+          if (blueText) blueText.textContent = data.active_blue;
+          if (redText) redText.textContent = data.active_red;
+          closeModal("modelConfigModal");
+        } else {
+          alert("Failed to update models: " + (data.error || "Unknown error"));
+        }
+      } catch (err) {
+        console.error("Save models error:", err);
+        alert("Failed to communicate with server");
+      } finally {
+        if (btn) btn.textContent = origText || "Save Active Models";
+      }
+    }
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        document.querySelectorAll(".modal-overlay").forEach(m => m.style.display = "none");
+        closeCaseDrawer();
+        closePlaygroundHistoryDrawer();
+      }
+    });
+
+    // --- Case Drawer Management ---
+    function openCaseDrawer(index) {
+      const c = benchmarkData[index];
+      if (!c) return;
+      currentDrawerCase = c;
+
+      document.getElementById("drawerCaseId").textContent = c.id;
+      document.getElementById("drawerCaseMeta").textContent = `${c.language} | ${c.attack_type.toUpperCase()} | DEFENSE: ${c.defense_level.toUpperCase()}`;
+      document.getElementById("drawerPayload").textContent = c.injected_prompt || "N/A";
+      document.getElementById("drawerResponse").textContent = c.response || "N/A";
+
+      // Canaries
+      const canariesEl = document.getElementById("drawerCanariesList");
+      canariesEl.innerHTML = "";
+      const canaries = c.canaries_list || [];
+      if (canaries.length === 0) {
+        canariesEl.textContent = "None detected (Clean)";
+      } else {
+        canaries.forEach(can => {
+          const badge = document.createElement("span");
+          badge.className = "tag-canary";
+          badge.textContent = can;
+          canariesEl.appendChild(badge);
+        });
+      }
+
+      // Tool Calls
+      const toolsEl = document.getElementById("drawerToolCallsList");
+      toolsEl.innerHTML = "";
+      const toolCalls = c.tool_calls_list || [];
+      if (toolCalls.length === 0) {
+        toolsEl.textContent = "No tool executions recorded";
+      } else {
+        toolCalls.forEach(tc => {
+          const div = document.createElement("div");
+          div.className = "tool-execution-chip";
+          div.textContent = JSON.stringify(tc, null, 2);
+          toolsEl.appendChild(div);
+        });
+      }
+
+      // Red Strategy
+      const redEl = document.getElementById("drawerRedAnalysis");
+      redEl.textContent = c.red_analysis || "No adversarial analysis recorded";
+
+      switchDrawerTab("transcript");
+      document.getElementById("caseDetailDrawer").classList.add("open");
+    }
+
+    function closeCaseDrawer() {
+      const drawer = document.getElementById("caseDetailDrawer");
+      if (drawer) drawer.classList.remove("open");
+    }
+
+    function switchDrawerTab(tabName) {
+      document.getElementById("drawerTranscriptTabBtn").classList.remove("active");
+      document.getElementById("drawerTelemetryTabBtn").classList.remove("active");
+      document.getElementById("drawerTabTranscript").style.display = "none";
+      document.getElementById("drawerTabTelemetry").style.display = "none";
+
+      if (tabName === "transcript") {
+        document.getElementById("drawerTranscriptTabBtn").classList.add("active");
+        document.getElementById("drawerTabTranscript").style.display = "flex";
+      } else {
+        document.getElementById("drawerTelemetryTabBtn").classList.add("active");
+        document.getElementById("drawerTabTelemetry").style.display = "flex";
+      }
+    }
+
+    function copyDrawerPayload() {
+      if (currentDrawerCase && currentDrawerCase.injected_prompt) {
+        copyTextToClipboard(currentDrawerCase.injected_prompt);
+      }
+    }
+
+    function copyDrawerResponse() {
+      if (currentDrawerCase && currentDrawerCase.response) {
+        copyTextToClipboard(currentDrawerCase.response);
+      }
+    }
+
+    function copyTextToClipboard(text, btn) {
+      navigator.clipboard.writeText(text).then(() => {
+        if (btn) {
+          const original = btn.textContent;
+          btn.textContent = "Copied!";
+          setTimeout(() => { btn.textContent = original; }, 1500);
+        }
+      });
+    }
+
+    // --- Table Filtering ---
+    let currentFilterType = "all";
+
+    function setQuickFilter(type, btn) {
+      currentFilterType = type;
+      document.querySelectorAll(".btn-filter-pill").forEach(p => p.classList.remove("active"));
+      if (btn) btn.classList.add("active");
+      filterCases();
+    }
+
+    function toggleAdvancedFilters() {
+      const panel = document.getElementById("advancedFiltersPanel");
+      if (panel) {
+        panel.style.display = panel.style.display === "none" ? "flex" : "none";
+      }
+    }
+
+    function filterCases() {
+      const search = (document.getElementById("searchInput").value || "").toLowerCase();
+      const origin = document.getElementById("originFilter") ? document.getElementById("originFilter").value : "ALL";
+      const defense = document.getElementById("defenseFilter") ? document.getElementById("defenseFilter").value : "ALL";
+      const strategy = document.getElementById("typeFilter") ? document.getElementById("typeFilter").value : "ALL";
+
+      const rows = document.querySelectorAll("#benchmarkTableBody .case-row");
+      rows.forEach(row => {
+        const rowStatus = row.dataset.status;
+        const rowOrigin = row.dataset.origin;
+        const rowDefense = row.dataset.defense;
+        const rowStrategy = row.dataset.strategy;
+        const rowText = row.textContent.toLowerCase();
+
+        let visible = true;
+        if (currentFilterType !== "all" && rowStatus !== currentFilterType) visible = false;
+        if (origin !== "ALL" && rowOrigin !== origin) visible = false;
+        if (defense !== "ALL" && rowDefense !== defense) visible = false;
+        if (strategy !== "ALL" && rowStrategy !== strategy) visible = false;
+        if (search && !rowText.includes(search)) visible = false;
+
+        row.style.display = visible ? "" : "none";
+      });
+    }
+
+    // --- Playground & Attack Templates ---
+    async function loadTemplatesOnce() {
+      if (attackTemplates.length > 0) return;
+      try {
+        const res = await fetch("/api/manual/templates");
+        if (res.ok) {
+          const data = await res.json();
+          attackTemplates = data.templates || [];
+          updateTemplateDropdown();
+        }
+      } catch (e) {
+        console.warn("Failed to load attack templates", e);
+      }
+    }
+
+    function onManualLangOrTypeChange() {
+      updateTemplateDropdown();
+    }
+
+    function updateTemplateDropdown() {
+      const sel = document.getElementById("manualTemplateSelect");
+      if (!sel) return;
+      sel.innerHTML = '<option value="">-- Select or customize attack payload template --</option>';
+
+      attackTemplates.forEach((t, idx) => {
+        const opt = document.createElement("option");
+        opt.value = idx;
+        opt.textContent = `[${t.language}] ${t.strategy.toUpperCase()}: ${t.name || t.technique || t.payload.slice(0, 30)}`;
+        sel.appendChild(opt);
+      });
+    }
+
+    function onTemplateSelected() {
+      const sel = document.getElementById("manualTemplateSelect");
+      const idx = sel.value;
+      if (idx !== "" && attackTemplates[idx]) {
+        document.getElementById("manualPromptInput").value = attackTemplates[idx].payload || "";
+        updatePromptCharCount();
+      }
+    }
+
+    function selectAttackStrategy(strat, btn) {
+      document.querySelectorAll(".btn-strategy-pill").forEach(p => p.classList.remove("active"));
+      if (btn) btn.classList.add("active");
+      const sel = document.getElementById("manualAttackType");
+      if (sel) sel.value = strat;
+    }
+
+    function updatePromptCharCount() {
+      const count = (document.getElementById("manualPromptInput").value || "").length;
+      document.getElementById("promptCharCount").textContent = `${count} characters`;
+    }
+
+    document.getElementById("manualPromptInput")?.addEventListener("input", updatePromptCharCount);
+
+    // IME and Keyboard Handling
+    let isComposing = false;
+    const promptInput = document.getElementById("manualPromptInput");
+    if (promptInput) {
+      promptInput.addEventListener("compositionstart", () => { isComposing = true; });
+      promptInput.addEventListener("compositionend", () => { isComposing = false; });
+      promptInput.addEventListener("keydown", (event) => {
+        if (isComposing || event.keyCode === 229) return;
+        if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+          event.preventDefault();
+          sendManualPrompt();
+        }
+      });
+    }
+
+    // --- Interactive Session Lifecycle ---
+    async function startManualSession(event) {
+      if (event) event.preventDefault();
+      const form = document.getElementById("manualStartForm");
+      const payload = {
+        csrf_token: CSRF_TOKEN,
+        defense: document.getElementById("manualDefense").value,
+        language: document.getElementById("manualLang").value,
+        attack_type: document.getElementById("manualAttackType").value,
+        blue_role: document.getElementById("manualBlueRole").value,
+        red_profile: document.getElementById("manualRedProfile").value,
+        blue_model: document.getElementById("manualBlueModel") ? document.getElementById("manualBlueModel").value : "",
+        red_model: document.getElementById("manualRedModel") ? document.getElementById("manualRedModel").value : "",
+        targets: document.getElementById("manualTargets").value
+      };
+
+      try {
+        const res = await fetch("/api/manual/start", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            'X-CSRFToken': CSRF_TOKEN
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          activeSessionId = data.session_id;
+          document.getElementById("activeSessionBadge").textContent = activeSessionId.slice(-8);
+          document.getElementById("activeDefenseBadge").textContent = payload.defense.toUpperCase();
+          document.getElementById("activeBlueRoleBadge").textContent = payload.blue_role;
+          document.getElementById("activeRedProfileBadge").textContent = payload.red_profile;
+          document.getElementById("activeLangBadge").textContent = payload.language;
+          document.getElementById("activeTypeBadge").textContent = payload.attack_type.toUpperCase();
+          document.getElementById("activeTurnBadge").textContent = "Turn 1";
+
+          document.getElementById("chatTurnsContainer").innerHTML = "";
+          showAlertBanner("Session initialized successfully. Send an attack prompt or run AI red-teaming.", "info");
+          closeModal("launchPlaygroundModal");
+        } else {
+          alert("Failed to initialize session: " + (data.error || "Unknown error"));
+        }
+      } catch (e) {
+        alert("Network error starting manual session: " + e.message);
+      }
+    }
+
+    async function sendManualPrompt() {
+      const text = (document.getElementById("manualPromptInput").value || "").trim();
+      if (!text) return;
+      if (!activeSessionId) {
+        openModal("launchPlaygroundModal");
+        return;
+      }
+
+      appendChatBubble("Human", text, "human");
+      document.getElementById("manualPromptInput").value = "";
+      updatePromptCharCount();
+
+      const btn = document.getElementById("manualSendBtn");
+      btn.disabled = true;
+      btn.textContent = "Sending...";
+
+      try {
+        const res = await fetch("/api/manual/send", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            'X-CSRFToken': CSRF_TOKEN
+          },
+          body: JSON.stringify({
+            csrf_token: CSRF_TOKEN,
+            session_id: activeSessionId,
+            prompt: text
+          })
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          appendChatBubble("Blue Agent", data.response, "blue-agent", data.tool_calls);
+          document.getElementById("activeTurnBadge").textContent = `Turn ${data.turn_no + 1}`;
+          if (data.should_stop) {
+            showAlertBanner("Canary leaked or target boundary breached! Stop condition met.", "leak");
+          }
+        } else {
+          showAlertBanner(data.error || "Execution error", "leak");
+        }
+      } catch (e) {
+        showAlertBanner("Network failure: " + e.message, "leak");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Send Prompt";
+      }
+    }
+
+    async function generatePromptWithAi() {
+      if (!activeSessionId) {
+        openModal("launchPlaygroundModal");
+        return;
+      }
+      const btn = document.querySelector('[onclick="generatePromptWithAi()"]');
+      if (btn) btn.textContent = "Generating...";
+
+      try {
+        const res = await fetch("/api/manual/generate-prompt", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            'X-CSRFToken': CSRF_TOKEN
+          },
+          body: JSON.stringify({
+            csrf_token: CSRF_TOKEN,
+            session_id: activeSessionId
+          })
+        });
+        const data = await res.json();
+        if (data.success && data.prompt) {
+          document.getElementById("manualPromptInput").value = data.prompt;
+          updatePromptCharCount();
+        } else {
+          alert("AI Prompt Generation failed: " + (data.error || "No prompt returned"));
+        }
+      } catch (e) {
+        alert("Failed to reach Red AI endpoint: " + e.message);
+      } finally {
+        if (btn) btn.textContent = "✨ Red AI Assist";
+      }
+    }
+
+    async function startAiContinue() {
+      if (!activeSessionId) {
+        openModal("launchPlaygroundModal");
+        return;
+      }
+      shouldStopAi = false;
+      document.getElementById("aiContinueBtn").style.display = "none";
+      document.getElementById("aiStopBtn").style.display = "inline-flex";
+
+      const roundsLimit = document.getElementById("aiRoundsCount").value;
+      const maxRounds = roundsLimit === "until_found" ? 5 : parseInt(roundsLimit, 10);
+
+      for (let i = 0; i < maxRounds; i++) {
+        if (shouldStopAi) break;
+        const res = await executeAiStepOnce();
+        if (!res || res.should_stop) break;
+      }
+
+      document.getElementById("aiContinueBtn").style.display = "inline-flex";
+      document.getElementById("aiStopBtn").style.display = "none";
+    }
+
+    function stopAiContinue() {
+      shouldStopAi = true;
+      document.getElementById("aiContinueBtn").style.display = "inline-flex";
+      document.getElementById("aiStopBtn").style.display = "none";
+    }
+
+    async function executeAiStepOnce() {
+      try {
+        const res = await fetch("/api/manual/ai-step", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            'X-CSRFToken': CSRF_TOKEN
+          },
+          body: JSON.stringify({
+            csrf_token: CSRF_TOKEN,
+            session_id: activeSessionId
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          appendChatBubble("AI (Red)", data.prompt, "ai-red");
+          appendChatBubble("Blue Agent", data.response, "blue-agent", data.tool_calls);
+          document.getElementById("activeTurnBadge").textContent = `Turn ${data.turn_no + 1}`;
+          if (data.should_stop) {
+            showAlertBanner("Target Breached: " + (data.stop_reason || "Canary detected"), "leak");
+          }
+          return data;
+        } else {
+          showAlertBanner(data.error || "AI step execution error", "leak");
+          return null;
+        }
+      } catch (e) {
+        showAlertBanner("Network failure: " + e.message, "leak");
+        return null;
+      }
+    }
+
+    function resetManualSession() {
+      if (activeSessionId) {
+        fetch("/api/manual/reset", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            'X-CSRFToken': CSRF_TOKEN
+          },
+          body: JSON.stringify({
+            csrf_token: CSRF_TOKEN,
+            session_id: activeSessionId
+          })
+        });
+      }
+      activeSessionId = null;
+      document.getElementById("activeSessionBadge").textContent = "-";
+      document.getElementById("chatTurnsContainer").innerHTML = '<div id="emptyChatPlaceholder" style="margin: auto; text-align: center; color: var(--text-dim); font-size: 12px;">💬 Session reset. Launch a new session to begin.</div>';
+      showAlertBanner("Session reset. Click 'New Session' to configure.", "info");
+    }
+
+    function showAlertBanner(msg, type = "info") {
+      const box = document.getElementById("chatStatusAlert");
+      const icon = document.getElementById("chatStatusAlertIcon");
+      const text = document.getElementById("chatStatusAlertText");
+      if (!box) return;
+
+      box.className = `status-alert-box ${type}`;
+      if (type === "leak") icon.textContent = "🚨";
+      else if (type === "hit") icon.textContent = "🛡️";
+      else icon.textContent = "ℹ️";
+
+      text.textContent = msg;
+    }
+
+    function appendChatBubble(sender, content, roleClass, toolCalls = []) {
+      const container = document.getElementById("chatTurnsContainer");
+      const placeholder = document.getElementById("emptyChatPlaceholder");
+      if (placeholder) placeholder.remove();
+
+      const bubble = document.createElement("div");
+      bubble.className = `chat-bubble ${roleClass}`;
+
+      const meta = document.createElement("div");
+      meta.className = "bubble-meta";
+      meta.innerHTML = `<span><b>${sender}</b></span><span>${new Date().toLocaleTimeString()}</span>`;
+      bubble.appendChild(meta);
+
+      const body = document.createElement("div");
+      body.className = "bubble-content";
+      body.textContent = content;
+      bubble.appendChild(body);
+
+      if (toolCalls && toolCalls.length > 0) {
+        toolCalls.forEach(tc => {
+          const chip = document.createElement("div");
+          chip.className = "tool-execution-chip";
+          chip.textContent = `[TOOL] ${tc.tool || "SQL"}: ${JSON.stringify(tc.args || tc.query || {})}`;
+          bubble.appendChild(chip);
+        });
+      }
+
+      container.appendChild(bubble);
+      scrollToLatestTurn();
+    }
+
+    function scrollToLatestTurn(smooth = true) {
+      const container = document.getElementById("chatTurnsContainer");
+      if (container) {
+        container.scrollTo({ top: container.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+      }
+    }
+
+    function openPlaygroundHistoryDrawer() {
+      refreshManualHistory();
+      document.getElementById("playgroundHistoryDrawer").classList.add("open");
+    }
+
+    function closePlaygroundHistoryDrawer() {
+      document.getElementById("playgroundHistoryDrawer").classList.remove("open");
+    }
+
+    async function refreshManualHistory() {
+      try {
+        const res = await fetch("/api/manual/history");
+        if (res.ok) {
+          const data = await res.json();
+          renderManualHistoryTable(data.history || []);
+        }
+      } catch (e) {
+        console.warn("Failed to load history", e);
+      }
+    }
+
+    function renderManualHistoryTable(history) {
+      const drawerList = document.getElementById("drawerHistoryList");
+      if (drawerList) {
+        drawerList.innerHTML = "";
+        history.slice(0, 30).forEach(h => {
+          const card = document.createElement("div");
+          card.style.background = "var(--bg-input)";
+          card.style.border = "1px solid var(--border-subtle)";
+          card.style.borderRadius = "6px";
+          card.style.padding = "8px 10px";
+          card.style.fontSize = "11px";
+          card.style.cursor = "pointer";
+          card.innerHTML = `<div style="font-weight:600;color:var(--text-white);">${h.id} (${h.defense_level.toUpperCase()})</div>
+                            <div style="color:var(--text-muted);margin-top:2px;" class="text-snippet">${h.injected_prompt}</div>`;
+          card.onclick = () => {
+            loadSessionIntoPlayground(h.id);
+            closePlaygroundHistoryDrawer();
+          };
+          drawerList.appendChild(card);
+        });
+      }
+    }
+
+    async function loadSessionIntoPlayground(sessionId) {
+      try {
+        const res = await fetch(`/api/manual/session/${sessionId}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.turns) {
+            activeSessionId = sessionId;
+            document.getElementById("activeSessionBadge").textContent = sessionId.slice(-8);
+            document.getElementById("chatTurnsContainer").innerHTML = "";
+            data.turns.forEach(t => {
+              appendChatBubble(t.sender || "User", t.prompt, "human");
+              appendChatBubble("Blue Agent", t.response, "blue-agent", t.tool_calls);
+            });
+            showAlertBanner(`Loaded session ${sessionId} (${data.turns.length} turns)`, "info");
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to load session into playground", e);
+      }
+    }
+
+    function initChatScrollEvents() {
+      const container = document.getElementById("chatTurnsContainer");
+      const btn = document.getElementById("chatJumpBottomBtn");
+      if (!container || !btn) return;
+      container.addEventListener("scroll", () => {
+        const distFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+        btn.style.display = distFromBottom > 100 ? "block" : "none";
+      });
+    }
+
+    // --- OWASP Benchmark Matrix ---
+    function onEvalTargetChange() {
+      const type = document.getElementById("evalTargetType").value;
+      const externalBox = document.getElementById("evalExternalFields");
+      if (externalBox) {
+        externalBox.style.display = type === "openai" ? "grid" : "none";
+      }
+    }
+
+    async function runOwaspBenchmark() {
+      const btn = document.getElementById("btnRunEvalBenchmark");
+      const spinner = document.getElementById("evalRunSpinner");
+      btn.disabled = true;
+      spinner.style.display = "inline-flex";
+
+      const payload = {
+        csrf_token: CSRF_TOKEN,
+        target_type: document.getElementById("evalTargetType").value,
+        defense_level: document.getElementById("evalDefense").value,
+        blue_role: document.getElementById("evalBlueRole").value,
+        base_url: document.getElementById("evalBaseUrl").value,
+        model_name: document.getElementById("evalModel").value,
+        api_key: document.getElementById("evalApiKey").value
+      };
+
+      try {
+        const res = await fetch("/api/eval/run", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            'X-CSRFToken': CSRF_TOKEN
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          pollOwaspEvalStatus();
+        } else {
+          alert("OWASP Benchmark run failed: " + (data.error || "Unknown error"));
+          btn.disabled = false;
+          spinner.style.display = "none";
+        }
+      } catch (e) {
+        alert("Failed to trigger OWASP evaluation: " + e.message);
+        btn.disabled = false;
+        spinner.style.display = "none";
+      }
+    }
+
+    function pollOwaspEvalStatus() {
+      const interval = setInterval(async () => {
+        try {
+          const res = await fetch("/api/eval/status");
+          if (res.ok) {
+            const data = await res.json();
+            if (!data.running) {
+              clearInterval(interval);
+              document.getElementById("btnRunEvalBenchmark").disabled = false;
+              document.getElementById("evalRunSpinner").style.display = "none";
+              if (data.report) {
+                renderEvalReport(data.report);
+              }
+            }
+          }
+        } catch (e) {
+          console.warn("Polling error", e);
+        }
+      }, 1500);
+    }
+
+    function renderEvalReport(report) {
+      const panel = document.getElementById("evalResultsPanel");
+      if (!panel) return;
+      panel.style.display = "flex";
+
+      const m = report.metrics || {};
+      document.getElementById("metricAsr").textContent = `${((m.asr || 0) * 100).toFixed(1)}%`;
+      document.getElementById("metricDes").textContent = `${((m.des || 0) * 100).toFixed(1)}%`;
+      document.getElementById("metricTvr").textContent = `${((m.tvr || 0) * 100).toFixed(1)}%`;
+      document.getElementById("metricFrr").textContent = `${((m.frr || 0) * 100).toFixed(1)}%`;
+
+      const tbody = document.getElementById("evalMatrixBody");
+      tbody.innerHTML = "";
+      const categories = report.categories || report.breakdown || [];
+      categories.forEach(cat => {
+        const tr = document.createElement("tr");
+        const asrPct = ((cat.asr || 0) * 100).toFixed(1);
+        tr.innerHTML = `<td><b>${cat.name || cat.category}</b></td>
+                        <td style="font-family:var(--font-mono);">${cat.id || "LLM01"}</td>
+                        <td>${cat.total || 0}</td>
+                        <td style="color:#EF4444;">${cat.breached || 0}</td>
+                        <td style="font-family:var(--font-mono);">${asrPct}%</td>
+                        <td><span class="badge-status ${cat.breached > 0 ? 'breached' : 'defended'}">${cat.breached > 0 ? 'FAIL' : 'PASS'}</span></td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function loadLatestEvalReportOnce() {
+      try {
+        const res = await fetch("/api/eval/latest");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.report) {
+            renderEvalReport(data.report);
+          }
+        }
+      } catch (e) {
+        console.warn("No previous OWASP evaluation found");
+      }
+    }
+
+    // --- Live Batch Status Polling ---
+    function checkLiveStatus() {
+      fetch("/status")
+        .then(res => res.json())
+        .then(st => {
+          const banner = document.getElementById("live-banner");
+          const bannerText = document.getElementById("live-banner-text");
+          const btn = document.getElementById("exec-btn");
+          if (st.running) {
+            if (banner) banner.style.display = "flex";
+            if (bannerText) bannerText.innerHTML = `⏳ Running evaluation in background: Case <b>${st.case_id}</b> | Defense: <b>${st.defense.toUpperCase()}</b> ...`;
+            if (btn) {
+              btn.disabled = true;
+              btn.textContent = "⏳ Running Evaluation...";
+            }
+          } else {
+            if (banner) banner.style.display = "none";
+            if (btn) {
+              btn.disabled = false;
+              btn.textContent = "▶ Start Benchmark";
+            }
+          }
+        })
+        .catch(err => console.warn("Status check failed", err));
+    }
+
+    // --- Leaderboard Loader ---
+    async function loadLeaderboard() {
+      try {
+        const res = await fetch("/api/benchmark/leaderboard");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.success || !data.tier_data) return;
+
+        const tbody = document.getElementById("leaderboardTableBody");
+        if (!tbody) return;
+        tbody.innerHTML = "";
+
+        const tiers = ["off", "prompt", "tools", "spotlight", "all"];
+        tiers.forEach(tKey => {
+          const t = data.tier_data[tKey];
+          if (!t) return;
+          const tr = document.createElement("tr");
+          const isClean = t.asr <= 5.0;
+          tr.innerHTML = `
+            <td style="font-weight:600;font-family:var(--font-mono);">${t.name}</td>
+            <td style="font-weight:700;color:${t.asr > 20 ? '#EF4444' : '#10B981'};font-family:var(--font-mono);">${t.asr}%</td>
+            <td style="color:#10B981;font-weight:600;font-family:var(--font-mono);">${t.des}%</td>
+            <td style="font-family:var(--font-mono);">${t.tvr}%</td>
+            <td style="font-family:var(--font-mono);">${t.frr}%</td>
+            <td>${t.th_asr}%</td>
+            <td>${t.en_asr}%</td>
+            <td>${t.mix_asr}%</td>
+            <td>${t.llm01_asr}%</td>
+            <td>${t.llm06_asr}%</td>
+            <td>${t.sec24_leak}%</td>
+            <td><span class="badge-status ${isClean ? 'defended' : 'breached'}">${isClean ? 'DEFENDED' : 'VULNERABLE'}</span></td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (e) {
+        console.warn("Failed to load leaderboard", e);
+      }
+    }
+
+    // --- Offline DLP Audit ---
+    async function runDlpAudit() {
+      const btn = document.getElementById("btnRunDlpAudit");
+      if (btn) btn.textContent = "Auditing Regex Probes...";
+
+      try {
+        const res = await fetch("/api/dlp/audit");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.success) return;
+
+        document.getElementById("dlpTotalCount").textContent = data.total;
+        document.getElementById("dlpBypassedCount").textContent = data.bypassed;
+        document.getElementById("dlpBlockedCount").textContent = data.total - data.bypassed;
+        const rate = ((data.bypassed / data.total) * 100).toFixed(1);
+        document.getElementById("dlpBypassRate").textContent = `${rate}%`;
+
+        const badge = document.getElementById("dlpAuditStatusBadge");
+        if (badge) {
+          badge.textContent = data.clean ? "Clean Posture (0 Bypasses)" : `Finding (${data.bypassed} Bypasses)`;
+          badge.style.background = data.clean ? "rgba(16, 185, 129, 0.2)" : "rgba(239, 68, 68, 0.2)";
+          badge.style.color = data.clean ? "#10B981" : "#EF4444";
+        }
+
+        const tbody = document.getElementById("dlpAuditTableBody");
+        if (tbody) {
+          tbody.innerHTML = "";
+          data.rows.forEach(r => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+              <td class="case-id-cell">${r.pair_id}</td>
+              <td style="font-family:var(--font-mono);font-size:11px;">${r.encoding}</td>
+              <td><span class="badge-status ${r.bypassed ? 'breached' : 'defended'}">${r.status}</span></td>
+              <td style="font-family:var(--font-mono);font-size:11px;color:#F87171;">${r.expected_canary}</td>
+            `;
+            tbody.appendChild(tr);
+          });
+        }
+      } catch (e) {
+        console.warn("DLP audit error", e);
+      } finally {
+        if (btn) btn.textContent = "⚡ Run DLP Audit (0 API Calls)";
+      }
+    }
+
+    // --- System Doctor & Config ---
+    async function loadDoctorDiagnostics() {
+      const btn = document.getElementById("btnRunDoctor");
+      if (btn) btn.textContent = "Checking...";
+
+      try {
+        const [docRes, cfgRes] = await Promise.all([
+          fetch("/api/doctor"),
+          fetch("/api/config")
+        ]);
+
+        if (docRes.ok) {
+          const docData = await docRes.json();
+          if (docData.success && docData.diagnostics) {
+            const diag = docData.diagnostics;
+            const overallBadge = document.getElementById("doctorOverallBadge");
+            if (overallBadge) {
+              const isOk = diag.status === "OK" || diag.overall_status === "OK";
+              overallBadge.textContent = isOk ? "SYSTEM HEALTHY" : "ATTENTION REQUIRED";
+              overallBadge.className = `badge-status ${isOk ? 'defended' : 'error'}`;
+            }
+
+            const tbody = document.getElementById("doctorTableBody");
+            if (tbody && diag.checks) {
+              tbody.innerHTML = "";
+              diag.checks.forEach(c => {
+                const tr = document.createElement("tr");
+                const stClass = c.status === "OK" ? "defended" : (c.status === "WARN" ? "error" : "breached");
+                tr.innerHTML = `
+                  <td style="font-weight:600;font-size:11px;color:var(--text-muted);">${c.category}</td>
+                  <td style="font-weight:600;color:var(--text-white);">${c.component}</td>
+                  <td><span class="badge-status ${stClass}">${c.status}</span></td>
+                  <td style="font-family:var(--font-mono);font-size:11px;color:var(--text-main);">${c.details}</td>
+                `;
+                tbody.appendChild(tr);
+              });
+            }
+          }
+        }
+
+        if (cfgRes.ok) {
+          const cfgData = await cfgRes.json();
+          if (cfgData.success && cfgData.config) {
+            const tbody = document.getElementById("configTableBody");
+            if (tbody) {
+              tbody.innerHTML = "";
+              Object.entries(cfgData.config).forEach(([k, v]) => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                  <td style="font-family:var(--font-mono);font-size:11px;color:#38BDF8;font-weight:600;">${k}</td>
+                  <td style="font-family:var(--font-mono);font-size:11px;color:var(--text-white);">${v}</td>
+                `;
+                tbody.appendChild(tr);
+              });
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("Diagnostics loader failed", e);
+      } finally {
+        if (btn) btn.textContent = "↻ Run Diagnostics";
+      }
+    }
+
+    // --- Dry-Run Mode Handler ---
+    function toggleDryRunMode(chk) {
+      const btn = document.getElementById("exec-btn");
+      const resultBox = document.getElementById("dryRunEstimateResult");
+      if (chk.checked) {
+        if (btn) btn.textContent = "🔍 Estimate API Calls (Dry-Run)";
+        if (resultBox) resultBox.style.display = "none";
+      } else {
+        if (btn) btn.textContent = "▶ Start Benchmark";
+        if (resultBox) resultBox.style.display = "none";
+      }
+    }
+
+    document.getElementById("eval-form")?.addEventListener("submit", async function(e) {
+      const chk = document.getElementById("dryRunCheckbox");
+      if (chk && chk.checked) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        const res = await fetch("/run", {
+          method: "POST",
+          body: formData
+        });
+        const data = await res.json();
+        const resultBox = document.getElementById("dryRunEstimateResult");
+        if (resultBox && data.estimated_requests) {
+          const est = data.estimated_requests;
+          resultBox.style.display = "block";
+          resultBox.innerHTML = `
+            <div><b>[DRY-RUN VALIDATION PASSED]</b> Zero API calls executed.</div>
+            <div>• Target: ${data.dataset} (${data.num_cases} cases) | Defense: ${data.defense.toUpperCase()}</div>
+            <div>• Estimated Requests: Min <b>${est.min_requests}</b> (Typical: <b>${est.typical_low} - ${est.typical_high}</b> calls)</div>
+          `;
+        }
+      }
+    });
+
+    // --- On Window Load ---
+    window.addEventListener("DOMContentLoaded", () => {
+      initChatScrollEvents();
+      setInterval(checkLiveStatus, 2500);
+    });
+  </script>
