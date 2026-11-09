@@ -96,7 +96,7 @@ thai-injection-eval/
 │   └── evaluator/                # Benchmark engines, metrics & statistical tests
 ├── data/                         # Benchmark datasets and synthetic mock databases
 │   ├── archive/                  # Archived raw benchmark datasets
-│   ├── normalized/               # Canonical Draft-07 validated benchmark suites (381 cases)
+│   ├── normalized/               # Canonical Draft-07 validated benchmark suites (423 cases across 8 suites)
 │   ├── schema/                   # JSON Schema definitions (Draft-07)
 │   ├── validation/               # Dataset validation reports
 │   └── university.db             # Synthetic sandboxed educational database
@@ -105,7 +105,7 @@ thai-injection-eval/
 │   ├── methodology.md            # Statistical formulas and judge specifications
 │   ├── development.md            # Developer guidelines and testing standards
 │   └── REFERENCES.md             # Academic literature & OWASP citations
-├── tests/                        # Automated offline unit test suite (206 unittests)
+├── tests/                        # Automated offline unit test suite (293 unittests)
 ├── scripts/                      # Utility scripts (seed generation, reporting helpers)
 ├── agent.py                      # Multi-role Red vs Blue evaluation runner
 ├── web_ui.py                     # Local Flask audit dashboard & interactive playground
@@ -187,6 +187,15 @@ Run the full automated test suite without consuming any external API quota:
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py"
+```
+
+### 4. Launch Web UI Console
+
+Start the local security audit console and interactive red-teaming playground:
+
+```bash
+python web_ui.py
+# Open http://127.0.0.1:5000 in your browser
 ```
 
 ---
