@@ -1140,6 +1140,17 @@ class WebUiTests(unittest.TestCase):
         self.assertEqual(_manual_sessions[sid]["blue_model"], "gemini-3.1-flash-lite")
         self.assertEqual(_manual_sessions[sid]["red_model"], "openrouter:openrouter/free")
 
+    def test_modal_scrolling_and_viewport_responsiveness(self):
+        resp = self.client.get("/")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        # Ensure modal structure is scrollable and constrained to viewport
+        self.assertIn(".modal-card {", html)
+        self.assertIn("overflow-y: auto", html)
+        self.assertIn("max-height: calc(100vh", html)
+        self.assertIn("flex-shrink: 0", html)
+
+
 
 
 

@@ -906,13 +906,15 @@
       left: 0;
       width: 100vw;
       height: 100vh;
-      background: rgba(0, 0, 0, 0.65);
-      backdrop-filter: blur(3px);
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
       z-index: 1000;
       display: none;
       align-items: center;
       justify-content: center;
-      padding: 16px;
+      padding: 20px 16px;
+      overflow-y: auto;
     }
     .modal-card {
       background: var(--bg-surface);
@@ -920,9 +922,21 @@
       border-radius: 8px;
       width: 100%;
       max-width: 580px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      max-height: calc(100vh - 40px);
+      max-height: calc(100dvh - 40px);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+      display: flex;
+      flex-direction: column;
       overflow: hidden;
       animation: modalFadeIn 0.15s ease-out;
+      margin: auto;
+    }
+    .modal-card form {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      flex: 1;
+      min-height: 0;
     }
     @keyframes modalFadeIn {
       from { opacity: 0; transform: scale(0.97); }
@@ -935,6 +949,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      flex-shrink: 0;
     }
     .modal-title {
       font-size: 14px;
@@ -957,6 +972,9 @@
       display: flex;
       flex-direction: column;
       gap: 16px;
+      overflow-y: auto;
+      flex: 1;
+      min-height: 0;
     }
     .form-field-group {
       display: flex;
@@ -991,7 +1009,9 @@
       border-top: 1px solid var(--border-subtle);
       display: flex;
       justify-content: flex-end;
+      align-items: center;
       gap: 10px;
+      flex-shrink: 0;
     }
 
     /* Slide-over Drawer (#caseDetailDrawer & #playgroundHistoryDrawer) */
