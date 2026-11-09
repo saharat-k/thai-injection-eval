@@ -211,6 +211,22 @@ class CliArchitectureTests(unittest.TestCase):
         res = rate_with_ci(10, 20)
         self.assertEqual(res["rate"], 50.0)
 
+    def test_core_prompts_and_db_modules_provide_decoupled_interfaces(self):
+        import agent
+        from core import db as core_db
+        from core import prompts as core_prompts
+
+        self.assertIn("students", core_db.PUBLIC_TABLES)
+        self.assertTrue(callable(core_db.init_university_db))
+        self.assertTrue(callable(core_db.init_results_db))
+        self.assertTrue(callable(core_db.load_canaries))
+
+        blue_roles, red_profiles = core_prompts.load_personas()
+        self.assertIn("registrar_staff", blue_roles)
+        self.assertIn("realistic_attacker", red_profiles)
+        self.assertIn("university assistant", core_prompts.BASE_SYSTEM_PROMPT.lower())
+        self.assertEqual(core_prompts.get_blue_role_prompt("registrar_staff"), agent.get_blue_role_prompt("registrar_staff"))
+
     def test_init_university_db_anchored_path(self):
         """Verify init_university_db succeeds regardless of current working directory."""
         import agent
