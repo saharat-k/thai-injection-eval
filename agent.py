@@ -603,15 +603,20 @@ DEFAULT_RED_PROFILES = {
     },
 }
 
-def load_personas(path: str = "personas.json") -> tuple[dict, dict]:
-    """Load Blue roles and Red profiles from personas.json, falling back to built-in defaults."""
+def load_personas(path: str = os.path.join("data", "personas.json")) -> tuple[dict, dict]:
+    """Load Blue roles and Red profiles from data/personas.json, falling back to built-in defaults."""
     blue_roles = dict(DEFAULT_BLUE_ROLES)
     red_profiles = dict(DEFAULT_RED_PROFILES)
     target_path = path
     if not os.path.exists(target_path):
-        alt_data = os.path.join("data", os.path.basename(path))
-        if os.path.exists(alt_data):
-            target_path = alt_data
+        for candidate in (
+            os.path.join("data", os.path.basename(path)),
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", os.path.basename(path)),
+            os.path.basename(path),
+        ):
+            if os.path.exists(candidate):
+                target_path = candidate
+                break
     if os.path.exists(target_path):
         try:
             with open(target_path, "r", encoding="utf-8") as f:
@@ -901,12 +906,16 @@ def init_results_db(db_path=RESULTS_DB_PATH):
     conn = sqlite3.connect(db_path, timeout=15.0, check_same_thread=False)
     conn.execute("PRAGMA journal_mode = WAL;")
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    schema_path = "schema.sql"
+    schema_path = os.path.join("data", "results_schema.sql")
     if not os.path.exists(schema_path):
         for candidate in (
-            os.path.join(base_dir, "schema.sql"),
+            os.path.join(base_dir, "data", "results_schema.sql"),
+            os.path.join("data", "results_schema.sql"),
+            "results_schema.sql",
             os.path.join(base_dir, "data", "schema.sql"),
             os.path.join("data", "schema.sql"),
+            os.path.join(base_dir, "schema.sql"),
+            "schema.sql",
         ):
             if os.path.exists(candidate):
                 schema_path = candidate

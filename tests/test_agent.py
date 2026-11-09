@@ -1029,8 +1029,22 @@ class PersonaAndRolePolicyTests(unittest.TestCase):
         self.assertFalse(agent.is_private_table_access(c_malformed))
         self.assertFalse(agent.is_private_table_blocked(c_malformed))
 
+    def test_data_file_hygiene_and_env_example_compliance(self):
+        self.assertTrue(os.path.exists(os.path.join("data", "personas.json")))
+        self.assertFalse(os.path.exists("personas.json"))
+        self.assertTrue(os.path.exists(os.path.join("data", "results_schema.sql")))
+        self.assertFalse(os.path.exists(os.path.join("data", "schema.sql")))
+        blue_roles, red_profiles = agent.load_personas("personas.json")
+        self.assertIn("registrar_staff", blue_roles)
+        self.assertIn("thai_nuanced_adversary", red_profiles)
+        with open(".env.example", "r", encoding="utf-8") as f:
+            env_example = f.read()
+        self.assertNotIn("gemini-3.8-flash", env_example)
+        self.assertIn("openrouter:openrouter/free", env_example)
+
     def test_personas_json_includes_all_red_profiles(self):
-        with open("personas.json", "r", encoding="utf-8") as f:
+        personas_path = os.path.join("data", "personas.json") if os.path.exists(os.path.join("data", "personas.json")) else "personas.json"
+        with open(personas_path, "r", encoding="utf-8") as f:
             data = json.load(f)
         for profile_key in ("realistic_attacker", "insider_threat", "security_auditor", "thai_nuanced_adversary"):
             self.assertIn(profile_key, data.get("red_profiles", {}))
