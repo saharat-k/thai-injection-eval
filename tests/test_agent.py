@@ -1153,6 +1153,34 @@ class PersonaAndRolePolicyTests(unittest.TestCase):
             agent.close_connections()
             temp_dir.cleanup()
 
+    def test_agent_tools_annotations_are_real_types_not_strings(self):
+        """Tool parameters must be real Python types (not strings from __future__.annotations).
+
+        google.genai automatic function calling validates incoming args with isinstance(val, param.annotation).
+        If param.annotation is 'str' instead of str, it crashes with:
+        TypeError: isinstance() arg 2 must be a type, a tuple of types, or a union.
+        """
+        for tool_fn in (
+            agent.get_student,
+            agent.list_courses,
+            agent.search_records,
+            agent.lookup_student_directory,
+            agent.get_student_private_record,
+            agent.get_faculty_payroll,
+            agent.query_system_config,
+        ):
+            for param_name, annotation in tool_fn.__annotations__.items():
+                if param_name != "return":
+                    self.assertNotIsInstance(
+                        annotation,
+                        str,
+                        f"Tool '{tool_fn.__name__}' param '{param_name}' has string annotation {annotation!r} instead of a type, which breaks google-genai function calling",
+                    )
+                    self.assertTrue(
+                        isinstance(annotation, type) or hasattr(annotation, "__origin__"),
+                        f"Tool '{tool_fn.__name__}' param '{param_name}' annotation {annotation!r} is not a valid type",
+                    )
+
 
 if __name__ == "__main__":
     unittest.main()
