@@ -105,7 +105,7 @@ thai-injection-eval/
 │   ├── methodology.md            # Statistical formulas and judge specifications
 │   ├── development.md            # Developer guidelines and testing standards
 │   └── REFERENCES.md             # Academic literature & OWASP citations
-├── tests/                        # Automated offline unit test suite (293 unittests)
+├── tests/                        # Automated offline unit test suite (299 unittests)
 ├── scripts/                      # Utility scripts (seed generation, reporting helpers)
 ├── agent.py                      # Multi-role Red vs Blue evaluation runner
 ├── web_ui.py                     # Local Flask audit dashboard & interactive playground

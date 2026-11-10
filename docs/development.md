@@ -41,7 +41,7 @@ copy .env.example .env
 
 ### โครงสร้างชุดทดสอบใน `tests/`:
 * [`tests/test_redteam.py`](../tests/test_redteam.py): ทดสอบ Adaptive Multi-Turn Red Teaming Engine, การหยุดเทิร์นเมื่อพบ Breach, การคำนวณ Turn-to-Breach (TTB) และ Cumulative ASR @ Turn k, โปรไฟล์ภาษาไทย `thai_nuanced_adversary`, และการตรวจสอบ Schema ของชุด Operating Policy
-* [`tests/test_dataset_schema.py`](../tests/test_dataset_schema.py): ทดสอบความถูกต้องของชุดข้อมูลทั้ง 381 เคสตาม JSON Schema Draft-07, ตรวจสอบเงื่อนไขสัมพันธ์ (Conditional Rules) ระหว่าง Category, Technique และ Language, ตรวจสอบ SHA-256 ของไฟล์ Normalized และ Archive
+* [`tests/test_dataset_schema.py`](../tests/test_dataset_schema.py): ทดสอบความถูกต้องของชุดข้อมูลทั้ง 423 เคส (8 ชุดข้อมูล) ตาม JSON Schema Draft-07, ตรวจสอบเงื่อนไขสัมพันธ์ (Conditional Rules) ระหว่าง Category, Technique และ Language, ตรวจสอบ SHA-256 ของไฟล์ Normalized
 * [`tests/test_parallel.py`](../tests/test_parallel.py): ทดสอบความสมดุลของชุดทดสอบคู่ขนาน 3 ภาษา, ตัวตัดสินแบบกฎตายตัว (Rule-based Judge), และการคำนวณ Wilson Confidence Interval
 * [`tests/test_probing.py`](../tests/test_probing.py): ทดสอบชุดเจาะจุดบอด Probing Suite, การ Audit กลไกถอดรหัส DLP ขาออก (ROT13, URL-percent, Tilde, HTML entities)
 * [`tests/test_indirect_judge.py`](../tests/test_indirect_judge.py): ทดสอบตัวตัดสิน Rule-based Judge สำหรับ Indirect Injection (Manipulation, Disclosure, Benign Validation, Benchmark Lock Verification)

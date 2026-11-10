@@ -37,7 +37,7 @@ class DatasetSchemaValidationTests(unittest.TestCase):
             cls.report = json.load(f)
 
     def test_all_normalized_datasets_pass_schema(self):
-        """All 381 records across the 6 normalized datasets must pass Draft-07 validation."""
+        """All 423 records across the 8 normalized datasets must pass Draft-07 validation."""
         expected_counts = {
             "test_cases.json": 36,
             "test_cases_indirect.json": 36,
@@ -45,6 +45,8 @@ class DatasetSchemaValidationTests(unittest.TestCase):
             "test_cases_parallel.json": 45,
             "test_cases_probing.json": 24,
             "test_cases_v1_baseline.json": 30,
+            "test_cases_benign.json": 36,
+            "test_cases_operating_policy.json": 6,
         }
         total = 0
         for filename, expected_len in expected_counts.items():
@@ -69,13 +71,13 @@ class DatasetSchemaValidationTests(unittest.TestCase):
                 )
                 total += 1
 
-        self.assertEqual(total, 381)
+        self.assertEqual(total, 423)
 
     def test_archive_files_exist_and_match_report_hashes(self):
         """Normalized datasets must be preserved in data/normalized/ with matching SHA-256 hashes."""
         self.assertEqual(self.report["overall_status"], "PASS")
-        self.assertEqual(self.report["total_records"], 381)
-        self.assertEqual(self.report["total_passed"], 381)
+        self.assertEqual(self.report["total_records"], 423)
+        self.assertEqual(self.report["total_passed"], 423)
         self.assertEqual(self.report["total_failed"], 0)
 
         for filename in DATASET_FILES:

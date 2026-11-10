@@ -38,6 +38,8 @@ DATASET_FILES = [
     "test_cases_parallel.json",
     "test_cases_probing.json",
     "test_cases_v1_baseline.json",
+    "test_cases_benign.json",
+    "test_cases_operating_policy.json",
 ]
 
 # Indirect record mappings for cases that reference DB rows in prompt text
@@ -528,10 +530,11 @@ def run_normalization_pipeline() -> Dict[str, Any]:
     # Load test_cases.json first to provide 1:1 reference for v1_baseline
     tc_raw_path = os.path.join(BASE_DIR, "data", "test_cases.json")
     tc_arch_path = os.path.join(ARCHIVE_DIR, "test_cases.json")
-    tc_source = tc_raw_path if os.path.exists(tc_raw_path) else tc_arch_path
+    tc_norm_path = os.path.join(NORMALIZED_DIR, "test_cases.json")
+    tc_source = tc_raw_path if os.path.exists(tc_raw_path) else (tc_arch_path if os.path.exists(tc_arch_path) else tc_norm_path)
     with open(tc_source, "r", encoding="utf-8") as f:
         tc_raw_list = json.load(f)
-    v1_reference_map = {str(c["id"]).strip(): c for c in tc_raw_list}
+    v1_reference_map = {str(c["id"]).strip(): c for c in (tc_raw_list if isinstance(tc_raw_list, list) else tc_raw_list.get("cases", []))}
 
     dataset_reports: Dict[str, Any] = {}
     total_records = 0
@@ -548,7 +551,10 @@ def run_normalization_pipeline() -> Dict[str, Any]:
             shutil.copy2(raw_path, archive_path)
             os.remove(raw_path)
 
-        with open(archive_path, "r", encoding="utf-8") as f:
+        from_archive = os.path.exists(archive_path)
+        source_path = archive_path if from_archive else norm_path
+
+        with open(source_path, "r", encoding="utf-8") as f:
             raw_doc = json.load(f)
 
         is_list_doc = isinstance(raw_doc, list)
@@ -570,7 +576,10 @@ def run_normalization_pipeline() -> Dict[str, Any]:
             seen_ids.add(cid)
 
             try:
-                norm_case = normalize_case(raw_case, filename, v1_reference_map)
+                if from_archive:
+                    norm_case = normalize_case(raw_case, filename, v1_reference_map)
+                else:
+                    norm_case = raw_case
                 schema_errors = validate_against_draft07_schema(norm_case, schema)
                 rec_errors.extend(schema_errors)
                 normalized_cases.append(norm_case)
@@ -597,23 +606,24 @@ def run_normalization_pipeline() -> Dict[str, Any]:
                 }
             )
 
-        # Write normalized dataset
-        if is_list_doc:
-            out_doc: Any = normalized_cases
-        else:
-            out_doc = dict(raw_doc)
-            out_doc["cases"] = normalized_cases
+        # Write normalized dataset only if transformed from archive
+        if from_archive:
+            if is_list_doc:
+                out_doc: Any = normalized_cases
+            else:
+                out_doc = dict(raw_doc)
+                out_doc["cases"] = normalized_cases
 
-        with open(norm_path, "w", encoding="utf-8", newline="\n") as f:
-            json.dump(out_doc, f, ensure_ascii=False, indent=2)
-            f.write("\n")
+            with open(norm_path, "w", encoding="utf-8", newline="\n") as f:
+                json.dump(out_doc, f, ensure_ascii=False, indent=2)
+                f.write("\n")
 
         dataset_reports[filename] = {
             "total_records": len(raw_cases),
             "passed": ds_passed,
             "failed": ds_failed,
             "status": "PASS" if ds_failed == 0 else "FAIL",
-            "archive_sha256": file_sha256(archive_path),
+            "archive_sha256": file_sha256(archive_path) if from_archive else None,
             "normalized_sha256": file_sha256(norm_path),
             "failed_records": [r for r in record_results if r["status"] == "FAIL"],
         }

@@ -1,11 +1,11 @@
 {
   "schema_path": "data/schema/test_case.schema.json",
   "schema_sha256": "8d676453fbb5b661969bc7c0a2dd24f1399f383c51b530245b2b89219f2a026b",
-  "timestamp_utc": "2026-11-02T14:06:50.878241+00:00",
+  "timestamp_utc": "2026-11-10T21:44:52.384641+00:00",
   "overall_status": "PASS",
-  "total_datasets": 6,
-  "total_records": 381,
-  "total_passed": 381,
+  "total_datasets": 8,
+  "total_records": 423,
+  "total_passed": 423,
   "total_failed": 0,
   "datasets": {
     "test_cases.json": {
@@ -13,7 +13,7 @@
       "passed": 36,
       "failed": 0,
       "status": "PASS",
-      "archive_sha256": "4a82bbf4f3b071ff21268eaf94b74e0f297b55ab90995870f628b790ce4f89af",
+      "archive_sha256": null,
       "normalized_sha256": "b84e5317a6ec25e194134b738c9a4a1f104bbe81c52c8b4e72c43bd8fb6b4edb",
       "failed_records": []
     },
@@ -22,7 +22,7 @@
       "passed": 36,
       "failed": 0,
       "status": "PASS",
-      "archive_sha256": "9d7c9f7d05c454a43609dbf05e596d921c7b1cad53bd5deab036a158442575c5",
+      "archive_sha256": null,
       "normalized_sha256": "437aed95ec03b6060b1583b2c050818e328bcd94b75c2e5b7572883478347ba8",
       "failed_records": []
     },
@@ -40,7 +40,7 @@
       "passed": 45,
       "failed": 0,
       "status": "PASS",
-      "archive_sha256": "6d3507ac7885b3b9cee68cf74c7df2ac7610bdb6a097247ddc59a98ea1835c41",
+      "archive_sha256": null,
       "normalized_sha256": "eda58b5af19bd3cc01f01e6742e18fe67d36dd7050179835aad0becce1e05562",
       "failed_records": []
     },
@@ -49,7 +49,7 @@
       "passed": 24,
       "failed": 0,
       "status": "PASS",
-      "archive_sha256": "7570f6382ea6a69a77749353d56dad5eef8a2fcacf37cebf76132475a518ea41",
+      "archive_sha256": null,
       "normalized_sha256": "a0651b3835e6a5f663977c2f3047896a1d73f040a861ada8cac07164f46fd708",
       "failed_records": []
     },
@@ -58,8 +58,26 @@
       "passed": 30,
       "failed": 0,
       "status": "PASS",
-      "archive_sha256": "604c3a41029e81d5077e2896945699a922e83a1725b248f0f73873597c936319",
+      "archive_sha256": null,
       "normalized_sha256": "705bf5faef72d5ac59ee9638b0a44dbb8ff62ff3071102cc06d889246ea837c4",
+      "failed_records": []
+    },
+    "test_cases_benign.json": {
+      "total_records": 36,
+      "passed": 36,
+      "failed": 0,
+      "status": "PASS",
+      "archive_sha256": null,
+      "normalized_sha256": "c2dbf58096c0deb6528d0e2954a4a84466ce67a34cf096fbc00ebbe8b6b8989a",
+      "failed_records": []
+    },
+    "test_cases_operating_policy.json": {
+      "total_records": 6,
+      "passed": 6,
+      "failed": 0,
+      "status": "PASS",
+      "archive_sha256": null,
+      "normalized_sha256": "f08eeec3b76d83bc686de11bab0003d253211451385931f86c2d8ffad415f615",
       "failed_records": []
     }
   }

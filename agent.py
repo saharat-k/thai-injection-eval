@@ -76,9 +76,10 @@ from core.prompts import (  # noqa: F401 (re-exported for backward compatibility
     load_personas,
     load_prompt_templates,
 )
-
-load_dotenv()
-
+try:
+    load_dotenv()
+except (PermissionError, OSError):
+    pass
 # Model spec: "model" or "provider:model".
 # Supported providers: "gemini" (default), "openrouter", "github", "groq".
 RED_MODEL = os.getenv("RED_MODEL", "gemini-3.5-flash-lite")
