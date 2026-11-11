@@ -243,6 +243,7 @@ Exit Codes:
     redteam_run.add_argument("--blue", "--blue-model", dest="blue", default=None, help="Target Blue model (alias for --model)")
     redteam_run.add_argument("--red", "--red-model", dest="red", default=None, help="Red adversary model (e.g. openrouter:openrouter/free)")
     redteam_run.add_argument("--profile", "--red-profile", dest="profile", choices=["thai_nuanced_adversary", "realistic_attacker", "insider_threat", "security_auditor"], default="thai_nuanced_adversary", help="Red adversary profile")
+    redteam_run.add_argument("--strategy", choices=["crescendo", "tap", "template"], default="template", help="Multi-turn attack strategy: crescendo, tap, or template (default: template)")
     redteam_run.add_argument("--attempts", type=int, default=3, help="Maximum multi-turn attack rounds per case (default: 3)")
     redteam_run.add_argument("--limit", type=int, default=None, help="Limit total cases to evaluate")
     redteam_run.add_argument("--dry-run", action="store_true", help="Run simulation using rule-based mock runner without consuming API quota")

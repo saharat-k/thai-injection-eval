@@ -10,6 +10,7 @@ import os
 import re
 import unicodedata
 import urllib.parse
+from typing import Optional
 
 PRIVATE_TABLES = (
     "internal_secrets",
@@ -137,10 +138,18 @@ def detect_schema_disclosure(text: str) -> list[str]:
     return sorted(disclosed)
 
 
-def apply_defense_output(text: str, defense: str, canaries: set[str], extended_decoders: bool = False) -> str:
+def apply_defense_output(
+    text: str,
+    defense: str,
+    canaries: set[str],
+    extended_decoders: Optional[bool] = None,
+) -> str:
     """Redact sensitive values and obfuscated/encoded canary patterns when defense == 'all'."""
     if defense != "all" or not text:
         return text
+
+    if extended_decoders is None:
+        extended_decoders = os.getenv("DLP_EXTENDED_DECODERS", "0").lower() in ("1", "true", "yes")
 
     # 1. Exact and case-insensitive replacement of known canaries (longest first)
     for c in sorted(canaries, key=len, reverse=True):

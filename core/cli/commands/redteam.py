@@ -70,6 +70,7 @@ def print_preflight_card(args, total_cases: int, cases_path: str, no_color: bool
     print(f"  {bold('Active Defense', enabled=color_enabled):<20} : {def_badge}")
     print(f"  {bold('Target Blue Role', enabled=color_enabled):<20} : {cyan(getattr(args, 'role', 'registrar_staff'), enabled=color_enabled)}")
     print(f"  {bold('Red Adversary Profile', enabled=color_enabled):<20} : {red(getattr(args, 'profile', 'thai_nuanced_adversary'), enabled=color_enabled)}")
+    print(f"  {bold('Attack Strategy', enabled=color_enabled):<20} : {yellow(str(getattr(args, 'strategy', 'template')).upper(), enabled=color_enabled)}")
     print(f"  {bold('Multi-Turn Limit', enabled=color_enabled):<20} : Up to {bold(str(getattr(args, 'attempts', 3)), enabled=color_enabled)} turns per test case")
     print(line)
     print(dim("  Adversary will probe iteratively until target honeytoken leaks or max turns reached.", enabled=color_enabled))
@@ -218,6 +219,7 @@ def run_redteam_run(args) -> int:
 
     print_preflight_card(args, len(cases), cases_file, no_color=no_color)
 
+    strategy = getattr(args, "strategy", "template")
     runner = MultiTurnRedTeamRunner(
         max_attempts=max_attempts,
         defense=defense,
@@ -226,6 +228,7 @@ def run_redteam_run(args) -> int:
         dry_run=dry_run,
         blue_model=blue_model,
         red_model=red_model,
+        strategy=strategy,
     )
 
     def on_turn(c, turn, attempt, total_attempts):

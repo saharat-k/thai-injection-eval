@@ -34,6 +34,27 @@ PUBLIC_TABLES = (
     "library_catalog",
 )
 
+_thread_local = threading.local()
+
+
+def set_session_user_context(user_id: Optional[str] = None, role: Optional[str] = None) -> None:
+    """Set thread-local user context for Row-Level Security (RLS) enforcement."""
+    _thread_local.user_id = user_id
+    _thread_local.user_role = role
+
+
+def get_session_user_context() -> tuple[Optional[str], Optional[str]]:
+    """Retrieve thread-local user context (user_id, role)."""
+    return getattr(_thread_local, "user_id", None), getattr(_thread_local, "user_role", None)
+
+
+def is_rls_enabled() -> bool:
+    """Check if Row-Level Security (RLS) is active in the environment or current session."""
+    return (
+        os.getenv("ENABLE_ROW_LEVEL_SECURITY", "0").lower() in ("1", "true", "yes")
+        or getattr(_thread_local, "user_id", None) is not None
+    )
+
 
 def init_university_db(db_path: str = UNIVERSITY_DB_PATH) -> sqlite3.Connection:
     """Initialize the isolated university database (public + synthetic sensitive tables only)."""

@@ -85,6 +85,7 @@ class RedTeamBenchmarkReport:
     results: List[RedTeamCaseResult] = field(default_factory=list)
     blue_model: Optional[str] = None
     red_model: Optional[str] = None
+    strategy: str = "template"
 
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
@@ -106,6 +107,7 @@ class MultiTurnRedTeamRunner:
         canaries: Optional[set[str]] = None,
         blue_model: Optional[str] = None,
         red_model: Optional[str] = None,
+        strategy: str = "template",
     ):
         self.max_attempts = max(1, int(max_attempts))
         self.defense = defense
@@ -115,6 +117,7 @@ class MultiTurnRedTeamRunner:
         self.canaries = canaries if canaries is not None else agent.load_canaries()
         self.blue_model = blue_model
         self.red_model = red_model
+        self.strategy = strategy
 
         if target_adapter is not None:
             self.target = target_adapter
@@ -172,13 +175,35 @@ class MultiTurnRedTeamRunner:
         last_defense_action: Optional[str] = None,
     ) -> Tuple[str, Dict[str, str]]:
         """Generate the attack payload for the current turn using LLM or deterministic fallback."""
+        if self.strategy == "crescendo":
+            has_any_key = any(os.getenv(k) for k in ("GEMINI_API_KEY", "OPENROUTER_API_KEY", "GITHUB_TOKEN", "GROQ_API_KEY"))
+            if self.dry_run or not has_any_key:
+                return agent.build_fallback_attack(case, attempt, last_response, strategy="crescendo")
+            try:
+                return agent.ask_red(
+                    case,
+                    history,
+                    attempt,
+                    red_profile=self.red_profile,
+                    blue_role=self.blue_role,
+                    refusal_reason=last_defense_action,
+                    red_model=self.red_model,
+                    strategy="crescendo",
+                )
+            except Exception as e:
+                agent.audit(
+                    "red_error_fallback",
+                    {"id": case.get("id"), "attempt": attempt, "error": agent.sanitize_error(str(e))[:200]},
+                )
+                return agent.build_fallback_attack(case, attempt, last_response, strategy="crescendo")
+
         if attempt == 1:
             return case.get("prompt", ""), {"strategy": "Initial Canonical Baseline", "analysis": "Initial turn"}
 
         # Use deterministic escalation fallback if dry-run, offline, or no API key
         has_any_key = any(os.getenv(k) for k in ("GEMINI_API_KEY", "OPENROUTER_API_KEY", "GITHUB_TOKEN", "GROQ_API_KEY"))
         if self.dry_run or not has_any_key:
-            return agent.build_fallback_attack(case, attempt, last_response)
+            return agent.build_fallback_attack(case, attempt, last_response, strategy=self.strategy)
 
         try:
             return agent.ask_red(
@@ -189,6 +214,7 @@ class MultiTurnRedTeamRunner:
                 blue_role=self.blue_role,
                 refusal_reason=last_defense_action,
                 red_model=self.red_model,
+                strategy=self.strategy,
             )
         except Exception as e:
             # Fallback gracefully to template escalation if live Red LLM fails
@@ -196,7 +222,7 @@ class MultiTurnRedTeamRunner:
                 "red_error_fallback",
                 {"id": case.get("id"), "attempt": attempt, "error": agent.sanitize_error(str(e))[:200]},
             )
-            return agent.build_fallback_attack(case, attempt, last_response)
+            return agent.build_fallback_attack(case, attempt, last_response, strategy=self.strategy)
 
     def run_case(
         self,
@@ -325,6 +351,7 @@ class MultiTurnRedTeamRunner:
                 "defense": self.defense,
                 "blue_role": self.blue_role,
                 "red_profile": self.red_profile,
+                "strategy": self.strategy,
                 "dry_run": self.dry_run,
             },
         )
@@ -395,4 +422,5 @@ class MultiTurnRedTeamRunner:
             results=results,
             blue_model=effective_blue,
             red_model=effective_red,
+            strategy=self.strategy,
         )

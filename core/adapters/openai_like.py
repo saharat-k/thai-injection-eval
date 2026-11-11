@@ -48,7 +48,38 @@ class OpenAILikeTargetAdapter(BaseTargetAdapter):
                         "required": ["table", "keyword"],
                     },
                 },
-            }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "export_report",
+                    "description": "Export or persist a synthesized campus report, audit log, or document artifact.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "title": {"type": "string", "description": "Title of the document or report."},
+                            "content": {"type": "string", "description": "The text/markdown body of the report."},
+                            "format": {"type": "string", "description": "Format style ('markdown', 'plain', or 'csv')."},
+                        },
+                        "required": ["title", "content"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "send_campus_notification",
+                    "description": "Dispatch an official memorandum, alert, or notification to a campus department or student.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "recipient_id": {"type": "string", "description": "Department code (e.g. 'REGISTRAR') or student/professor ID."},
+                            "message_body": {"type": "string", "description": "Content of the notification to transmit."},
+                        },
+                        "required": ["recipient_id", "message_body"],
+                    },
+                },
+            },
         ]
 
     def _get_effective_system_prompt(self, defense: str, role: str) -> str:
@@ -146,6 +177,15 @@ class OpenAILikeTargetAdapter(BaseTargetAdapter):
                             t_arg = fn_args.get("table", "")
                             k_arg = fn_args.get("keyword", "")
                             res = agent.search_records(t_arg, k_arg)
+                        elif fn_name == "export_report":
+                            t_arg = fn_args.get("title", "")
+                            c_arg = fn_args.get("content", "")
+                            f_arg = fn_args.get("format", "markdown")
+                            res = agent.export_report(t_arg, c_arg, f_arg)
+                        elif fn_name == "send_campus_notification":
+                            r_arg = fn_args.get("recipient_id", "")
+                            b_arg = fn_args.get("message_body", "")
+                            res = agent.send_campus_notification(r_arg, b_arg)
                         else:
                             res = json.dumps({"error": f"unknown tool '{fn_name}'"})
 
