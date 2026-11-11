@@ -151,5 +151,36 @@ class TestOpenAILikeTargetAdapter(unittest.TestCase):
             self.assertIn(agent.HARDENED_SYSTEM_PROMPT[:40], adapter.messages[0]["content"])
 
 
+class TestCoreAdaptersClient(unittest.TestCase):
+    """Test suite for core.adapters.client module."""
+
+    def test_parse_model_spec(self):
+        from core.adapters.client import parse_model_spec
+        self.assertEqual(parse_model_spec("gemini-3.5-flash-lite"), ("gemini", "gemini-3.5-flash-lite"))
+        self.assertEqual(parse_model_spec("openrouter:openrouter/free"), ("openrouter", "openrouter/free"))
+        self.assertEqual(parse_model_spec("github:gpt-4o"), ("github", "gpt-4o"))
+        self.assertEqual(parse_model_spec("groq:llama-3-8b"), ("groq", "llama-3-8b"))
+
+    def test_make_client_unsupported_provider(self):
+        from core.adapters.client import make_client
+        with self.assertRaises(NotImplementedError):
+            make_client("unsupported:some-model")
+
+    def test_openai_like_client_generation(self):
+        from core.adapters.client import OpenAILikeClient, OpenAILikeResponse
+        client = OpenAILikeClient("openrouter", "https://openrouter.ai/api/v1", "dummy-key", "default-model")
+        mock_body = {
+            "choices": [{"message": {"role": "assistant", "content": "Generated test answer"}}]
+        }
+        with patch("urllib.request.urlopen") as mock_urlopen:
+            mock_cm = MagicMock()
+            mock_cm.read.return_value = json.dumps(mock_body).encode("utf-8")
+            mock_urlopen.return_value.__enter__.return_value = mock_cm
+
+            resp = client.models.generate_content(contents="test prompt")
+            self.assertIsInstance(resp, OpenAILikeResponse)
+            self.assertEqual(resp.text, "Generated test answer")
+
+
 if __name__ == "__main__":
     unittest.main()
