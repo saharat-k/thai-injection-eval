@@ -206,6 +206,9 @@ Exit Codes:
         "academic_auditor",
         "blackbox_probe",
     ]
+    attack_type_choices = ["direct", "indirect", "recon", "semantic", "roleplay", "fewshot", "obfuscation", "tree"]
+    mutator_choices = ["none", "zero_width", "homoglyph", "code_switch", "all"]
+
     chat_parser = subparsers.add_parser("chat", parents=[common_parser], help="Interactive Red-Teaming playground & manual chat session")
     chat_parser.add_argument("--defense", choices=list(ALL_DEFENSES), default=None, help="Preset defense configuration tier (skips prompt)")
     chat_parser.add_argument("--role", "--blue-role", dest="role", choices=["student_guest", "registrar_staff", "system_admin"], default=None, help="Preset Blue Assistant role persona")
@@ -214,7 +217,8 @@ Exit Codes:
     chat_parser.add_argument("--red", "--red-model", dest="red", default=None, help="Red adversary model")
     chat_parser.add_argument("--red-profile", choices=red_profile_choices, default=None, help="Preset Red Attacker profile")
     chat_parser.add_argument("--lang", choices=["Thai", "English", "Mixed"], default=None, help="Preset target language")
-    chat_parser.add_argument("--attack-type", choices=["direct", "indirect", "recon", "semantic", "roleplay", "fewshot", "obfuscation"], default=None, help="Preset attack category")
+    chat_parser.add_argument("--attack-type", choices=attack_type_choices, default=None, help="Preset attack category (includes 'tree')")
+    chat_parser.add_argument("--mutator", choices=mutator_choices, default="none", help="Dynamic Thai NLP mutator: zero_width, homoglyph, code_switch, all, or none (default: none)")
     chat_parser.add_argument("--targets", default=None, help="Target tables/keywords to monitor (comma-separated)")
 
     manual_parser = subparsers.add_parser("manual", parents=[common_parser], help="Alias for 'chat' (Interactive manual testing)")
@@ -225,7 +229,8 @@ Exit Codes:
     manual_parser.add_argument("--red", "--red-model", dest="red", default=None, help="Red adversary model")
     manual_parser.add_argument("--red-profile", choices=red_profile_choices, default=None, help="Preset Red Attacker profile")
     manual_parser.add_argument("--lang", choices=["Thai", "English", "Mixed"], default=None, help="Preset target language")
-    manual_parser.add_argument("--attack-type", choices=["direct", "indirect", "recon", "semantic", "roleplay", "fewshot", "obfuscation"], default=None, help="Preset attack category")
+    manual_parser.add_argument("--attack-type", choices=attack_type_choices, default=None, help="Preset attack category (includes 'tree')")
+    manual_parser.add_argument("--mutator", choices=mutator_choices, default="none", help="Dynamic Thai NLP mutator: zero_width, homoglyph, code_switch, all, or none (default: none)")
     manual_parser.add_argument("--targets", default=None, help="Target tables/keywords to monitor (comma-separated)")
 
     # 7. REDTEAM command

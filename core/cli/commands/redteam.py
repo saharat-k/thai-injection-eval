@@ -70,7 +70,17 @@ def print_preflight_card(args, total_cases: int, cases_path: str, no_color: bool
     print(f"  {bold('Active Defense', enabled=color_enabled):<20} : {def_badge}")
     print(f"  {bold('Target Blue Role', enabled=color_enabled):<20} : {cyan(getattr(args, 'role', 'registrar_staff'), enabled=color_enabled)}")
     print(f"  {bold('Red Adversary Profile', enabled=color_enabled):<20} : {red(getattr(args, 'profile', 'thai_nuanced_adversary'), enabled=color_enabled)}")
-    print(f"  {bold('Attack Strategy', enabled=color_enabled):<20} : {yellow(str(getattr(args, 'strategy', 'template')).upper(), enabled=color_enabled)}")
+    strat_val = str(getattr(args, 'strategy', 'template')).lower()
+    if strat_val == "tree":
+        bw = getattr(args, "beam_width", 2)
+        bf = getattr(args, "branch_factor", 3)
+        strat_display = f"TREE (Beam Width: {bw}, Branch Factor: {bf})"
+    else:
+        strat_display = strat_val.upper()
+    print(f"  {bold('Attack Strategy', enabled=color_enabled):<20} : {yellow(strat_display, enabled=color_enabled)}")
+    mutator_raw = str(getattr(args, 'mutator', 'none')).upper()
+    mutator_display = f"{mutator_raw} [Standard]" if mutator_raw == "NONE" else f"{mutator_raw} [Active]"
+    print(f"  {bold('NLP Mutator', enabled=color_enabled):<20} : {cyan(mutator_display, enabled=color_enabled)}")
     backtrack_status = green(f"[ENABLED (max {getattr(args, 'max_backtracks', 2)})]", enabled=color_enabled) if getattr(args, "backtrack", False) else dim("[DISABLED]", enabled=color_enabled)
     print(f"  {bold('Refusal Backtrack', enabled=color_enabled):<20} : {backtrack_status}")
     print(f"  {bold('Multi-Turn Limit', enabled=color_enabled):<20} : Up to {bold(str(getattr(args, 'attempts', 3)), enabled=color_enabled)} turns per test case")
@@ -282,7 +292,7 @@ def run_redteam_run(args) -> int:
         if hasattr(res, "tree_root") and res.tree_root:
             from core.evaluator.tree import render_ascii_tree
             print(cyan("   [Search Tree Topology]:", enabled=not no_color))
-            print(render_ascii_tree(res.tree_root))
+            print(render_ascii_tree(res.tree_root, prefix="   "))
             print()
 
     report = runner.run_benchmark(cases, on_turn_callback=on_turn, on_case_callback=on_case)

@@ -2,8 +2,10 @@
 import os
 import re
 import sys
+import unicodedata
 
 ANSI_REGEX = re.compile(r'\x1b\[[0-9;]*[a-zA-Z]')
+NON_SPACING_REGEX = re.compile(r'[\u200b-\u200f\ufeff\u202a-\u202e]')
 
 
 def strip_ansi(text: str) -> str:
@@ -14,8 +16,15 @@ def strip_ansi(text: str) -> str:
 
 
 def visible_len(text: str) -> int:
-    """Return visible character count of string excluding ANSI escape sequences."""
-    return len(strip_ansi(text))
+    """Return visible character count of string excluding ANSI escape sequences, zero-width spaces, and non-spacing marks."""
+    if not text:
+        return 0
+    clean = strip_ansi(str(text))
+    # Filter out explicit zero-width invisible codepoints
+    clean = NON_SPACING_REGEX.sub('', clean)
+    # Filter non-spacing combining characters (e.g. Thai tone marks \u0e48-\u0e4b, upper/lower vowels \u0e31, \u0e34-\u0e39)
+    width = sum(0 if unicodedata.category(c) in ('Mn', 'Me', 'Cf') else 1 for c in clean)
+    return width
 
 RESET = "\033[0m"
 BOLD = "\033[1m"

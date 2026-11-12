@@ -81,3 +81,16 @@ class TestCLIModelFlags(unittest.TestCase):
         self.assertEqual(args.beam_width, 2)
         self.assertEqual(args.branch_factor, 3)
 
+    def test_chat_parser_tree_and_mutator_flags(self):
+        parser = build_parser()
+        args = parser.parse_args(["chat", "--attack-type", "tree", "--mutator", "zero_width"])
+        self.assertEqual(args.attack_type, "tree")
+        self.assertEqual(args.mutator, "zero_width")
+
+    def test_manual_parser_tree_and_mutator_flags(self):
+        parser = build_parser()
+        args = parser.parse_args(["manual", "--attack-type", "tree", "--mutator", "homoglyph"])
+        self.assertEqual(args.attack_type, "tree")
+        self.assertEqual(args.mutator, "homoglyph")
+
+

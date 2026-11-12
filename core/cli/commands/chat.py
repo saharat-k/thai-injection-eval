@@ -109,6 +109,7 @@ def print_preflight_briefing_card(
     targets: Optional[List[str]] = None,
     canaries: Optional[List[str]] = None,
     no_color: bool = False,
+    mutator: Optional[str] = None,
 ):
     """Render a comprehensive Session Pre-Flight Briefing Card in Red/Cyan theme."""
     import agent
@@ -135,6 +136,10 @@ def print_preflight_briefing_card(
     print(f"  {bold('Target System', enabled=color_enabled):<20} : {cyan(f'Blue Assistant ({blue_role}: {b_name})', enabled=color_enabled)}")
     print(f"  {bold('Active Defense', enabled=color_enabled):<20} : {def_badge}")
     print(f"  {bold('Attack Surface', enabled=color_enabled):<20} : Language: {bold(lang.upper(), enabled=color_enabled)} | Vector: {bold(attack_type.upper(), enabled=color_enabled)}")
+    if mutator:
+        m_upper = mutator.upper()
+        m_display = f"{m_upper} [Standard]" if m_upper == "NONE" else f"{m_upper} [Active]"
+        print(f"  {bold('NLP Mutator', enabled=color_enabled):<20} : {cyan(m_display, enabled=color_enabled)}")
     print(f"  {bold('Red Operator', enabled=color_enabled):<20} : {red(f'{red_profile} ({r_name})', enabled=color_enabled)}")
 
     tgt_str = ", ".join(targets) if targets else "(Default targets monitored)"
@@ -155,7 +160,7 @@ def review_payload_card(
     meta: Optional[Dict[str, Any]] = None,
     no_color: bool = False,
 ) -> Optional[str]:
-    """Render an aesthetic Prompt Composer Card with unified review actions."""
+    """Render an aesthetic Prompt Composer Card with unified review actions in Pure English."""
     import agent
     color_enabled = not no_color
     width = min(80, max(60, get_terminal_width()))
@@ -191,13 +196,13 @@ def review_payload_card(
             print(f"  {num} {red(p_line, enabled=color_enabled)}")
         print(double_line + "\n")
 
-        # Unified Prompt Review Action
+        # Unified Prompt Review Action in Pure English
         action = agent._choose(
-            "ดำเนินการอย่างไรกับ Payload นี้?",
+            "Select action for this payload:",
             [
-                "🚀 ส่ง Payload นี้ทันที (Dispatch)",
-                "✏️ แก้ไขข้อความก่อนส่ง (Edit)",
-                "❌ ยกเลิก (กลับไปเลือกใหม่)",
+                "🚀 Dispatch payload immediately (Send)",
+                "✏️  Edit prompt before sending (Edit)",
+                "❌ Cancel (return to options)",
             ],
             1,
         )
@@ -205,34 +210,34 @@ def review_payload_card(
             return curr_attack
         elif action == 1:
             edit_choice = agent._choose(
-                "เลือกรูปแบบการแก้ไขข้อความ:",
+                "Select editing mode:",
                 [
-                    "🔍 ค้นหาและแทนที่คำ (Search & Replace)",
-                    "➕ เพิ่มข้อความต่อท้าย (Append)",
-                    "📝 พิมพ์ข้อความใหม่ทั้งก้อน (Rewrite)",
+                    "🔍 Search & replace keyword",
+                    "➕ Append text to end",
+                    "📝 Rewrite entire payload",
                 ],
                 1,
             )
             if edit_choice == 0:
-                old_w = agent._ask("ระบุคำหรือข้อความเดิมที่ต้องการเปลี่ยน")
+                old_w = agent._ask("Enter keyword or phrase to replace")
                 if not old_w:
-                    print("  ! ยกเลิกการแทนที่คำ")
+                    print("  ! Cancelled keyword replacement")
                     continue
                 if old_w not in curr_attack:
-                    print(f"  ! ไม่พบคำว่า '{old_w}' ใน Payload ปัจจุบัน")
+                    print(f"  ! Keyword '{old_w}' not found in current payload")
                     continue
-                new_w = agent._ask(f"แทนที่ '{old_w}' ด้วยคำว่า", "")
+                new_w = agent._ask(f"Replace '{old_w}' with", "")
                 curr_attack = curr_attack.replace(old_w, new_w)
                 source = f"{source} (Replaced '{old_w}')"
                 continue
             elif edit_choice == 1:
-                extra = agent._read_multiline("พิมพ์ข้อความที่ต้องการเพิ่มต่อท้าย")
+                extra = agent._read_multiline("Enter text to append")
                 if extra:
                     curr_attack = f"{curr_attack}\n{extra}".strip()
                     source = f"{source} (Appended)"
                 continue
             else:
-                edited = agent._read_multiline("พิมพ์ข้อความใหม่ทั้งหมด")
+                edited = agent._read_multiline("Enter new payload text")
                 if edited:
                     curr_attack = edited
                     source = f"{source} (Rewritten)"
@@ -271,7 +276,7 @@ def run_chat(args) -> int:
 
     def patched_print_preflight(session_id, defense, blue_role, red_profile, lang, attack_type, targets=None, canaries=None):
         print_preflight_briefing_card(
-            session_id, defense, blue_role, red_profile, lang, attack_type, targets=targets, canaries=canaries, no_color=no_color
+            session_id, defense, blue_role, red_profile, lang, attack_type, targets=targets, canaries=canaries, no_color=no_color, mutator=getattr(args, "mutator", "none")
         )
 
     def patched_review_payload(attack, source="Manual", meta=None, **kwargs):

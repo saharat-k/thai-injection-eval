@@ -152,12 +152,15 @@ def render_ascii_tree(root: TreeNode, prefix: str = "", is_last: bool = True) ->
     snippet = root.prompt[:40].replace("\n", " ") + ("..." if len(root.prompt) > 40 else "")
 
     if root.turn_no == 0:
-        lines.append(f"{root.node_id}: {snippet}{status_tag}")
+        lines.append(f"{prefix}{root.node_id}: {snippet}{status_tag}")
     else:
         connector = "└─ " if is_last else "├─ "
         lines.append(f"{prefix}{connector}{root.node_id}: {snippet}{score_tag}{status_tag}")
 
-    child_prefix = prefix + ("   " if is_last else "│  ")
+    if root.turn_no == 0:
+        child_prefix = prefix
+    else:
+        child_prefix = prefix + ("   " if is_last else "│  ")
     for idx, child in enumerate(root.children):
         is_child_last = (idx == len(root.children) - 1)
         lines.append(render_ascii_tree(child, prefix=child_prefix, is_last=is_child_last))
