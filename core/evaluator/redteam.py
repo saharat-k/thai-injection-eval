@@ -18,6 +18,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 import agent
 from core.adapters.base import BaseTargetAdapter, TargetResponse
 from core.adapters.factory import create_target_adapter
+from core.evaluator.mutators import apply_mutation
 
 
 @dataclass
@@ -86,6 +87,7 @@ class RedTeamBenchmarkReport:
     blue_model: Optional[str] = None
     red_model: Optional[str] = None
     strategy: str = "template"
+    mutator: str = "none"
     total_backtracks: int = 0
 
     def to_dict(self) -> Dict[str, Any]:
@@ -109,6 +111,7 @@ class MultiTurnRedTeamRunner:
         blue_model: Optional[str] = None,
         red_model: Optional[str] = None,
         strategy: str = "template",
+        mutator: str = "none",
         enable_backtrack: bool = False,
         max_backtracks: int = 2,
     ):
@@ -121,6 +124,7 @@ class MultiTurnRedTeamRunner:
         self.blue_model = blue_model
         self.red_model = red_model
         self.strategy = strategy
+        self.mutator = mutator
         self.enable_backtrack = enable_backtrack
         self.max_backtracks = max(0, int(max_backtracks))
 
@@ -180,6 +184,29 @@ class MultiTurnRedTeamRunner:
         last_defense_action: Optional[str] = None,
     ) -> Tuple[str, Dict[str, str]]:
         """Generate the attack payload for the current turn using LLM or deterministic fallback."""
+        prompt, meta = self._generate_raw_payload(case, history, attempt, last_response, last_defense_action)
+
+        # Apply dynamic NLP mutator if configured
+        if self.mutator and self.mutator.lower() not in ("none", "off"):
+            eval_spec = case.get("evaluation") or {}
+            targets = case.get("targets") or eval_spec.get("expected_tokens") or []
+            mutated_prompt = apply_mutation(prompt, self.mutator, targets=targets)
+            if mutated_prompt != prompt:
+                meta["mutator"] = self.mutator
+                meta["raw_unmutated_prompt"] = prompt
+                prompt = mutated_prompt
+
+        return prompt, meta
+
+    def _generate_raw_payload(
+        self,
+        case: dict,
+        history: List[Tuple[str, str]],
+        attempt: int,
+        last_response: str,
+        last_defense_action: Optional[str] = None,
+    ) -> Tuple[str, Dict[str, str]]:
+        """Internal helper generating base unmutated payload via strategy."""
         if self.strategy == "crescendo":
             has_any_key = any(os.getenv(k) for k in ("GEMINI_API_KEY", "OPENROUTER_API_KEY", "GITHUB_TOKEN", "GROQ_API_KEY"))
             if self.dry_run or not has_any_key:
@@ -383,6 +410,7 @@ class MultiTurnRedTeamRunner:
                 "blue_role": self.blue_role,
                 "red_profile": self.red_profile,
                 "strategy": self.strategy,
+                "mutator": self.mutator,
                 "dry_run": self.dry_run,
                 "enable_backtrack": self.enable_backtrack,
                 "backtracks": backtrack_count,
@@ -460,5 +488,6 @@ class MultiTurnRedTeamRunner:
             blue_model=effective_blue,
             red_model=effective_red,
             strategy=self.strategy,
+            mutator=self.mutator,
             total_backtracks=total_backtracks,
         )
