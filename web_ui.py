@@ -791,10 +791,11 @@ def manual_ai_step():
                 red_profile=red_profile,
                 blue_role=blue_role,
                 red_model=sess.get("red_model"),
+                strategy=sess.get("strategy", "template"),
             )
         except Exception as e:
             agent.audit("red_error", {"id": session_id, "turn": turn_no, "error": str(e)[:300]})
-            attack, meta = agent.build_fallback_attack(sess["case"], turn_no, last_resp)
+            attack, meta = agent.build_fallback_attack(sess["case"], turn_no, last_resp, strategy=sess.get("strategy", "template"))
 
         res = agent.execute_manual_turn(
             session=sess["blue_session"],

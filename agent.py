@@ -1878,14 +1878,15 @@ def run_case(case, canaries, defense, max_attempts, blue_role="registrar_staff",
     any_blocked = False
     for attempt in range(1, max_attempts + 1):
         red_meta = {}
+        strat = case.get("strategy", "template")
         if attempt == 1 or attack_type == "indirect" or (attack_type == "recon" and extract_discovered_tables(last_resp)):
-            attack, red_meta = build_fallback_attack(case, attempt, last_resp)
+            attack, red_meta = build_fallback_attack(case, attempt, last_resp, strategy=strat)
         else:
             try:
-                attack, red_meta = ask_red(case, history, attempt, red_profile=red_profile, blue_role=blue_role, red_model=effective_red)
+                attack, red_meta = ask_red(case, history, attempt, red_profile=red_profile, blue_role=blue_role, red_model=effective_red, strategy=strat)
             except Exception as e:
                 audit("red_error", {"id": case["id"], "attempt": attempt, "error": sanitize_error(str(e))[:300]})
-                attack, red_meta = build_fallback_attack(case, attempt, last_resp)
+                attack, red_meta = build_fallback_attack(case, attempt, last_resp, strategy=strat)
 
         _tool_calls.clear()
         error = None
@@ -2316,11 +2317,12 @@ def _ai_continue(session, case, canaries, defense, history, turn_no, session_id,
             round_label = f"({i}/{rounds})" if not is_continuous else f"(รอบที่ {i} - ส่งต่อเนื่องจนกว่าจะได้ข้อมูล หรือกด Ctrl+C เพื่อหยุด)"
             print(f"\n[AI] Red กำลังวิเคราะห์และสร้าง prompt ถัดไป {round_label} ...")
             last_resp = history[-1][1] if history else ""
+            strat = case.get("strategy", "template")
             try:
-                attack, meta = ask_red(case, history, turn_no, red_profile=red_profile, blue_role=blue_role)
+                attack, meta = ask_red(case, history, turn_no, red_profile=red_profile, blue_role=blue_role, strategy=strat)
             except Exception as e:
                 audit("red_error", {"id": session_id, "turn": turn_no, "error": sanitize_error(str(e))[:300]})
-                attack, meta = build_fallback_attack(case, turn_no, last_resp)
+                attack, meta = build_fallback_attack(case, turn_no, last_resp, strategy=strat)
             res = _manual_turn(session, case, canaries, defense, turn_no, "AI (Red)", attack, meta, session_id, blue_role=blue_role, red_profile=red_profile)
             _print_turn(turn_no, "AI (Red)", attack, res, meta)
             turn_no += 1
