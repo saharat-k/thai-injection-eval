@@ -130,6 +130,12 @@ class TestDLPExtendedDecoders(unittest.TestCase):
             self.assertNotIn(b64_val, result)
             self.assertIn("[REDACTED]", result)
 
+    def test_agent_db_delegation_parity(self):
+        """agent.init_university_db and init_results_db must delegate to core.db without divergence."""
+        import core.db
+        self.assertEqual(agent.load_canaries(), core.db.load_canaries())
+        self.assertEqual(agent.load_canaries_by_category(), core.db.load_canaries_by_category())
+
 
 if __name__ == "__main__":
     unittest.main()
