@@ -55,3 +55,15 @@ class TestCLIModelFlags(unittest.TestCase):
         self.assertEqual(args.blue, "gemini-3.5-flash-lite")
         self.assertEqual(args.model, "gemini-3.5-flash-lite")
         self.assertEqual(args.red, "openrouter:openrouter/free")
+
+    def test_redteam_run_accepts_mutator_and_turns(self):
+        parser = build_parser()
+        args = parser.parse_args([
+            "redteam", "run",
+            "--turns", "5",
+            "--mutator", "zero_width",
+            "--dry-run",
+        ])
+        self.assertEqual(args.attempts, 5)
+        self.assertEqual(args.mutator, "zero_width")
+        self.assertTrue(args.dry_run)

@@ -232,6 +232,7 @@ def run_redteam_run(args) -> int:
     print_preflight_card(args, len(cases), cases_file, no_color=no_color)
 
     strategy = getattr(args, "strategy", "template")
+    mutator = getattr(args, "mutator", "none")
     enable_backtrack = getattr(args, "backtrack", False)
     max_backtracks = getattr(args, "max_backtracks", 2)
     runner = MultiTurnRedTeamRunner(
@@ -243,6 +244,7 @@ def run_redteam_run(args) -> int:
         blue_model=blue_model,
         red_model=red_model,
         strategy=strategy,
+        mutator=mutator,
         enable_backtrack=enable_backtrack,
         max_backtracks=max_backtracks,
     )

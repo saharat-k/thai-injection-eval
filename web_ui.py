@@ -568,6 +568,8 @@ def manual_start():
 
         blue_model = (data.get("blue_model") or "").strip() or None
         red_model = (data.get("red_model") or "").strip() or None
+        strategy = (data.get("strategy") or "template").strip()
+        mutator = (data.get("mutator") or "none").strip()
         blue_session = agent.BlueSession(defense, role=blue_role, model=blue_model)
         canaries = agent.load_canaries()
         case = {
@@ -585,6 +587,8 @@ def manual_start():
             "attack_type": attack_type,
             "blue_role": blue_role,
             "red_profile": red_profile,
+            "strategy": strategy,
+            "mutator": mutator,
             "blue_model": blue_model or agent.BLUE_MODEL,
             "red_model": red_model or agent.RED_MODEL,
             "blue_session": blue_session,
@@ -796,6 +800,14 @@ def manual_ai_step():
         except Exception as e:
             agent.audit("red_error", {"id": session_id, "turn": turn_no, "error": str(e)[:300]})
             attack, meta = agent.build_fallback_attack(sess["case"], turn_no, last_resp, strategy=sess.get("strategy", "template"))
+
+        mutator = sess.get("mutator", "none")
+        if mutator and mutator.lower() not in ("none", "off"):
+            from core.evaluator.mutators import apply_mutation
+            mutated_attack = apply_mutation(attack, mutator, targets=sess["case"].get("targets"))
+            if mutated_attack != attack:
+                meta["mutator"] = mutator
+                attack = mutated_attack
 
         res = agent.execute_manual_turn(
             session=sess["blue_session"],
