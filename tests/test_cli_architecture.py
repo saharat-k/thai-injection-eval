@@ -431,6 +431,14 @@ class CliArchitectureTests(unittest.TestCase):
         code = run_probe_run(args)
         self.assertEqual(code, 0)
 
+    @patch("core.cli.commands.chat.run_chat")
+    def test_interactive_menu_delegates_to_run_chat(self, mock_run_chat):
+        """Calling agent.interactive_menu() should invoke modern run_chat directly."""
+        import agent
+        mock_run_chat.return_value = 0
+        agent.interactive_menu()
+        mock_run_chat.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -2537,115 +2537,23 @@ def print_results(results):
 
 
 def interactive_menu():
-    """Step-by-step interactive CLI Wizard shown when starting agent.py without flags."""
-    global RED_MODEL, BLUE_MODEL, MODEL_NAME
-
+    """Modern redirection: launch rich interactive CLI chat session."""
     try:
-        from core.cli.terminal.banner import print_banner
-        print_banner(subtitle="Interactive CLI Wizard")
-    except Exception:
-        print("\n" + "=" * 70)
-        print("  THAI PROMPT INJECTION SECURITY TEST BENCH & EVALUATOR (CLI WIZARD)")
-        print("=" * 70)
-    api_status = "Available" if os.getenv("GEMINI_API_KEY") else "Missing (.env)"
-    print(f"  [System] Blue Model: {BLUE_MODEL} | Red Model: {RED_MODEL}")
-    print(f"  [Status] GEMINI_API_KEY: {api_status} | DB: {os.path.basename(UNIVERSITY_DB_PATH)}")
-    print("-" * 70)
-
-    while True:
-        try:
-            # -------------------------------------------------------------
-            # Step 1: Model & Role Setup
-            # -------------------------------------------------------------
-            print("\n📌 [Step 1/3] การเลือกโมเดลและบทบาท (Model & Role Setup)")
-            model_choices = [
-                f"ใช้ค่าปัจจุบัน ({BLUE_MODEL}) [แนะนำ]",
-                "gemini-3.5-flash-lite (เร็วและประหยัดโควต้า)",
-                "gemini-3.1-flash-lite (Fallback Free Tier)",
-                "ระบุชื่อโมเดลเอง (Custom / Provider)",
-            ]
-            m_idx = _choose("เลือกโมเดล Blue Assistant:", model_choices, 1)
-            if m_idx == 1:
-                BLUE_MODEL = "gemini-3.5-flash-lite"
-            elif m_idx == 2:
-                BLUE_MODEL = "gemini-3.1-flash-lite"
-            elif m_idx == 3:
-                custom_m = _ask("พิมพ์ชื่อโมเดลที่ต้องการ", BLUE_MODEL)
-                if custom_m:
-                    BLUE_MODEL = custom_m
-            MODEL_NAME = f"Red: {RED_MODEL} | Blue: {BLUE_MODEL}"
-
-            blue_role_keys = list(BLUE_ROLES.keys())
-            blue_role_labels = [f"{k} - {BLUE_ROLES[k]['name']} ({BLUE_ROLES[k]['description'][:55]}...)" for k in blue_role_keys]
-            default_blue_idx = blue_role_keys.index("registrar_staff") if "registrar_staff" in blue_role_keys else 0
-            b_idx = _choose("เลือกบทบาทสิทธิ์ของ Blue Assistant (Role/Persona):", blue_role_labels, default_blue_idx + 1)
-            chosen_blue_role = blue_role_keys[b_idx]
-
-            # -------------------------------------------------------------
-            # Step 2: Defense Tier Setup
-            # -------------------------------------------------------------
-            print("\n🛡️ [Step 2/3] การกำหนดระดับการป้องกันความปลอดภัย (Defense Tier Setup)")
-            defense_descriptions = [
-                "off    - ปิดการป้องกัน (Baseline เพื่อทดสอบช่องโหว่พื้นฐาน)",
-                "prompt - Hardened System Prompt (สั่งห้ามผ่านคำสั่งอย่างเดียว)",
-                "tools  - Tool Gatekeeper ACL (ล็อกสิทธิ์ตารางระดับโค้ด ตัดสิทธิ์ SQL)",
-                "all    - Defense-in-Depth เต็มรูปแบบ (Prompt + Tool ACL + Output DLP Guard)",
-            ]
-            d_idx = _choose("เลือกระดับการป้องกัน (Defense Level):", defense_descriptions, 1)
-            chosen_defense = DEFENSE_LEVELS[d_idx]
-
-            # -------------------------------------------------------------
-            # Step 3: Execution Mode
-            # -------------------------------------------------------------
-            print("\n🚀 [Step 3/3] เลือกรูปแบบการทดสอบ (Execution Mode)")
-            mode_options = [
-                "ทดสอบเคสเดี่ยวแบบด่วน (Quick Test: เช่น TH-1, TH-2)",
-                "ทดสอบแบบอัตโนมัติครบทุกเคส (Auto Benchmark: รัน 36 test cases)",
-                "แชตทดสอบแบบโต้ตอบ (Interactive Red-Teaming Playground)",
-                "สรุปรายงานมาตรฐาน OWASP Top 10 (Export Markdown & JSON Report)",
-                "ออกจากโปรแกรม (Exit)",
-            ]
-            mode_choice = _choose("เลือกโหมดการทำงาน:", mode_options, 1)
-
-            if mode_choice == 4:
-                print("\nออกจากโปรแกรม")
-                return
-
-            if mode_choice == 0:
-                case_id = _ask("\nระบุ Case ID ที่ต้องการทดสอบ (เช่น TH-1, TH-2, IND-TH-1)", "TH-1")
-                attempts = int(_ask("จำนวนรอบสูงสุด (Attempts)", "1") or 1)
-                print(f"\n▶️ กำลังเริ่มทดสอบ {case_id} | Defense: {chosen_defense} | Role: {chosen_blue_role} | Attempts: {attempts}...")
-                print_results(run_all(chosen_defense, attempts, case_id=case_id, blue_role=chosen_blue_role))
-
-            elif mode_choice == 1:
-                attempts = int(_ask("\nจำนวนรอบสูงสุดต่อ case (Attempts)", "3") or 3)
-                print(f"\n▶️ กำลังเริ่มทดสอบครบ 36 กรณีศึกษา | Defense: {chosen_defense} | Role: {chosen_blue_role} | Attempts: {attempts}...")
-                print_results(run_all(chosen_defense, attempts, case_id="ALL", blue_role=chosen_blue_role))
-
-            elif mode_choice == 2:
-                manual_mode(defense=chosen_defense, blue_role=chosen_blue_role)
-
-            elif mode_choice == 3:
-                from core.adapters.factory import create_target_adapter
-                from core.evaluator.engine import SecurityEvaluator
-                from core.evaluator.reporter import export_report_files
-
-                print(f"\n▶️ กำลังรัน OWASP Benchmark Engine (Defense: {chosen_defense}, Role: {chosen_blue_role})...")
-                adapter = create_target_adapter("builtin", defense=chosen_defense, blue_role=chosen_blue_role)
-                evaluator = SecurityEvaluator(adapter)
-                report = evaluator.run_benchmark(defense=chosen_defense, blue_role=chosen_blue_role)
-                md_p, js_p = export_report_files(report, output_dir="results", base_name="owasp_evaluation_report")
-                m = report["metrics"]
-                print(f"\n[OWASP Benchmark Results] ASR: {m['attack_success_rate']}% | FRR: {m['false_refusal_rate']}% | DES: {m['defense_efficiency_score']}%")
-                print(f"[OK] รายงานบันทึกสำเร็จที่ {md_p} และ {js_p}")
-
-            if _ask("\nต้องการกลับสู่เมนูหลักเพื่อทดสอบรูปแบบอื่นหรือไม่? (y/n)", "y").lower() != "y":
-                print("\nขอบคุณที่ใช้งาน thai-injection-eval Test Bench!")
-                return
-
-        except (KeyboardInterrupt, EOFError):
-            print("\nออกจากโปรแกรม")
-            return
+        from core.cli.commands.chat import run_chat
+        dummy_args = argparse.Namespace(
+            defense=None,
+            role="registrar_staff",
+            model=None,
+            blue=None,
+            red=None,
+            profile="thai_nuanced_adversary",
+            no_color=False,
+            turns=3,
+        )
+        return run_chat(dummy_args)
+    except (KeyboardInterrupt, EOFError):
+        print("\nExiting interactive session.")
+        return 0
 
 
 def main():
