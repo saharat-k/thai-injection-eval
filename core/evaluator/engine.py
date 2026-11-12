@@ -112,10 +112,14 @@ class SecurityEvaluator:
         models_seen: list[str] = []
         total = len(self.cases) * len(defenses) * repeats
         done = 0
+        pace = float(os.getenv("EVAL_PACE_SECONDS", "0.0"))
         for defense in defenses:
             for rep in range(1, repeats + 1):
                 for case in self.cases:
                     self.target.reset()
+                    if pace > 0 and done > 0:
+                        import time
+                        time.sleep(pace)
                     resp = self.target.send(case["prompt"], defense=defense, blue_role=blue_role)
                     done += 1
                     m_used = resp.metadata.get("model_used") or getattr(agent, "BLUE_MODEL", "unknown")
