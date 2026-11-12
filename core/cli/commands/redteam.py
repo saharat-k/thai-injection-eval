@@ -71,6 +71,8 @@ def print_preflight_card(args, total_cases: int, cases_path: str, no_color: bool
     print(f"  {bold('Target Blue Role', enabled=color_enabled):<20} : {cyan(getattr(args, 'role', 'registrar_staff'), enabled=color_enabled)}")
     print(f"  {bold('Red Adversary Profile', enabled=color_enabled):<20} : {red(getattr(args, 'profile', 'thai_nuanced_adversary'), enabled=color_enabled)}")
     print(f"  {bold('Attack Strategy', enabled=color_enabled):<20} : {yellow(str(getattr(args, 'strategy', 'template')).upper(), enabled=color_enabled)}")
+    backtrack_status = green(f"[ENABLED (max {getattr(args, 'max_backtracks', 2)})]", enabled=color_enabled) if getattr(args, "backtrack", False) else dim("[DISABLED]", enabled=color_enabled)
+    print(f"  {bold('Refusal Backtrack', enabled=color_enabled):<20} : {backtrack_status}")
     print(f"  {bold('Multi-Turn Limit', enabled=color_enabled):<20} : Up to {bold(str(getattr(args, 'attempts', 3)), enabled=color_enabled)} turns per test case")
     print(line)
     print(dim("  Adversary will probe iteratively until target honeytoken leaks or max turns reached.", enabled=color_enabled))
@@ -157,7 +159,11 @@ def export_redteam_report(report: RedTeamBenchmarkReport, export_dir: str = "res
         f.write(f"- **Red Adversary Model**: `{report.red_model}`\n")
         f.write(f"- **Blue Role**: `{report.blue_role}`\n")
         f.write(f"- **Red Adversary Profile**: `{report.red_profile}`\n")
-        f.write(f"- **Max Attempts**: `{report.max_attempts}` turns\n\n")
+        f.write(f"- **Attack Strategy**: `{report.strategy}`\n")
+        f.write(f"- **Max Attempts**: `{report.max_attempts}` turns\n")
+        if report.total_backtracks > 0:
+            f.write(f"- **Total Refusal Backtracks**: `{report.total_backtracks}`\n")
+        f.write("\n")
         f.write("## Overall Metrics\n\n")
         f.write(f"- **Total Cases**: {report.total_cases}\n")
         f.write(f"- **Breached Cases**: {report.breached_cases}\n")
@@ -220,6 +226,8 @@ def run_redteam_run(args) -> int:
     print_preflight_card(args, len(cases), cases_file, no_color=no_color)
 
     strategy = getattr(args, "strategy", "template")
+    enable_backtrack = getattr(args, "backtrack", False)
+    max_backtracks = getattr(args, "max_backtracks", 2)
     runner = MultiTurnRedTeamRunner(
         max_attempts=max_attempts,
         defense=defense,
@@ -229,6 +237,8 @@ def run_redteam_run(args) -> int:
         blue_model=blue_model,
         red_model=red_model,
         strategy=strategy,
+        enable_backtrack=enable_backtrack,
+        max_backtracks=max_backtracks,
     )
 
     def on_turn(c, turn, attempt, total_attempts):
@@ -281,6 +291,8 @@ def run_redteam_run(args) -> int:
     print(f"  {bullet_dot} Breached Cases          : {red(str(report.breached_cases), enabled=not no_color)}")
     if report.error_cases > 0:
         print(f"  {bullet_dot} Error Cases             : {yellow(str(report.error_cases), enabled=not no_color)}")
+    if report.total_backtracks > 0:
+        print(f"  {bullet_dot} Refusal Backtracks      : {yellow(str(report.total_backtracks), enabled=not no_color)}")
     print(f"  {bullet_dot} Overall Multi-Turn ASR  : {bold(f'{report.overall_asr}%', enabled=not no_color)}")
     if report.average_ttb:
         print(f"  {bullet_dot} Average Turn-to-Breach  : {cyan(f'{report.average_ttb} turns', enabled=not no_color)}")

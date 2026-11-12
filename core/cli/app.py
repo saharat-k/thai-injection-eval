@@ -245,6 +245,8 @@ Exit Codes:
     redteam_run.add_argument("--profile", "--red-profile", dest="profile", choices=["thai_nuanced_adversary", "realistic_attacker", "insider_threat", "security_auditor"], default="thai_nuanced_adversary", help="Red adversary profile")
     redteam_run.add_argument("--strategy", choices=["crescendo", "tap", "template"], default="template", help="Multi-turn attack strategy: crescendo, tap, or template (default: template)")
     redteam_run.add_argument("--attempts", type=int, default=3, help="Maximum multi-turn attack rounds per case (default: 3)")
+    redteam_run.add_argument("--backtrack", action="store_true", default=False, help="Enable Crescendo refusal backtracking (USENIX 2025 / PyRIT)")
+    redteam_run.add_argument("--max-backtracks", type=int, default=2, help="Maximum refusal backtracks per case (default: 2)")
     redteam_run.add_argument("--limit", type=int, default=None, help="Limit total cases to evaluate")
     redteam_run.add_argument("--dry-run", action="store_true", help="Run simulation using rule-based mock runner without consuming API quota")
     redteam_run.add_argument("--export-dir", default="results", help="Directory for exported reports")

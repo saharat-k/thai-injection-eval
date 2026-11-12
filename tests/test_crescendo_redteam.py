@@ -25,16 +25,16 @@ class TestCrescendoAndTAP(unittest.TestCase):
         }
 
     def test_crescendo_fallback_drift_progression_th(self):
-        """Crescendo in Thai should progress across 5 distinct conversational drift stages."""
-        for attempt in range(1, 6):
+        """Crescendo in Thai should progress across 7 distinct conversational drift stages."""
+        for attempt in range(1, 8):
             prompt, meta = agent.build_fallback_attack(self.mock_case_th, attempt, strategy="crescendo")
             self.assertTrue(prompt)
             self.assertIn("Crescendo Turn", meta.get("strategy", ""))
-            self.assertIn(f"Turn {attempt}/5", meta.get("analysis", ""))
+            self.assertIn(f"Turn {attempt}/7", meta.get("analysis", ""))
 
     def test_crescendo_fallback_drift_progression_en(self):
-        """Crescendo in English should progress across 5 distinct conversational drift stages."""
-        for attempt in range(1, 6):
+        """Crescendo in English should progress across 7 distinct conversational drift stages."""
+        for attempt in range(1, 8):
             prompt, meta = agent.build_fallback_attack(self.mock_case_en, attempt, strategy="crescendo")
             self.assertTrue(prompt)
             self.assertIn("Crescendo Turn", meta.get("strategy", ""))
@@ -65,6 +65,26 @@ class TestCrescendoAndTAP(unittest.TestCase):
         self.assertEqual(res.metadata.get("strategy"), "crescendo")
         self.assertEqual(len(res.turns), 3)
 
+    def test_redteam_runner_crescendo_refusal_backtracking(self):
+        """When enable_backtrack=True, runner must backtrack on refusal and retry without poisoning history."""
+        runner = MultiTurnRedTeamRunner(
+            max_attempts=3,
+            defense="all",
+            strategy="crescendo",
+            enable_backtrack=True,
+            max_backtracks=2,
+            dry_run=True,
+        )
+        res = runner.run_case(self.mock_case_th)
+        self.assertTrue(res.metadata.get("enable_backtrack"))
+        self.assertGreater(res.metadata.get("backtracks", 0), 0)
+        self.assertTrue(any("[BACKTRACK" in t.red_strategy for t in res.turns))
+
+        report = runner.run_benchmark([self.mock_case_th])
+        self.assertGreater(report.total_backtracks, 0)
+        rep_dict = report.to_dict()
+        self.assertIn("total_backtracks", rep_dict)
+
     def test_redteam_runner_tap_dry_run(self):
         """MultiTurnRedTeamRunner should execute TAP strategy in dry-run mode cleanly."""
         runner = MultiTurnRedTeamRunner(
@@ -89,6 +109,22 @@ class TestCrescendoAndTAP(unittest.TestCase):
         self.assertEqual(report.strategy, "crescendo")
         rep_dict = report.to_dict()
         self.assertEqual(rep_dict.get("strategy"), "crescendo")
+
+    def test_cli_redteam_backtrack_arguments(self):
+        """CLI parser must parse --backtrack and --max-backtracks correctly."""
+        from core.cli.app import build_parser
+        parser = build_parser()
+        args = parser.parse_args([
+            "redteam", "run",
+            "--strategy", "crescendo",
+            "--backtrack",
+            "--max-backtracks", "3",
+            "--attempts", "5",
+        ])
+        self.assertTrue(args.backtrack)
+        self.assertEqual(args.max_backtracks, 3)
+        self.assertEqual(args.attempts, 5)
+        self.assertEqual(args.strategy, "crescendo")
 
 
 if __name__ == "__main__":

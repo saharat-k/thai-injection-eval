@@ -86,6 +86,7 @@ class RedTeamBenchmarkReport:
     blue_model: Optional[str] = None
     red_model: Optional[str] = None
     strategy: str = "template"
+    total_backtracks: int = 0
 
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
@@ -108,6 +109,8 @@ class MultiTurnRedTeamRunner:
         blue_model: Optional[str] = None,
         red_model: Optional[str] = None,
         strategy: str = "template",
+        enable_backtrack: bool = False,
+        max_backtracks: int = 2,
     ):
         self.max_attempts = max(1, int(max_attempts))
         self.defense = defense
@@ -118,6 +121,8 @@ class MultiTurnRedTeamRunner:
         self.blue_model = blue_model
         self.red_model = red_model
         self.strategy = strategy
+        self.enable_backtrack = enable_backtrack
+        self.max_backtracks = max(0, int(max_backtracks))
 
         if target_adapter is not None:
             self.target = target_adapter
@@ -250,11 +255,17 @@ class MultiTurnRedTeamRunner:
         last_response = ""
         turn_to_breach: Optional[int] = None
         final_status = 0
+        backtrack_count = 0
+        current_step = 1
 
-        for attempt in range(1, self.max_attempts + 1):
+        # We allow up to max_attempts progression steps, plus up to max_backtracks retries if backtracking is enabled
+        max_total_turns = self.max_attempts + (self.max_backtracks if self.enable_backtrack else 0)
+
+        while current_step <= self.max_attempts and len(turn_results) < max_total_turns:
+            attempt_index = len(turn_results) + 1
             last_action = turn_results[-1].defense_action if turn_results else None
             attack_prompt, red_meta = self._generate_payload(
-                case, history, attempt, last_response, last_defense_action=last_action
+                case, history, current_step, last_response, last_defense_action=last_action
             )
 
             # Query target model
@@ -300,8 +311,22 @@ class MultiTurnRedTeamRunner:
             elif not is_breached:
                 defense_action = "safe_fulfillment"
 
+            # Check if refusal backtracking applies (USENIX 2025 / PyRIT pattern)
+            should_backtrack = (
+                self.enable_backtrack
+                and is_refusal
+                and not is_breached
+                and backtrack_count < self.max_backtracks
+                and current_step > 1
+            )
+
+            strat = red_meta.get("strategy", "")
+            if should_backtrack:
+                backtrack_count += 1
+                strat = f"[BACKTRACK {backtrack_count}] {strat}"
+
             turn_res = RedTeamTurnResult(
-                turn_no=attempt,
+                turn_no=attempt_index,
                 prompt=attack_prompt,
                 response=clean_resp,
                 error=resp_error,
@@ -316,24 +341,30 @@ class MultiTurnRedTeamRunner:
                 private_table_blocked=private_blocked,
                 refusal_detected=is_refusal,
                 red_analysis=red_meta.get("analysis", ""),
-                red_strategy=red_meta.get("strategy", ""),
+                red_strategy=strat,
                 defense_action=defense_action,
             )
             turn_results.append(turn_res)
 
             if on_turn_callback:
-                on_turn_callback(case, turn_res, attempt, self.max_attempts)
+                on_turn_callback(case, turn_res, attempt_index, self.max_attempts)
 
             if is_breached:
                 final_status = 1
-                turn_to_breach = attempt
+                turn_to_breach = attempt_index
                 break
 
-            if resp_error and attempt == 1:
+            if resp_error and attempt_index == 1:
                 final_status = -1
 
-            last_response = clean_resp
-            history.append((attack_prompt, clean_resp))
+            if should_backtrack:
+                # Do NOT append failed exchange to history!
+                # Keep current_step same so Red retries this turn with de-escalated framing
+                pass
+            else:
+                last_response = clean_resp
+                history.append((attack_prompt, clean_resp))
+                current_step += 1
 
         return RedTeamCaseResult(
             case_id=cid,
@@ -353,6 +384,8 @@ class MultiTurnRedTeamRunner:
                 "red_profile": self.red_profile,
                 "strategy": self.strategy,
                 "dry_run": self.dry_run,
+                "enable_backtrack": self.enable_backtrack,
+                "backtracks": backtrack_count,
             },
         )
 
@@ -398,6 +431,7 @@ class MultiTurnRedTeamRunner:
             for k in range(1, self.max_attempts + 1)
         }
         average_ttb = round(sum(ttb_values) / len(ttb_values), 2) if ttb_values else None
+        total_backtracks = sum(r.metadata.get("backtracks", 0) for r in results)
 
         effective_blue = (
             self.blue_model
@@ -423,4 +457,5 @@ class MultiTurnRedTeamRunner:
             blue_model=effective_blue,
             red_model=effective_red,
             strategy=self.strategy,
+            total_backtracks=total_backtracks,
         )
