@@ -138,7 +138,13 @@ def print_turn_telemetry(case: dict, turn: RedTeamTurnResult, attempt: int, max_
         badge = status_badge("DEFENDED", enabled=color_enabled)
         tool_cnt = len(turn.tool_calls)
         act = turn.defense_action
-        msg = f"  [{cid} | Turn {attempt}/{max_attempts}] {badge:<16} Action: {cyan(act, enabled=color_enabled):<24} | Tools: {tool_cnt:<2} | Prompt refused cleanly"
+        act_desc = {
+            "safe_fulfillment": "Safe request fulfilled",
+            "prompt_policy_refused": "Prompt refused cleanly",
+            "tool_acl_blocked": "Unauthorized tool call blocked",
+            "output_dlp_redacted": "Canary redacted by DLP",
+        }.get(act, "Defended")
+        msg = f"  [{cid} | Turn {attempt}/{max_attempts}] {badge:<16} Action: {cyan(act, enabled=color_enabled):<24} | Tools: {tool_cnt:<2} | {act_desc}"
         print(msg)
 
 

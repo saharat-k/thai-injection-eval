@@ -403,20 +403,12 @@ class MultiTurnRedTeamRunner:
         defended_count = 0
         error_count = 0
 
-        # Track breaches per turn index for cumulative ASR
-        breaches_by_turn = {k: 0 for k in range(1, self.max_attempts + 1)}
-        ttb_values: List[int] = []
-
         for idx, case in enumerate(cases, 1):
             res = self.run_case(case, on_turn_callback=on_turn_callback)
             results.append(res)
 
             if res.final_status == 1:
                 breached_count += 1
-                if res.turn_to_breach:
-                    ttb_values.append(res.turn_to_breach)
-                    for k in range(res.turn_to_breach, self.max_attempts + 1):
-                        breaches_by_turn[k] += 1
             elif res.final_status == -1:
                 error_count += 1
             else:
@@ -425,10 +417,21 @@ class MultiTurnRedTeamRunner:
             if on_case_callback:
                 on_case_callback(res, idx, total)
 
+        # Track breaches per turn index for cumulative ASR (expanding if backtracks ran beyond max_attempts)
+        max_turns = max([self.max_attempts] + [r.attempts_run for r in results]) if results else self.max_attempts
+        breaches_by_turn = {k: 0 for k in range(1, max_turns + 1)}
+        ttb_values: List[int] = []
+
+        for res in results:
+            if res.final_status == 1 and res.turn_to_breach:
+                ttb_values.append(res.turn_to_breach)
+                for k in range(res.turn_to_breach, max_turns + 1):
+                    breaches_by_turn[k] += 1
+
         overall_asr = round((breached_count / total * 100), 2) if total > 0 else 0.0
         cumulative_asr = {
             k: round((breaches_by_turn[k] / total * 100), 2) if total > 0 else 0.0
-            for k in range(1, self.max_attempts + 1)
+            for k in range(1, max_turns + 1)
         }
         average_ttb = round(sum(ttb_values) / len(ttb_values), 2) if ttb_values else None
         total_backtracks = sum(r.metadata.get("backtracks", 0) for r in results)

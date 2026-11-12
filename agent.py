@@ -1488,12 +1488,12 @@ def ask_red(
     except Exception as e:
         audit("red_error", {"id": case["id"], "attempt": attempt, "error": str(e)[:300]})
         last_resp = history[-1][1] if history else ""
-        return build_fallback_attack(case, attempt, last_resp)
+        return build_fallback_attack(case, attempt, last_resp, strategy=strategy)
 
     if is_red_refusal(generated) or not generated:
         audit("red_refusal", {"id": case["id"], "attempt": attempt, "raw_red": generated[:300]})
         last_resp = history[-1][1] if history else ""
-        return build_fallback_attack(case, attempt, last_resp)
+        return build_fallback_attack(case, attempt, last_resp, strategy=strategy)
 
     return parse_red_response(generated, case["prompt"], is_multiturn=(attempt > 1), strategy=strategy)
 
