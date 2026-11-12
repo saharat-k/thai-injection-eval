@@ -235,19 +235,38 @@ def run_redteam_run(args) -> int:
     mutator = getattr(args, "mutator", "none")
     enable_backtrack = getattr(args, "backtrack", False)
     max_backtracks = getattr(args, "max_backtracks", 2)
-    runner = MultiTurnRedTeamRunner(
-        max_attempts=max_attempts,
-        defense=defense,
-        blue_role=blue_role,
-        red_profile=red_profile,
-        dry_run=dry_run,
-        blue_model=blue_model,
-        red_model=red_model,
-        strategy=strategy,
-        mutator=mutator,
-        enable_backtrack=enable_backtrack,
-        max_backtracks=max_backtracks,
-    )
+
+    if strategy == "tree":
+        from core.evaluator.tree import TreeBeamRedTeamRunner, render_ascii_tree
+        beam_width = getattr(args, "beam_width", 2)
+        branch_factor = getattr(args, "branch_factor", 3)
+        runner = TreeBeamRedTeamRunner(
+            beam_width=beam_width,
+            branch_factor=branch_factor,
+            max_depth=max_attempts,
+            defense=defense,
+            blue_role=blue_role,
+            red_profile=red_profile,
+            dry_run=dry_run,
+            blue_model=blue_model,
+            red_model=red_model,
+            strategy=strategy,
+            mutator=mutator,
+        )
+    else:
+        runner = MultiTurnRedTeamRunner(
+            max_attempts=max_attempts,
+            defense=defense,
+            blue_role=blue_role,
+            red_profile=red_profile,
+            dry_run=dry_run,
+            blue_model=blue_model,
+            red_model=red_model,
+            strategy=strategy,
+            mutator=mutator,
+            enable_backtrack=enable_backtrack,
+            max_backtracks=max_backtracks,
+        )
 
     def on_turn(c, turn, attempt, total_attempts):
         print_turn_telemetry(c, turn, attempt, total_attempts, no_color=no_color)
@@ -260,6 +279,11 @@ def run_redteam_run(args) -> int:
         else:
             status_text = green("DEFENDED", enabled=not no_color)
         print(f"➔ Result [{idx}/{total_c}] Case {bold(res.case_id, enabled=not no_color)}: {status_text}\n")
+        if hasattr(res, "tree_root") and res.tree_root:
+            from core.evaluator.tree import render_ascii_tree
+            print(cyan("   [Search Tree Topology]:", enabled=not no_color))
+            print(render_ascii_tree(res.tree_root))
+            print()
 
     report = runner.run_benchmark(cases, on_turn_callback=on_turn, on_case_callback=on_case)
 

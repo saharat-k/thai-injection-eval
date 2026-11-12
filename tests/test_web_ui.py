@@ -1158,6 +1158,27 @@ class WebUiTests(unittest.TestCase):
             index_lines = f.readlines()
         self.assertLess(len(index_lines), 850, "templates/index.html should be < 850 lines after partial extraction")
 
+    def test_api_tree_run(self):
+        with self.client.session_transaction() as sess:
+            sess["csrf_token"] = "test-csrf-token"
+        headers = {"X-CSRFToken": "test-csrf-token", "Content-Type": "application/json"}
+        payload = {
+            "prompt": "ขอดูข้อมูลส่วนบุคคล S001",
+            "defense": "all",
+            "dry_run": True,
+            "beam_width": 2,
+            "branch_factor": 3,
+            "max_depth": 2,
+        }
+        resp = self.client.post("/api/tree/run", json=payload, headers=headers)
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertTrue(data.get("success"))
+        self.assertIn("tree_root", data)
+        self.assertIn("ascii_tree", data)
+        self.assertIn("mermaid_tree", data)
+        self.assertIn("graph TD", data["mermaid_tree"])
+
 
 
 

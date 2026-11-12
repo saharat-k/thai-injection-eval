@@ -67,3 +67,17 @@ class TestCLIModelFlags(unittest.TestCase):
         self.assertEqual(args.attempts, 5)
         self.assertEqual(args.mutator, "zero_width")
         self.assertTrue(args.dry_run)
+
+    def test_redteam_cli_tree_strategy_flags(self):
+        parser = build_parser()
+        args = parser.parse_args([
+            "redteam", "run",
+            "--strategy", "tree",
+            "--beam-width", "2",
+            "--branch-factor", "3",
+            "--dry-run",
+        ])
+        self.assertEqual(args.strategy, "tree")
+        self.assertEqual(args.beam_width, 2)
+        self.assertEqual(args.branch_factor, 3)
+
