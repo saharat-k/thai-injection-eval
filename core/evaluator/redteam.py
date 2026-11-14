@@ -329,7 +329,7 @@ class MultiTurnRedTeamRunner:
 
             # Classify defense action
             defense_action = "none"
-            if output_intercepted or clean_resp != resp_text:
+            if output_intercepted or clean_resp != resp_text or "[REDACTED" in clean_resp or "[REDACTED" in resp_text:
                 defense_action = "output_dlp_redacted"
             elif private_blocked:
                 defense_action = "tool_acl_blocked"
