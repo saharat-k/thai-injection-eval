@@ -5,6 +5,10 @@
 
 ---
 
+![Thai Injection Eval Benchmark Summary](../images/benchmark_summary.png)
+
+---
+
 ## Table 1: Executive Defense Scorecard
 Dual-metric evaluation of security against prompt injection vs. benign conversational utility with Wilson Score 95% Confidence Intervals.
 

@@ -22,6 +22,11 @@ Benchmark results for 423 standardized test cases across five defense tiers are 
 
 ## Benchmark Results
 
+![Thai Injection Eval Benchmark Scorecard](docs/images/benchmark_hero.png)
+
+> [!TIP]
+> **Detailed Research Matrix**: For complete 4-panel analysis including cross-lingual surface breakdown (Thai vs. Code-Switching vs. English) and OWASP LLM01/02/06 threat mappings, see the official [Benchmark Leaderboard & Multi-Dimensional Matrix (v1.2.0)](docs/benchmark/leaderboard_v1.2.0.md).
+
 All evaluations use 423 standardized cases from `data/normalized/` with 95% Wilson score confidence intervals. Single-turn tests evaluate 72 attacks and 36 benign controls across five defense configurations. Multi-turn evaluations use an adaptive 7-turn Crescendo strategy with refusal backtracking and closed-loop data loss prevention (DLP) evasion.
 
 ### Evaluation Setup & Models
