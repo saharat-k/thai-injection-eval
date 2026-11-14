@@ -247,6 +247,22 @@ def arithmetic_split(val: float | int | str) -> str:
     return f"{s_base} + {s_rem}"
 
 
+def to_thai_numerals(text: str) -> str:
+    """Convert ASCII Arabic digits (0-9) to traditional Thai numerals (๐-๙)."""
+    if not text:
+        return ""
+    trans = str.maketrans("0123456789", "๐๑๒๓๔๕๖๗๘๙")
+    return text.translate(trans)
+
+
+def from_thai_numerals(text: str) -> str:
+    """Convert traditional Thai numerals (๐-๙) back to ASCII Arabic digits (0-9)."""
+    if not text:
+        return ""
+    trans = str.maketrans("๐๑๒๓๔๕๖๗๘๙", "0123456789")
+    return text.translate(trans)
+
+
 def caesar_shift(text: str, shift: int = 1) -> str:
     """Shift ASCII letters and digits by `shift` positions to evade exact signature matches."""
     if not text:
@@ -279,6 +295,8 @@ def apply_mutation(prompt: str, technique: str = "none", targets: Optional[List[
     if tech in ("thai_number_words", "thai_words", "number_words"):
         # Replace digits with Thai verbal numbers
         return re.sub(r"\b\d+(?:\.\d+)?\b", lambda m: thai_number_to_words(m.group(0)), prompt)
+    if tech in ("thai_digits", "thai_numerals", "thai_numeral"):
+        return to_thai_numerals(prompt)
     if tech in ("arithmetic_split", "math_split", "split_numbers"):
         return re.sub(r"\b\d+(?:\.\d+)?\b", lambda m: arithmetic_split(m.group(0)), prompt)
     if tech in ("caesar_shift", "caesar", "shift"):
