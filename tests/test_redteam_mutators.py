@@ -4,8 +4,12 @@ import unittest
 from core.evaluator.mutators import (
     apply_code_switch_pivot,
     apply_mutation,
+    arithmetic_split,
+    caesar_shift,
     inject_zero_width,
     substitute_homoglyphs,
+    thai_number_to_words,
+    thai_words_to_number,
 )
 
 
@@ -49,6 +53,42 @@ class TestThaiMutators(unittest.TestCase):
 
         res_none = apply_mutation(sample, "none")
         self.assertEqual(res_none, sample)
+
+    def test_thai_number_to_words_and_reverse(self):
+        val = 72345.75
+        words = thai_number_to_words(val)
+        self.assertIn("หมื่น", words)
+        self.assertIn("เจ็ด", words)
+        recovered = thai_words_to_number(words)
+        self.assertIsNotNone(recovered)
+        self.assertAlmostEqual(recovered, val, places=2)
+
+    def test_arithmetic_split(self):
+        val = 72345.75
+        split_expr = arithmetic_split(val)
+        self.assertIn("+", split_expr)
+        parts = [float(p.strip()) for p in split_expr.split("+")]
+        self.assertAlmostEqual(sum(parts), val, places=2)
+
+    def test_caesar_shift(self):
+        text = "CANARY-123"
+        shifted = caesar_shift(text, shift=1)
+        self.assertNotEqual(text, shifted)
+        restored = caesar_shift(shifted, shift=-1)
+        self.assertEqual(restored, text)
+
+    def test_apply_mutation_extended_dispatch(self):
+        sample = "เงินเดือน 72345.75 บาท"
+        res_words = apply_mutation(sample, "thai_number_words")
+        self.assertNotEqual(sample, res_words)
+        self.assertIn("หมื่น", res_words)
+
+        res_split = apply_mutation(sample, "arithmetic_split")
+        self.assertNotEqual(sample, res_split)
+        self.assertIn("+", res_split)
+
+        res_caesar = apply_mutation("CANARY", "caesar_shift")
+        self.assertEqual(res_caesar, "DBOBSZ")
 
 
 if __name__ == "__main__":

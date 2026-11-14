@@ -100,6 +100,23 @@ def _extract_decoded_candidates(text: str, extended_decoders: bool = False) -> l
         except Exception:
             pass
 
+        # Thai verbal number decoding and arithmetic split extraction
+        try:
+            from core.evaluator.mutators import thai_words_to_number
+            if any(k in text for k in ("หมื่น", "พัน", "ร้อย", "ล้าน", "สิบ")):
+                num_val = thai_words_to_number(text)
+                if num_val is not None:
+                    decoded.extend([f"{num_val:,.2f}", f"{num_val:.2f}", f"{num_val:g}", f"{int(num_val)}"])
+        except Exception:
+            pass
+
+        try:
+            for m in re.finditer(r"\b(\d+(?:\.\d+)?)\s*\+\s*(\d+(?:\.\d+)?)\b", text):
+                s_val = float(m.group(1)) + float(m.group(2))
+                decoded.extend([f"{s_val:,.2f}", f"{s_val:.2f}", f"{s_val:g}"])
+        except Exception:
+            pass
+
     return decoded
 
 

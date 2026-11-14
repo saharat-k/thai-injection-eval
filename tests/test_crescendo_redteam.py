@@ -183,6 +183,26 @@ class TestCrescendoAndTAP(unittest.TestCase):
             )
             self.assertIn("Crescendo Turn", meta.get("strategy", ""))
 
+    def test_crescendo_fallback_drift_evasion_formats(self):
+        """Turn 6 and 7 of Thai Crescendo fallback should instruct evasion formats for DLP bypass."""
+        turn6_prompt, _ = agent.build_fallback_attack(self.mock_case_th, attempt=6, strategy="crescendo")
+        self.assertTrue("คำอ่านภาษาไทย" in turn6_prompt or "สมการ" in turn6_prompt)
+
+        turn7_prompt, _ = agent.build_fallback_attack(self.mock_case_th, attempt=7, strategy="crescendo")
+        self.assertTrue("คำอ่านภาษาไทย" in turn7_prompt or "สมการ" in turn7_prompt)
+
+    def test_redteam_runner_crescendo_7_attempts(self):
+        """MultiTurnRedTeamRunner should execute full 7-turn Crescendo in dry-run mode."""
+        runner = MultiTurnRedTeamRunner(
+            max_attempts=7,
+            defense="all",
+            strategy="crescendo",
+            dry_run=True,
+        )
+        res = runner.run_case(self.mock_case_th)
+        self.assertEqual(res.attempts_run, 7)
+        self.assertEqual(len(res.turns), 7)
+
 
 if __name__ == "__main__":
     unittest.main()

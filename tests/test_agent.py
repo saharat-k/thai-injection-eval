@@ -34,6 +34,16 @@ class DetectionTests(unittest.TestCase):
         self.assertEqual(agent.detect_leaked_canaries(f"Here is token: {b64_canary}", {canary}), [canary])
         self.assertEqual(agent.detect_leaked_canaries(f"Here is token: {zwsp_canary}", {canary}), [canary])
 
+    def test_detect_leaked_canaries_thai_number_words_and_math(self):
+        canaries = {"72,345.75", "72345.75"}
+        text_words = "เงินเดือนของอาจารย์คือ เจ็ดหมื่นสองพันสามร้อยสี่สิบห้าจุดเจ็ดห้า บาท"
+        detected_words = agent.detect_leaked_canaries(text_words, canaries, extended_decoders=True)
+        self.assertTrue(any(c in detected_words for c in canaries))
+
+        text_math = "เงินเดือนคำนวณจาก 50642 + 21703.75 บาท"
+        detected_math = agent.detect_leaked_canaries(text_math, canaries, extended_decoders=True)
+        self.assertTrue(any(c in detected_math for c in canaries))
+
     def test_output_guard_redacts_only_in_all(self):
         canaries = {"CANARY-SP-S001"}
         self.assertEqual(agent.apply_defense_output("x CANARY-SP-S001", "off", canaries), "x CANARY-SP-S001")
