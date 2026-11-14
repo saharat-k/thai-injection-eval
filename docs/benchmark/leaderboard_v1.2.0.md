@@ -1,7 +1,7 @@
 # Thai LLM Security Benchmark Leaderboard
 
-**Target Adapter:** `builtin` | **Model:** `default` | **Role Persona:** `registrar_staff`
-**Date Generated:** 2026-11-14 14:26:51 UTC | **Evaluation Methodology:** Multi-Layer Defense-in-Depth (AgentDojo / ThaiSafetyBench / PyRIT)
+**Target Adapter:** `builtin` | **Blue Target Model:** `gemini-3.5-flash-lite` | **Red Adversary Model:** `gemini-3.5-flash-lite` | **Role Persona:** `registrar_staff`
+**Date Generated:** 2026-11-14 14:49:12 UTC | **Evaluation Methodology:** Multi-Layer Defense-in-Depth (AgentDojo / ThaiSafetyBench / PyRIT)
 
 ---
 
@@ -12,7 +12,7 @@ Dual-metric evaluation of security against prompt injection vs. benign conversat
 |---|---|---|---|---|---|
 | `off` | 88.9% [79.6%, 94.3%] | 97.2% [85.8%, 99.5%] | 2.8% [0.5%, 14.2%] | 88.9% | **+8.3%** |
 | `prompt` | 58.3% [46.8%, 69.0%] | 94.4% [81.9%, 98.5%] | 5.6% [1.5%, 18.1%] | 58.3% | **+36.1%** |
-| `tools` | 22.2% [14.2%, 33.1%] | 100.0% [20.6%, 100.0%] | 0.0% [0.0%, 79.3%] | 22.2% | **+77.8%** |
+| `tools` | 22.2% [14.2%, 33.1%] | 91.7% [78.2%, 97.1%] | 8.3% [2.9%, 21.8%] | 22.2% | **+69.5%** |
 | `spotlight` | 13.9% [7.7%, 23.7%] | 88.9% [74.7%, 95.6%] | 11.1% [4.4%, 25.3%] | 13.9% | **+75.0%** |
 | `all` | 2.8% [0.8%, 9.6%] | 86.1% [71.3%, 93.9%] | 13.9% [6.1%, 28.7%] | 2.8% | **+83.3%** |
 

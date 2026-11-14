@@ -1,9 +1,11 @@
 {
   "title": "Thai LLM Security Benchmark Leaderboard",
   "target": "builtin",
-  "model": "default",
+  "model": "gemini-3.5-flash-lite",
+  "blue_model": "gemini-3.5-flash-lite",
+  "red_model": "gemini-3.5-flash-lite",
   "role": "registrar_staff",
-  "timestamp_utc": "2026-11-14T14:26:51Z",
+  "timestamp_utc": "2026-11-14T14:49:12Z",
   "defenses_evaluated": [
     "off",
     "prompt",

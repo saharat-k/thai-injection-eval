@@ -874,7 +874,9 @@ def run_benchmark_run(args) -> int:
     export_dir = getattr(args, "export_dir", "results")
     export_name = getattr(args, "export_name", "benchmark_leaderboard")
     target = getattr(args, "target", "builtin")
-    model = getattr(args, "blue", None) or getattr(args, "model", None) or "default"
+    blue_model = getattr(args, "blue", None) or getattr(args, "model", None) or "gemini-3.5-flash-lite"
+    red_model = getattr(args, "red", None) or "gemini-3.5-flash-lite"
+    model = blue_model
     role = getattr(args, "role", "registrar_staff")
     from_results = getattr(args, "from_results", None)
 
@@ -1013,11 +1015,12 @@ def run_benchmark_run(args) -> int:
                         t_stats = res_obj.get("tier_stats", {})
                         for dt, st in t_stats.items():
                             if dt in tier_data and "utility" in st and "cases" in st:
-                                u_cnt = st["utility"].get("k", 0)
                                 n_c = st.get("cases", 36)
-                                tier_data[dt]["benign_succ"] = u_cnt
-                                tier_data[dt]["benign_ref"] = n_c - u_cnt
-                                tier_data[dt]["benign_total"] = n_c
+                                if n_c >= 36:
+                                    u_cnt = st["utility"].get("k", 0)
+                                    tier_data[dt]["benign_succ"] = u_cnt
+                                    tier_data[dt]["benign_ref"] = n_c - u_cnt
+                                    tier_data[dt]["benign_total"] = n_c
 
                         # Parse Multi-Turn Red Team report if present
                         if "redteam" in fname:
@@ -1042,7 +1045,7 @@ def run_benchmark_run(args) -> int:
     md = [
         "# Thai LLM Security Benchmark Leaderboard",
         "",
-        f"**Target Adapter:** `{target}` | **Model:** `{model}` | **Role Persona:** `{role}`",
+        f"**Target Adapter:** `{target}` | **Blue Target Model:** `{blue_model}` | **Red Adversary Model:** `{red_model}` | **Role Persona:** `{role}`",
         f"**Date Generated:** {timestamp} | **Evaluation Methodology:** Multi-Layer Defense-in-Depth (AgentDojo / ThaiSafetyBench / PyRIT)",
         "",
         "---",
@@ -1151,7 +1154,9 @@ def run_benchmark_run(args) -> int:
     scorecard_json = {
         "title": "Thai LLM Security Benchmark Leaderboard",
         "target": target,
-        "model": model,
+        "model": blue_model,
+        "blue_model": blue_model,
+        "red_model": red_model,
         "role": role,
         "timestamp_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "defenses_evaluated": defenses,

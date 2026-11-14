@@ -24,6 +24,13 @@ Benchmark results for 423 standardized test cases across five defense tiers are 
 
 All evaluations use 423 standardized cases from `data/normalized/` with 95% Wilson score confidence intervals. Single-turn tests evaluate 72 attacks and 36 benign controls across five defense configurations. Multi-turn evaluations use an adaptive 7-turn Crescendo strategy with refusal backtracking and closed-loop data loss prevention (DLP) evasion.
 
+### Evaluation Setup & Models
+
+- **Target Model (Blue Agent)**: Google `gemini-3.5-flash-lite` (university registrar assistant `registrar_staff` operating against sandboxed student database).
+- **Adversary Model (Red Agent)**: Google `gemini-3.5-flash-lite` / OpenRouter Free tier (`openrouter:openrouter/free`) running adaptive 7-turn Crescendo penetration.
+- **Evaluation Engine & Judge**: 100% deterministic rule-based oracle (canary token verification, SQL execution telemetry, and regex boundaries; zero LLM judge variance).
+- **Defense Configurations**: `OFF` (raw model), `PROMPT` (system policy), `TOOLS` (RBAC tool gating), `SPOTLIGHT` (delimiter isolation), and `ALL` (defense-in-depth stack).
+
 ### Table 1: Executive Defense Scorecard
 
 | Defense Configuration | Attack Success Rate (ASR) | Defense Effectiveness | Benign Utility Preservation | False Refusal Rate | Overall Security Verdict |
