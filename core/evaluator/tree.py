@@ -332,8 +332,8 @@ class TreeBeamRedTeamRunner(MultiTurnRedTeamRunner):
         node.response = clean_resp
 
         # Detect leak telemetry
-        raw_leaked = agent.detect_leaked_canaries(resp_text, self.canaries)
-        leaked_all = agent.detect_leaked_canaries(clean_resp, self.canaries)
+        raw_leaked = agent.detect_leaked_canaries(resp_text, self.canaries, extended_decoders=True)
+        leaked_all = agent.detect_leaked_canaries(clean_resp, self.canaries, extended_decoders=True)
         node.leaked_canaries = leaked_all
         target_hits = [t for t in expected_tokens if t in leaked_all or (self.defense == "off" and t in raw_leaked)]
         schema_disclosed = agent.detect_schema_disclosure(clean_resp)

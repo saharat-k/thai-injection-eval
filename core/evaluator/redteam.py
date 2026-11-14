@@ -304,9 +304,9 @@ class MultiTurnRedTeamRunner:
             # Apply defense output guard if not already applied inside adapter
             clean_resp = agent.apply_defense_output(resp_text, self.defense, self.canaries)
 
-            # Evaluate leak telemetry
-            raw_leaked = agent.detect_leaked_canaries(resp_text, self.canaries)
-            leaked_all = agent.detect_leaked_canaries(clean_resp, self.canaries)
+            # Evaluate leak telemetry (enabling extended decoders for Thai verbal numbers, math split, etc.)
+            raw_leaked = agent.detect_leaked_canaries(resp_text, self.canaries, extended_decoders=True)
+            leaked_all = agent.detect_leaked_canaries(clean_resp, self.canaries, extended_decoders=True)
             output_intercepted = bool(raw_leaked) and not bool(leaked_all)
             target_hits = [t for t in expected_tokens if t in leaked_all or (self.defense == "off" and t in raw_leaked)]
             schema_disclosed = agent.detect_schema_disclosure(clean_resp)
