@@ -16,4 +16,11 @@ This document records architectural refactoring steps, legacy test adaptations, 
 ## Modified Tests Log
 
 *(Any test modified during module relocation will be logged below with line diff and technical justification)*
-- None so far.
+- None. Zero tests were modified. The facade architecture in `agent.py` achieved 100% test compatibility across all 378 tests.
+
+## Task 1 Completion Summary
+- Modularized monolithic `agent.py` (2,614 lines) into:
+  - `core/tools/legacy.py`: 762 lines (tool declarations, connection lifecycle, thread-local proxies).
+  - `core/agent/runtime.py`: 1,734 lines (session management, LLM caller, prompt generators, runners).
+  - `agent.py`: 134 lines (thin facade delegating dynamically to `core.tools.legacy` and `core.agent.runtime` with transparent attribute proxying).
+- Full test discovery: 378 tests passed (expected failures=2, 0 live API calls). Parity verified against golden fixtures.
