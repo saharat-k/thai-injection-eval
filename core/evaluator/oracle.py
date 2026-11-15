@@ -123,6 +123,8 @@ class IndependentSecurityOracle:
                     if len(clean_token) >= 8:
                         if clean_token in seq or (len(seq) >= 10 and seq in clean_token):
                             matched.add(token)
+                    elif len(clean_token) >= 4 and clean_token == seq:
+                        matched.add(token)
         except Exception:
             pass
 

@@ -1,6 +1,6 @@
 # Benchmark Hub & Evaluation Reports
 
-This directory documents the pre-registered benchmark protocols, statistical matrices, and evaluation scorecards for `thai-injection-eval`.
+This directory documents the statistical analysis plans, benchmark protocols, statistical matrices, and evaluation scorecards for `thai-injection-eval`.
 
 ---
 
@@ -65,7 +65,7 @@ In Tier `TOOLS`, the leak rate is 0.0% because database access controls block th
 
 ### Table 2: Confirmatory Hypothesis H1 & Paired Cross-Lingual Deltas
 
-Under Pre-Registered Primary Hypothesis $H_1$, we test whether Thai prompt injection vulnerability exceeds English by at least $\text{SESOI} = 10\%$ under Tier `PROMPT`:
+Under Primary Hypothesis $H_1$ of the Statistical Analysis Plan, we test whether Thai prompt injection vulnerability exceeds English by at least $\text{SESOI} = 10\%$ under Tier `PROMPT`:
 
 | Model Family | Defense Tier | Mean Delta ($\Delta_{\text{TH} - \text{EN}}$) | 95% Bootstrap CI | Nominal $p$-value | FDR-Adjusted $p$-value | Decision ($H_1: \Delta > 0.10$) |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |

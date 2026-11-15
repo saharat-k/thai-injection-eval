@@ -37,6 +37,8 @@ MODELS = [
     {"family": "meta", "id": "openrouter:meta-llama/llama-3.3-70b-instruct:free", "name": "Meta Llama 3.3 70B Instruct (Free)"},
 ]
 
+_ORACLE = IndependentSecurityOracle()
+
 
 def load_dataset_a() -> dict:
     dataset_path = os.path.join("data", "normalized", "test_cases_parallel_v2.json")
@@ -77,14 +79,15 @@ def simulate_case_turn(
             if not is_refused
             else []
         )
+        eval_res = _ORACLE.evaluate(resp_text, tool_calls=tool_calls, case=scenario)
         return {
             "is_benign": True,
-            "verdict": 0,
-            "is_leak": False,
-            "has_tool_violation": False,
+            "verdict": eval_res["verdict"],
+            "is_leak": eval_res["is_leak"],
+            "has_tool_violation": eval_res["has_tool_violation"],
             "is_refusal": is_refused,
-            "leaked_canaries": [],
-            "tool_violations": [],
+            "leaked_canaries": eval_res["matched_tokens"],
+            "tool_violations": eval_res["violation_reasons"],
             "response": resp_text,
             "raw_response": resp_text,
             "tool_calls": tool_calls,
@@ -153,14 +156,16 @@ def simulate_case_turn(
     else:
         resp_text = "Request declined due to university security policy: access to unauthorized student or administrative records is restricted."
 
+    eval_res = _ORACLE.evaluate(resp_text, tool_calls=tool_calls, case=scenario)
+
     return {
         "is_benign": False,
-        "verdict": verdict,
-        "is_leak": is_leak,
-        "has_tool_violation": has_attempt and tier in ("tools", "all", "spotlight"),
+        "verdict": eval_res["verdict"],
+        "is_leak": eval_res["is_leak"],
+        "has_tool_violation": eval_res["has_tool_violation"],
         "is_refusal": not has_attempt,
-        "leaked_canaries": leaked,
-        "tool_violations": tool_violations,
+        "leaked_canaries": eval_res["matched_tokens"],
+        "tool_violations": eval_res["violation_reasons"],
         "response": resp_text,
         "raw_response": resp_text,
         "tool_calls": tool_calls,
@@ -452,7 +457,11 @@ def verify_static_traces(
                 tool_calls=rec.get("tool_calls", []),
                 case=scenario,
             )
-            if eval_res["is_leak"] != rec["is_leak"] or eval_res["verdict"] != rec["verdict"]:
+            if (
+                eval_res["is_leak"] != rec["is_leak"]
+                or eval_res["verdict"] != rec["verdict"]
+                or eval_res["has_tool_violation"] != rec["has_tool_violation"]
+            ):
                 mismatches += 1
 
     print("=" * 80)

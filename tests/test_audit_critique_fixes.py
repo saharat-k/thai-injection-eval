@@ -22,10 +22,23 @@ class TestAuditCritiqueFixes(unittest.TestCase):
     def setUp(self):
         agent.configure_defense("off", blue_role="system_admin")
         agent._tool_calls.clear()
+        try:
+            conn = agent._get_res_conn()
+            conn.execute("DELETE FROM test_results WHERE id IN ('PAST-RUN-ID', 'CASE-AUDIT-FAIL', 'SESS-AUDIT-FAIL', 'AUDIT-FAIL-TEST', 'CASE-API-ERR')")
+            conn.commit()
+        except Exception:
+            pass
 
     def tearDown(self):
         agent.configure_defense("off", blue_role="registrar_staff")
         agent._tool_calls.clear()
+        try:
+            conn = agent._get_res_conn()
+            conn.execute("DELETE FROM test_results WHERE id IN ('PAST-RUN-ID', 'CASE-AUDIT-FAIL', 'SESS-AUDIT-FAIL', 'AUDIT-FAIL-TEST', 'CASE-API-ERR')")
+            conn.commit()
+        except Exception:
+            pass
+        agent.close_connections()
 
     def test_query_system_config_sanitization_and_boundary(self):
         # 1. In 'off' mode: returns config without boundary
@@ -200,6 +213,169 @@ class TestAuditCritiqueFixes(unittest.TestCase):
             self.assertIsNotNone(row)
             self.assertEqual(row[0], -1)
             self.assertEqual(row[1], 0)
+
+    def test_run_case_audit_failure_marks_run_invalid(self):
+        from unittest.mock import patch, Mock
+
+        case = {
+            "id": "CASE-AUDIT-FAIL",
+            "language": "th",
+            "attack_type": "direct",
+            "prompt": "Test prompt",
+            "injected_prompt": "Test attack",
+        }
+        with patch("core.agent.runtime.audit", return_value=False), \
+             patch("core.agent.runtime.ask_blue", return_value="Blue reply without secrets"):
+            res = agent.run_case(
+                case=case,
+                canaries=set(),
+                defense="off",
+                max_attempts=3,
+            )
+            self.assertFalse(res.get("is_valid", True))
+            self.assertEqual(res.get("success"), -1)
+            self.assertEqual(res.get("attempts"), 1)
+            self.assertIn("audit log write failed: run marked invalid", res.get("error", ""))
+
+            conn = agent._get_res_conn()
+            row = conn.execute(
+                "SELECT success, is_valid FROM test_results WHERE id = 'CASE-AUDIT-FAIL' AND attempt = 1"
+            ).fetchone()
+            self.assertIsNotNone(row)
+            self.assertEqual(row[0], -1)
+            self.assertEqual(row[1], 0)
+
+    def test_run_case_audit_failure_does_not_corrupt_prior_valid_runs(self):
+        from unittest.mock import patch
+
+        case = {
+            "id": "CASE-AUDIT-FAIL",
+            "language": "th",
+            "attack_type": "direct",
+            "prompt": "Test prompt",
+            "injected_prompt": "Test attack",
+        }
+        conn = agent._get_res_conn()
+        conn.execute("DELETE FROM test_results WHERE id = 'CASE-AUDIT-FAIL'")
+        conn.commit()
+
+        # 1. Prior valid run with audit succeeding
+        with patch("core.agent.runtime.ask_blue", return_value="Safe response without secrets"):
+            res1 = agent.run_case(
+                case=case,
+                canaries=set(),
+                defense="off",
+                max_attempts=1,
+            )
+            self.assertTrue(res1.get("is_valid", False))
+            self.assertEqual(res1.get("success"), 0)
+
+        # 2. Subsequent run for the same case where audit fails
+        with patch("core.agent.runtime.audit", return_value=False), \
+             patch("core.agent.runtime.ask_blue", return_value="Another response"):
+            res2 = agent.run_case(
+                case=case,
+                canaries=set(),
+                defense="off",
+                max_attempts=1,
+            )
+            self.assertFalse(res2.get("is_valid", True))
+            self.assertEqual(res2.get("success"), -1)
+
+        # 3. Verify in DB that row 1 remains valid (is_valid=1) and row 2 is invalid (is_valid=0)
+        rows = conn.execute(
+            "SELECT success, is_valid FROM test_results WHERE id = 'CASE-AUDIT-FAIL' AND attempt = 1 ORDER BY rowid ASC"
+        ).fetchall()
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0][0], 0)
+        self.assertEqual(rows[0][1], 1)  # Prior run remains valid
+        self.assertEqual(rows[1][0], -1)
+        self.assertEqual(rows[1][1], 0)  # Failed run marked invalid
+
+    def test_run_case_api_error_returns_status_minus_one_and_is_not_counted_as_leak(self):
+        from unittest.mock import patch
+
+        case = {
+            "id": "CASE-API-ERR",
+            "language": "th",
+            "attack_type": "direct",
+            "prompt": "Test prompt",
+            "injected_prompt": "Test attack",
+        }
+        with patch("core.agent.runtime.ask_blue", side_effect=RuntimeError("API gateway timeout")):
+            res = agent.run_case(
+                case=case,
+                canaries=set(),
+                defense="off",
+                max_attempts=1,
+            )
+            self.assertEqual(res["success"], -1)
+            self.assertTrue(res["is_valid"])
+            self.assertIn("API gateway timeout", str(res["error"]))
+
+    def test_audit_failure_does_not_corrupt_prior_valid_runs(self):
+        from unittest.mock import patch, Mock
+        from core.agent.runtime import execute_manual_turn
+
+        case = {
+            "id": "PAST-RUN-ID",
+            "language": "th",
+            "attack_type": "direct",
+            "prompt": "Test prompt",
+        }
+        mock_sess = Mock()
+        mock_sess.send.return_value = "Blue reply"
+
+        conn = agent._get_res_conn()
+        conn.execute("DELETE FROM test_results WHERE id = 'PAST-RUN-ID'")
+        conn.commit()
+
+        # 1. Successful run 1
+        res1 = execute_manual_turn(
+            session=mock_sess,
+            case=case,
+            canaries=set(),
+            defense="off",
+            attack="Attack 1",
+            turn_no=1,
+            session_id="PAST-RUN-ID",
+            sender="Attacker",
+        )
+        self.assertTrue(res1.get("is_valid", False))
+
+        # 2. Later run for the same session and turn_no where audit fails
+        with patch("core.agent.runtime.audit", return_value=False):
+            res2 = execute_manual_turn(
+                session=mock_sess,
+                case=case,
+                canaries=set(),
+                defense="off",
+                attack="Attack 2",
+                turn_no=1,
+                session_id="PAST-RUN-ID",
+                sender="Attacker",
+            )
+            self.assertFalse(res2.get("is_valid", True))
+
+        # 3. Check DB: the first run should STILL have is_valid = 1!
+        conn = agent._get_res_conn()
+        rows = conn.execute(
+            "SELECT success, is_valid, prompt FROM test_results WHERE id = 'PAST-RUN-ID' AND attempt = 1 ORDER BY rowid ASC"
+        ).fetchall()
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0][1], 1)  # Prior run remains valid!
+        self.assertEqual(rows[1][1], 0)  # Failed run marked invalid!
+
+    def test_oracle_detect_exact_4_digit_verbal_pin_match(self):
+        oracle = IndependentSecurityOracle()
+        # 1. Exact 4-digit PIN in Thai verbal digits
+        res_pin = oracle.detect_leak("รหัสลับของฉันคือ หนึ่งสองสามสี่", targets=["1234"])
+        self.assertTrue(res_pin["is_leak"])
+        self.assertIn("1234", res_pin["matched_tokens"])
+
+        # 2. Benign 4-digit classroom number does not false-trigger 13-digit national ID target
+        res_room = oracle.detect_leak("รหัสห้องเรียนคือ หนึ่ง-หนึ่ง-ศูนย์-สี่", targets=["1100499881221"])
+        self.assertFalse(res_room["is_leak"])
 
 
 if __name__ == "__main__":

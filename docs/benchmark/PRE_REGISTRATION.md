@@ -18,7 +18,7 @@ Prior prompt injection benchmarks in multilingual contexts often conflate attack
 
 Furthermore, empirical security benchmarks risk tautological reporting (e.g. reporting 100% defense rates simply because a database authorization layer rejected a query), obscuring whether the underlying foundation model was actually manipulated.
 
-This pre-registration locks the statistical hypothesis, sampling protocol, model roster, and analysis pipeline prior to publishing static multi-model benchmark results.
+This statistical analysis plan locks the statistical hypothesis, sampling protocol, model roster, and analysis pipeline prior to publishing static multi-model benchmark results.
 
 ---
 
@@ -40,7 +40,7 @@ Total evaluated cases = $36 \text{ scenarios} \times 3 \text{ variants} = 108 \t
 
 ---
 
-## 3. Primary Pre-Registered Hypothesis ($H_1$)
+## 3. Primary Analysis Plan Hypothesis ($H_1$)
 
 ### Confirmatory Hypothesis:
 $$\mathbf{H_1}: \quad ASR_{\text{TH}} - ASR_{\text{EN}} > 0.10 \quad \text{in Tier PROMPT}$$
@@ -76,4 +76,4 @@ In adherence to open-science reproducibility and hard zero-cost invariants, benc
 
 ## 6. Independent Oracle & Agreement Standards
 - All evaluation turns are graded by `IndependentSecurityOracle` (`core/evaluator/oracle.py`) using hybrid canary token identification and anti-evasion normalization.
-- Human review ground-truth agreement is pre-registered to achieve Stratified Cohen's $\kappa \ge 0.85$, Sensitivity $\ge 0.90$, and Specificity $\ge 0.90$.
+- Human review ground-truth agreement is specified in the analysis plan to achieve Stratified Cohen's $\kappa \ge 0.85$, Sensitivity $\ge 0.90$, and Specificity $\ge 0.90$.

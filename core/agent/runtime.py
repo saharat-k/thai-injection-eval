@@ -1119,7 +1119,7 @@ def run_case(case, canaries, defense, max_attempts, blue_role="registrar_staff",
 
         conn_res = _get_res_conn()
         with _db_lock:
-            conn_res.execute(
+            cur = conn_res.execute(
                 "INSERT INTO test_results (id, language, attack_type, source_reference, technique, "
                 "prompt, injected_prompt, response, success, private_table_accessed, private_table_blocked, "
                 "leaked_canaries, raw_leaked_canaries, schema_disclosed, tool_calls_json, red_analysis, red_strategy, "
@@ -1152,6 +1152,7 @@ def run_case(case, canaries, defense, max_attempts, blue_role="registrar_staff",
                 ),
             )
             conn_res.commit()
+            inserted_rowid = cur.lastrowid
         audit_ok = audit(
             "attempt",
             {
@@ -1174,10 +1175,12 @@ def run_case(case, canaries, defense, max_attempts, blue_role="registrar_staff",
         )
         if not audit_ok:
             status = -1
+            error = "audit log write failed: run marked invalid"
+            success = False
             with _db_lock:
                 conn_res.execute(
-                    "UPDATE test_results SET success = -1, is_valid = 0 WHERE id = ? AND defense_level = ? AND attempt = ?",
-                    (case["id"], defense, attempt),
+                    "UPDATE test_results SET success = -1, is_valid = 0 WHERE rowid = ?",
+                    (inserted_rowid,),
                 )
                 conn_res.commit()
         last = {
@@ -1186,7 +1189,7 @@ def run_case(case, canaries, defense, max_attempts, blue_role="registrar_staff",
             "source_reference": source_ref,
             "technique": technique,
             "response": resp,
-            "success": status if not audit_ok else success,
+            "success": status,
             "is_valid": bool(audit_ok),
             "accessed": any_accessed,
             "blocked": any_blocked,
@@ -1198,9 +1201,9 @@ def run_case(case, canaries, defense, max_attempts, blue_role="registrar_staff",
             "red_strategy": strat,
             "attempts": attempt,
             "defense": defense,
-            "error": "audit log write failed: run marked invalid" if not audit_ok else bool(error),
+            "error": "audit log write failed: run marked invalid" if not audit_ok else (error if error else False),
         }
-        if success or error:
+        if not audit_ok or success or error:
             break
         last_resp = resp
         history.append((attack, resp))
@@ -1221,7 +1224,7 @@ def append_markdown(results, path="results.md"):
             table_status = "BLOCKED"
         else:
             table_status = "no"
-        leak_status = "ERROR" if r["error"] else ("LEAK" if r["success"] else "no")
+        leak_status = "ERROR" if (r.get("error") or r.get("success") == -1 or not r.get("is_valid", True)) else ("LEAK" if (r.get("success") is True or r.get("success") == 1) else "no")
         lines.append(
             f"| {r['id']} | {r.get('attack_type', 'direct')} | {r['language']} | {r.get('source_reference', '-')} | {r['defense']} "
             f"| {r['attempts']} | {table_status} | {leak_status} |\n"
@@ -1264,7 +1267,7 @@ def run_all(defense="off", max_attempts=3, case_id=None, blue_role="registrar_st
     audit(
         "run_end",
         {
-            "leaks": sum(1 for r in results if r["success"]),
+            "leaks": sum(1 for r in results if r.get("is_valid", True) and (r.get("success") is True or r.get("success") == 1)),
             "accessed": sum(1 for r in results if r["accessed"]),
             "blocked": sum(1 for r in results if r.get("blocked")),
             "total": len(results),
@@ -1451,7 +1454,7 @@ def execute_manual_turn(
         effective_blue_model = sess_model if isinstance(sess_model, str) and sess_model else BLUE_MODEL
         effective_red_model = red_model if isinstance(red_model, str) and red_model else RED_MODEL
         with _db_lock:
-            conn_res.execute(
+            cur = conn_res.execute(
                 "INSERT INTO test_results (id, language, attack_type, source_reference, technique, "
                 "prompt, injected_prompt, response, success, private_table_accessed, private_table_blocked, "
                 "leaked_canaries, raw_leaked_canaries, schema_disclosed, tool_calls_json, red_analysis, red_strategy, "
@@ -1468,6 +1471,7 @@ def execute_manual_turn(
                 ),
             )
             conn_res.commit()
+            inserted_rowid = cur.lastrowid
         audit_ok = audit("manual_turn", {
             "id": session_id, "turn": turn_no, "sender": sender, "defense": defense,
             "blue_role": active_role, "red_profile": active_red,
@@ -1479,8 +1483,8 @@ def execute_manual_turn(
         if not audit_ok:
             with _db_lock:
                 conn_res.execute(
-                    "UPDATE test_results SET success = -1, is_valid = 0 WHERE id = ? AND defense_level = ? AND attempt = ?",
-                    (session_id, defense, turn_no),
+                    "UPDATE test_results SET success = -1, is_valid = 0 WHERE rowid = ?",
+                    (inserted_rowid,),
                 )
                 conn_res.commit()
             return {
@@ -1515,6 +1519,7 @@ def execute_manual_turn(
             "is_target_met": is_target_met,
             "tool_calls": calls,
             "error": error,
+            "is_valid": True,
         }
 
 
@@ -1759,7 +1764,7 @@ def manual_mode(defense=None, blue_role=None, red_profile=None, lang=None, attac
 
 def print_results(results):
     for r in results:
-        state = "ERROR" if r["error"] else "LEAK" if r["success"] else "no-leak"
+        state = "ERROR" if (r.get("error") or r.get("success") == -1 or not r.get("is_valid", True)) else ("LEAK" if (r.get("success") is True or r.get("success") == 1) else "no-leak")
         t_state = "ACCESSED" if r["accessed"] else ("BLOCKED" if r.get("blocked") else "none")
         print(
             f"{r['id']:9} type={r.get('attack_type', 'direct'):8} defense={r['defense']:6} "
