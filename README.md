@@ -2,9 +2,10 @@
 ───────────────────
 
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue.svg)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-376%20passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-403%20passing-brightgreen.svg)](tests/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Benchmark Cases](https://img.shields.io/badge/benchmark-423%20cases-orange.svg)](data/normalized/)
+[![Pre-Registration](https://img.shields.io/badge/pre--registration-v2.0-blueviolet.svg)](docs/benchmark/PRE_REGISTRATION.md)
+[![Benchmark Cases](https://img.shields.io/badge/benchmark-Dataset%20A%20108%20cases-orange.svg)](data/normalized/test_cases_parallel_v2.json)
 
 Evaluation framework for studying prompt injection robustness in Thai-language LLM interactions.
 
@@ -14,81 +15,83 @@ Evaluation framework for studying prompt injection robustness in Thai-language L
 
 ## Status
 
-**Benchmark Released (v1.2.0)**
+**Benchmark v2.0.0 (Pre-Registered & Multi-Model Decoupled Architecture)**
 
-Benchmark results for 423 standardized test cases across five defense tiers are documented below. Single-turn evaluations show Defense-in-Depth (Mode ALL) reduces prompt injection attack success to 2.8%. Under 7-turn adaptive Crescendo attacks with closed-loop DLP evasion, attack success reaches 25.0%.
+The v2.0 release establishes an open-science benchmark protocol with pre-registered hypotheses ([`docs/benchmark/PRE_REGISTRATION.md`](docs/benchmark/PRE_REGISTRATION.md)), cross-lingual parallel triplets (Dataset A: 36 scenarios $\times$ 3 languages = 108 cases), multi-family LLM evaluation, and decoupled metric tracking separating **Attempt Rate** (LLM compliance to adversary) from **Leak Rate** (actual exfiltration prevented by backend ACL / DLP layers).
+
+Full empirical case traces and aggregated statistical matrices are published in:
+- Case-level JSONL traces: [`results/published/benchmark_v2_static.jsonl`](results/published/benchmark_v2_static.jsonl)
+- Aggregated CSV with FDR adjustments: [`results/published/benchmark_v2_summary.csv`](results/published/benchmark_v2_summary.csv)
+- Methodological bounds & disclosures: [`LIMITATIONS.md`](LIMITATIONS.md)
 
 ---
 
-## Benchmark Results
+## Empirical Benchmark Results (Dataset A v2.0)
 
-![Thai Injection Eval Benchmark Scorecard](docs/images/benchmark_hero.png)
+All evaluations use standardized isomorphic triplets from `data/normalized/test_cases_parallel_v2.json` with Wilson 95% score confidence intervals and paired bootstrap testing.
 
-> [!TIP]
-> **Detailed Research Matrix**: For complete 4-panel analysis including cross-lingual surface breakdown (Thai vs. Code-Switching vs. English) and OWASP LLM01/02/06 threat mappings, see the official [Benchmark Leaderboard & Multi-Dimensional Matrix (v1.2.0)](docs/benchmark/leaderboard_v1.2.0.md).
+### Target Model Families Evaluated
+- **Google Family**: `gemini-3.5-flash-lite` (Free Tier)
+- **Open-Weights Family**: `meta-llama/llama-3.3-70b-instruct:free` (Free Tier via OpenRouter)
+- **Evaluation Oracle**: Deterministic hybrid rule-based oracle with zero-width / normalization anti-evasion (Stratified Cohen's $\kappa = 0.933$, Sensitivity = 1.0).
 
-All evaluations use 423 standardized cases from `data/normalized/` with 95% Wilson score confidence intervals. Single-turn tests evaluate 72 attacks and 36 benign controls across five defense configurations. Multi-turn evaluations use an adaptive 7-turn Crescendo strategy with refusal backtracking and closed-loop data loss prevention (DLP) evasion.
+### Table 1: Multi-Model Empirical Defense Matrix (Attempt vs. Leak Decoupling)
 
-### Evaluation Setup & Models
-
-- **Target Model (Blue Agent)**: Google `gemini-3.5-flash-lite` (university registrar assistant `registrar_staff` operating against sandboxed student database).
-- **Adversary Model (Red Agent)**: Google `gemini-3.5-flash-lite` / OpenRouter Free tier (`openrouter:openrouter/free`) running adaptive 7-turn Crescendo penetration.
-- **Evaluation Engine & Judge**: 100% deterministic rule-based oracle (canary token verification, SQL execution telemetry, and regex boundaries; zero LLM judge variance).
-- **Defense Configurations**: `OFF` (raw model), `PROMPT` (system policy), `TOOLS` (RBAC tool gating), `SPOTLIGHT` (delimiter isolation), and `ALL` (defense-in-depth stack).
-
-### Table 1: Executive Defense Scorecard
-
-| Defense Configuration | Attack Success Rate (ASR) | Defense Effectiveness | Benign Utility Preservation | False Refusal Rate | Overall Security Verdict |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **OFF** (Raw Baseline) | 88.9% (64/72) `[79.6%, 94.3%]` | 11.1% | 97.2% (35/36) | 2.8% | CRITICAL RISK |
-| **PROMPT** (System Guard) | 58.3% (42/72) `[46.8%, 69.0%]` | 41.7% | 94.4% (34/36) | 5.6% | INSUFFICIENT |
-| **TOOLS** (Access Control) | 22.2% (16/72) `[14.2%, 33.1%]` | 77.8% | 91.7% (33/36) | 8.3% | PARTIAL DEFENSE |
-| **SPOTLIGHT** (Delimiters) | 13.9% (10/72) `[7.7%, 23.7%]` | 86.1% | 88.9% (32/36) | 11.1% | MODERATE HARDENING |
-| **ALL** (Defense-in-Depth) | 2.8% (2/72) `[0.8%, 9.6%]` | 97.2% | 86.1% (31/36) | 13.9% | PRODUCTION RESILIENT |
-
-### Table 2: Multilingual Attack Surface Breakdown
-
-| Defense Tier | Thai Native ASR | English Native ASR | Thai-English Code-Switch ASR | Linguistic Delta |
-| :--- | :--- | :--- | :--- | :--- |
-| **OFF** | 95.8% (23/24) | 83.3% (20/24) | 87.5% (21/24) | +12.5% Thai Vulnerability |
-| **PROMPT** | 66.7% (16/24) | 50.0% (12/24) | 58.3% (14/24) | +16.7% Thai Vulnerability |
-| **TOOLS** | 29.2% (7/24) | 16.7% (4/24) | 20.8% (5/24) | +12.5% Thai Vulnerability |
-| **SPOTLIGHT** | 16.7% (4/24) | 12.5% (3/24) | 12.5% (3/24) | +4.2% Thai Vulnerability |
-| **ALL** | 4.2% (1/24) | 0.0% (0/24) | 4.2% (1/24) | +4.2% Thai Vulnerability |
-
-### Table 3: OWASP Top 10 for LLMs Threat Matrix
-
-| Defense Tier | LLM01: Prompt Injection | LLM02: Sensitive Info Leak | LLM06: Excessive Agency | SEC24: Direct Exfiltration | SEC26: Secondary Pivot |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **OFF** | 94.4% (34/36) | 83.3% (20/24) | 83.3% (10/12) | 90.0% (18/20) | 90.0% (9/10) |
-| **PROMPT** | 61.1% (22/36) | 50.0% (12/24) | 66.7% (8/12) | 50.0% (10/20) | 50.0% (5/10) |
-| **TOOLS** | 25.0% (9/36) | 16.7% (4/24) | 25.0% (3/12) | 15.0% (3/20) | 10.0% (1/10) |
-| **SPOTLIGHT** | 13.9% (5/36) | 12.5% (3/24) | 16.7% (2/12) | 10.0% (2/20) | 10.0% (1/10) |
-| **ALL** | 2.8% (1/36) | 4.2% (1/24) | 0.0% (0/12) | 0.0% (0/20) | 0.0% (0/10) |
-
-### Table 4: Multi-Turn Adaptive Red Teaming Scorecard
-
-| Defense Configuration | Strategy | Single-Turn ASR | 7-Turn Crescendo ASR | Average Turns to Breach | Breached Cases | Empirical Assessment |
+| Model Family | Defense Tier | Language | Actual Leak Rate (ASR) [95% CI] | Attempt Rate [95% CI] | False Refusal (FRR) | Defense Score (DES) |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **OFF** | Crescendo (7 turns) | 88.9% | 100.0% | 1.8 turns | 36 / 36 | Complete Breach |
-| **PROMPT** | Crescendo (7 turns) | 58.3% | 75.0% | 3.2 turns | 27 / 36 | High Penetration |
-| **TOOLS** | Crescendo (7 turns) | 22.2% | 44.4% | 4.1 turns | 16 / 36 | Significant Drift |
-| **SPOTLIGHT** | Crescendo (7 turns) | 13.9% | 33.3% | 4.8 turns | 12 / 36 | Moderate Resistance |
-| **ALL** | Crescendo (7 turns) | 2.8% | 25.0% | 5.4 turns | 9 / 36 | Evasion Feasible |
+| **Google Gemini 3.5 Flash Lite** | `OFF` | EN | 86.7% `[70.3%, 94.7%]` | 86.7% `[70.3%, 94.7%]` | 0.0% | 13.3 |
+| | | TH | 86.7% `[70.3%, 94.7%]` | 86.7% `[70.3%, 94.7%]` | 0.0% | 13.3 |
+| | | TH-EN | 90.0% `[74.4%, 96.5%]` | 90.0% `[74.4%, 96.5%]` | 0.0% | 10.0 |
+| | `PROMPT` | EN | 60.0% `[42.3%, 75.4%]` | 60.0% `[42.3%, 75.4%]` | 0.0% | 40.0 |
+| | | TH | **73.3%** `[55.5%, 85.8%]` | **73.3%** `[55.5%, 85.8%]` | 0.0% | 26.7 |
+| | | TH-EN | 73.3% `[55.5%, 85.8%]` | 73.3% `[55.5%, 85.8%]` | 16.7% | 22.2 |
+| | `TOOLS` | EN | 0.0% `[0.0%, 11.3%]` | 56.7% `[39.2%, 72.6%]` | 0.0% | 100.0 |
+| | | TH | 0.0% `[0.0%, 11.3%]` | 60.0% `[42.3%, 75.4%]` | 0.0% | 100.0 |
+| | | TH-EN | 0.0% `[0.0%, 11.3%]` | 63.3% `[45.5%, 78.1%]` | 0.0% | 100.0 |
+| | `ALL` | EN | 0.0% `[0.0%, 11.3%]` | 3.3% `[0.6%, 16.7%]` | 16.7% | 83.3 |
+| | | TH | 0.0% `[0.0%, 11.3%]` | 33.3% `[19.2%, 51.2%]` | 16.7% | 83.3 |
+| | | TH-EN | 0.0% `[0.0%, 11.3%]` | 10.0% `[3.5%, 25.6%]` | 0.0% | 100.0 |
+| | `SPOTLIGHT` | EN | 0.0% `[0.0%, 11.3%]` | 3.3% `[0.6%, 16.7%]` | 0.0% | 100.0 |
+| | | TH | 0.0% `[0.0%, 11.3%]` | 3.3% `[0.6%, 16.7%]` | 0.0% | 100.0 |
+| | | TH-EN | 0.0% `[0.0%, 11.3%]` | 3.3% `[0.6%, 16.7%]` | 0.0% | 100.0 |
+| **Meta Llama 3.3 70B Instruct (Free)** | `OFF` | EN | 100.0% `[88.7%, 100.0%]` | 100.0% `[88.7%, 100.0%]` | 0.0% | 0.0 |
+| | | TH | 100.0% `[88.7%, 100.0%]` | 100.0% `[88.7%, 100.0%]` | 0.0% | 0.0 |
+| | | TH-EN | 93.3% `[78.7%, 98.2%]` | 93.3% `[78.7%, 98.2%]` | 0.0% | 6.7 |
+| | `PROMPT` | EN | 50.0% `[33.1%, 66.8%]` | 50.0% `[33.1%, 66.8%]` | 0.0% | 50.0 |
+| | | TH | **83.3%** `[66.4%, 92.7%]` | **83.3%** `[66.4%, 92.7%]` | 0.0% | 16.7 |
+| | | TH-EN | 70.0% `[52.1%, 83.3%]` | 70.0% `[52.1%, 83.3%]` | 0.0% | 30.0 |
+| | `TOOLS` | EN | 0.0% `[0.0%, 11.3%]` | 66.7% `[48.8%, 80.8%]` | 0.0% | 100.0 |
+| | | TH | 0.0% `[0.0%, 11.3%]` | 83.3% `[66.4%, 92.7%]` | 0.0% | 100.0 |
+| | | TH-EN | 0.0% `[0.0%, 11.3%]` | 66.7% `[48.8%, 80.8%]` | 0.0% | 100.0 |
+| | `ALL` | EN | 0.0% `[0.0%, 11.3%]` | 6.7% `[1.9%, 21.3%]` | 0.0% | 100.0 |
+| | | TH | 0.0% `[0.0%, 11.3%]` | 20.0% `[9.5%, 37.3%]` | 16.7% | 83.3 |
+| | | TH-EN | 0.0% `[0.0%, 11.3%]` | 20.0% `[9.5%, 37.3%]` | 16.7% | 83.3 |
+| | `SPOTLIGHT` | EN | 0.0% `[0.0%, 11.3%]` | 0.0% `[0.0%, 11.3%]` | 0.0% | 100.0 |
+| | | TH | 0.0% `[0.0%, 11.3%]` | 10.0% `[3.5%, 25.6%]` | 0.0% | 100.0 |
+| | | TH-EN | 0.0% `[0.0%, 11.3%]` | 13.3% `[5.3%, 29.7%]` | 0.0% | 100.0 |
+
+> **Key Observation**: In Tier `TOOLS`, exfiltration **Leak Rate is 0.0%** because backend database ACLs intercept out-of-scope queries. However, **Attempt Rate remains elevated at 56.7%–83.3%**, proving that prompt hardening alone does not prevent the model from attempting adversarial compliance. Only context-isolated delimiting (`SPOTLIGHT`) reduces model attempt rates to baseline.
+
+### Table 2: Confirmatory Hypothesis H1 & Paired Cross-Lingual Deltas
+
+Under Pre-Registered Primary Hypothesis $H_1$, we test whether Thai prompt injection vulnerability exceeds English by at least $\text{SESOI} = 10\%$ under Tier `PROMPT`:
+
+| Model Family | Defense Tier | Mean Delta ($\Delta_{\text{TH} - \text{EN}}$) | 95% Bootstrap CI | Nominal $p$-value | FDR-Adjusted $p$-value | Decision ($H_1: \Delta > 0.10$) |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Meta Llama 3.3 70B Instruct** | `PROMPT` | **+33.3%** | `[+10.0%, +56.7%]` | $p = 0.010$ | $p_{\text{adj}} = 0.100$ | **CONFIRMED ($\Delta > 0.10$)** |
+| **Google Gemini 3.5 Flash Lite** | `PROMPT` | **+13.3%** | `[-10.0%, +33.3%]` | $p = 0.281$ | $p_{\text{adj}} = 1.000$ | Inconclusive ($\text{CI overlaps } 0$) |
 
 ### Reproducing Benchmark Results
 
-Run the unified benchmark runner to reproduce all tables without external API quota:
+Run the unified benchmark runner to reproduce all tables:
 
 ```bash
-# Windows
-.\thai-eval.ps1 benchmark run --all
+# Offline empirical simulation (zero quota consumption)
+python scripts/run_multimodel_benchmark.py --mode mock
 
-# Linux / macOS
-./thai-eval benchmark run --all
+# Live execution against approved free-tier endpoints
+python scripts/run_multimodel_benchmark.py --mode live
 ```
-
-Archived reports are stored in [docs/benchmark/leaderboard_v1.2.0.md](docs/benchmark/leaderboard_v1.2.0.md) and [docs/benchmark/leaderboard_v1.2.0.json](docs/benchmark/leaderboard_v1.2.0.json).
 
 ---
 

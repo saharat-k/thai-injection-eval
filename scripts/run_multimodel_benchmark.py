@@ -126,7 +126,7 @@ def simulate_case_turn(
 def run_multimodel_benchmark(
     mode: str = "mock",
     tiers: Optional[List[str]] = None,
-    out_dir: str = "results",
+    out_dir: str = "results/published",
 ) -> dict:
     os.makedirs(out_dir, exist_ok=True)
     dataset = load_dataset_a()
@@ -331,7 +331,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Multi-Model Static Benchmark")
     parser.add_argument("--mode", choices=["mock", "live"], default="mock", help="Execution mode (mock or live)")
     parser.add_argument("--tiers", nargs="+", default=DEFENSE_TIERS, help="Defense tiers to evaluate")
-    parser.add_argument("--out-dir", default="results", help="Directory for output artifacts")
+    parser.add_argument("--out-dir", default="results/published", help="Directory for output artifacts")
     args = parser.parse_args()
 
     run_multimodel_benchmark(mode=args.mode, tiers=args.tiers, out_dir=args.out_dir)

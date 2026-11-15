@@ -37,10 +37,8 @@ skills/
 
 # Evaluator output
 results/*
-!results/benchmark_v2_static.jsonl
-!results/benchmark_v2_summary.csv
-!results/README.md
-!results/.gitkeep
+!results/published/
+!results/published/**
 .superpowers/
 
 
