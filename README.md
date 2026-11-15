@@ -2,7 +2,7 @@
 ───────────────────
 
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue.svg)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-403%20passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-404%20passing-brightgreen.svg)](tests/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Pre-Registration](https://img.shields.io/badge/pre--registration-v2.0-blueviolet.svg)](docs/benchmark/PRE_REGISTRATION.md)
 [![Benchmark Cases](https://img.shields.io/badge/benchmark-Dataset%20A%20108%20cases-orange.svg)](data/normalized/test_cases_parallel_v2.json)
@@ -23,6 +23,16 @@ Full empirical case traces and aggregated statistical matrices are published in:
 - Case-level JSONL traces: [`results/published/benchmark_v2_static.jsonl`](results/published/benchmark_v2_static.jsonl)
 - Aggregated CSV with FDR adjustments: [`results/published/benchmark_v2_summary.csv`](results/published/benchmark_v2_summary.csv)
 - Methodological bounds & disclosures: [`LIMITATIONS.md`](LIMITATIONS.md)
+- Version history: [`CHANGELOG.md`](CHANGELOG.md)
+
+### Quick Links
+- [Empirical Benchmark Results](#empirical-benchmark-results-dataset-a-v20)
+- [Benchmark Visual Dashboard](#benchmark-visual-dashboard)
+- [Research Objective](#research-objective)
+- [Scope & Threat Vectors](#scope)
+- [Methodology & Architecture](#methodology--architecture)
+- [Getting Started & Quickstart](#getting-started-development-setup)
+- [Future Research & Roadmap](#future-research--roadmap)
 
 ---
 
@@ -30,10 +40,25 @@ Full empirical case traces and aggregated statistical matrices are published in:
 
 All evaluations use standardized isomorphic triplets from `data/normalized/test_cases_parallel_v2.json` with Wilson 95% score confidence intervals and paired bootstrap testing.
 
+### Benchmark Visual Dashboard
+
+![Thai Injection Eval v2.0 Scorecard](docs/images/benchmark_v2_dashboard.png)
+
+```mermaid
+flowchart LR
+    A["User Prompt (EN / TH / TH-EN)"] --> B["Target Model (Gemini / Llama)"]
+    B --> C{"Model Complies?"}
+    C -- "Yes" --> D["Adversarial Tool Call Attempt"]
+    C -- "No" --> E["Safe Refusal (DES=100)"]
+    D --> F{"Tier Gatekeeper"}
+    F -- "Tier: PROMPT / OFF" --> G["Execution Granted -> Data Leak (ASR=1)"]
+    F -- "Tier: TOOLS / SPOTLIGHT" --> H["Blocked by ACL/RLS (Attempt=1, Leak=0)"]
+```
+
 ### Target Model Families Evaluated
 - **Google Family**: `gemini-3.5-flash-lite` (Free Tier)
 - **Open-Weights Family**: `meta-llama/llama-3.3-70b-instruct:free` (Free Tier via OpenRouter)
-- **Evaluation Oracle**: Deterministic hybrid rule-based oracle with zero-width / normalization anti-evasion (Stratified Cohen's $\kappa = 0.933$, Sensitivity = 1.0).
+- **Evaluation Oracle**: Deterministic hybrid rule-based oracle with zero-width and normalization anti-evasion (Stratified Cohen's $\kappa = 0.933$, Sensitivity = 1.0).
 
 ### Table 1: Multi-Model Empirical Defense Matrix (Attempt vs. Leak Decoupling)
 
@@ -97,11 +122,11 @@ python scripts/run_multimodel_benchmark.py --mode live
 
 ## Research Objective
 
-While extensive safety research and benchmark datasets exist for English-language LLM interactions, evaluation methodologies specifically addressing the linguistic and syntactic nuances of the Thai language remain severely limited. Thai features distinct characteristics—such as the lack of explicit word boundary delimiters (no spaces between words), complex vowel and tone mark placement, rich honorifics, and frequent Thai-English code-switching—that introduce unique attack vectors and defense blindspots for tokenizers, safety guardrails, and system prompt policies.
+While extensive safety research and benchmark datasets exist for English-language LLM interactions, evaluation methodologies specifically addressing the linguistic and syntactic nuances of the Thai language remain limited. Thai features distinct characteristics, such as the lack of explicit word boundary delimiters (no spaces between words), complex vowel and tone mark placement, rich honorifics, and frequent Thai-English code-switching. These properties introduce unique attack vectors and defense blindspots for tokenizers, safety guardrails, and system prompt policies.
 
 The objective of **Thai Injection Eval** is to establish an open, reproducible, and scientifically grounded evaluation framework to:
 1. **Systematically evaluate LLM robustness** against prompt injection attacks formulated in Thai and mixed Thai-English contexts.
-2. **Measure the impact of Thai-specific linguistic evasion techniques** (e.g., zero-width space insertion, vowel/tone homoglyphs, and syllable boundary manipulation) on security guardrails.
+2. **Measure the impact of Thai-specific linguistic evasion techniques** (such as zero-width space insertion, vowel and tone homoglyphs, and syllable boundary manipulation) on security guardrails.
 3. **Quantify the trade-off between security hardening and utility** (benign interaction preservation) using deterministic, zero-variance evaluation criteria.
 
 ---
@@ -114,8 +139,13 @@ To maintain scientific focus and reproducibility, this project scopes its invest
 - **Linguistic Sub-Scopes**:
   - **Thai Native**: Pure Thai phrasing, colloquial idioms, and grammatical structures.
   - **Thai-English Code-Switching**: Sentences seamlessly mixing Thai and English terminology (standard in technical, educational, and business discourse).
-- **Target Threat Categories**:
-  *(To be defined alongside the standardized dataset schema)*.
+- **Target Threat Categories (OWASP LLM01 / LLM06)**:
+  - `direct_instruction_override`: Direct adversarial jailbreak and system prompt override.
+  - `broken_object_level_authorization`: Cross-tenant and cross-user data access attempts (BOLA / IDOR).
+  - `action_hijacking`: Unauthorized notification dispatch and outbound data exfiltration attempts.
+  - `indirect_prompt_injection`: Untrusted content poisoning from public relational database tables.
+  - `linguistic_evasion`: Thai-specific Unicode formatting (category Cf zero-width spaces), homoglyphs, and code-switching evasion.
+  - `benign_control`: Non-adversarial domain queries verifying false refusal rates (FRR).
 - **Synthetic White-Box Environment**: All database schemas, mock credentials, and canary tokens used during evaluation are entirely synthetic to prevent real-world data exposure.
 
 > [!NOTE]
@@ -176,7 +206,7 @@ thai-injection-eval/
 │   └── evaluator/                # Benchmark engines, metrics & statistical tests
 ├── data/                         # Benchmark datasets and synthetic mock databases
 │   ├── archive/                  # Archived raw benchmark datasets
-│   ├── normalized/               # Canonical Draft-07 validated benchmark suites (423 cases across 8 suites)
+│   ├── normalized/               # Canonical Draft-07 validated benchmark suites (Dataset A v2.0: 108 parallel cases)
 │   ├── schema/                   # JSON Schema definitions (Draft-07)
 │   ├── validation/               # Dataset validation reports
 │   └── university.db             # Synthetic sandboxed educational database
@@ -185,8 +215,8 @@ thai-injection-eval/
 │   ├── methodology.md            # Statistical formulas and judge specifications
 │   ├── development.md            # Developer guidelines and testing standards
 │   └── REFERENCES.md             # Academic literature & OWASP citations
-├── tests/                        # Automated offline unit test suite (376 unittests)
-├── scripts/                      # Utility scripts (seed generation, reporting helpers)
+├── tests/                        # Automated offline unit test suite (404 unittests)
+├── scripts/                      # Utility scripts (benchmark runners, chart generators)
 ├── agent.py                      # Multi-role Red vs Blue evaluation runner
 ├── web_ui.py                     # Local Flask audit dashboard & interactive playground
 ├── pyproject.toml                # Project metadata & CLI entry points
@@ -207,22 +237,14 @@ For full research disclosure, see [**`LIMITATIONS.md`**](LIMITATIONS.md).
 
 ---
 
-## Roadmap
+## Future Research & Roadmap
 
-- [x] Initial project structure
-- [x] Initial experimental datasets
-- [x] Standardized taxonomy
-- [x] Standardized dataset schema
-- [x] Dataset validation
-- [x] Evaluation methodology
-- [x] Evaluator
-- [x] Benign dataset
-- [x] Test suite (376 unittests)
-- [x] Reproducible benchmark
-- [x] Cross-lingual & OWASP model comparison
-- [x] Statistical significance analysis (Wilson CIs & McNemar)
-- [x] Multi-turn Crescendo adaptive red teaming
-- [x] Closed-loop Thai linguistic DLP evasion
+Historical development phases and landed milestones through release v2.0.0 are recorded in [`CHANGELOG.md`](CHANGELOG.md). Active research priorities for upcoming releases include:
+
+- [ ] **Frontier Model Evaluation**: Extending empirical evaluations to larger frontier models (e.g. DeepSeek-R1, Claude 3.5 Sonnet, GPT-4o) under dedicated research allocations.
+- [ ] **Multi-Turn Dynamic Red-Teaming**: Automating conversational multi-hop injection attacks where the adversary dynamically adapts payloads based on intermediate model outputs.
+- [ ] **Cross-Lingual Payload Transfer**: Testing asymmetric cross-lingual attacks (e.g. Thai user queries pivoting across English poisoned database records).
+- [ ] **Dialectal and Regional Variations**: Evaluating tokenizer robustness against regional Thai dialects and colloquial slang variations.
 
 ---
 
