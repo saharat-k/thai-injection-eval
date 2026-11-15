@@ -2,8 +2,9 @@
 from typing import Optional
 from core.adapters.base import BaseTargetAdapter
 from core.adapters.builtin import BuiltinTargetAdapter
-from core.adapters.openai_like import OpenAILikeTargetAdapter
 from core.adapters.callable import CallableTargetAdapter
+from core.adapters.openai_like import OpenAILikeTargetAdapter
+from core.adapters.openrouter import OpenRouterTargetAdapter
 
 
 def create_target_adapter(target_type: str = "builtin", config: Optional[dict] = None, **kwargs) -> BaseTargetAdapter:
@@ -14,7 +15,9 @@ def create_target_adapter(target_type: str = "builtin", config: Optional[dict] =
 
     if t in ("builtin", "reference", "local"):
         return BuiltinTargetAdapter(target_id=cfg.get("target_id", "builtin_reference"), config=cfg)
-    elif t in ("openai", "openai_like", "vllm", "ollama", "groq", "openrouter"):
+    elif t == "openrouter":
+        return OpenRouterTargetAdapter(target_id=cfg.get("target_id", "openrouter_target"), config=cfg)
+    elif t in ("openai", "openai_like", "vllm", "ollama", "groq"):
         return OpenAILikeTargetAdapter(target_id=cfg.get("target_id", f"{t}_target"), config=cfg)
     elif t == "callable":
         fn = kwargs.get("callable_fn") or cfg.get("callable_fn")

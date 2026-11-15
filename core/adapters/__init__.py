@@ -2,6 +2,7 @@
 from core.adapters.base import BaseTargetAdapter, TargetResponse
 from core.adapters.builtin import BuiltinTargetAdapter
 from core.adapters.openai_like import OpenAILikeTargetAdapter
+from core.adapters.openrouter import OpenRouterTargetAdapter
 from core.adapters.callable import CallableTargetAdapter
 from core.adapters.client import (
     OpenAILikeChatSession,
@@ -19,6 +20,7 @@ __all__ = [
     "TargetResponse",
     "BuiltinTargetAdapter",
     "OpenAILikeTargetAdapter",
+    "OpenRouterTargetAdapter",
     "CallableTargetAdapter",
     "create_target_adapter",
     "OpenAILikeClient",
