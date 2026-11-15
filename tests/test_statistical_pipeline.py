@@ -1,5 +1,6 @@
 """Unit tests for paired triplet bootstrap statistical pipeline and FDR correction."""
 
+import os
 import unittest
 from core.evaluator.stats import apply_fdr_correction, calculate_triplet_paired_bootstrap
 
@@ -46,6 +47,17 @@ class TestStatisticalPipeline(unittest.TestCase):
 
         # Rank 4: p=0.30 * 4 / 4 = 0.30 > 0.05 -> not significant
         self.assertFalse(results[3]["significant"])
+
+    def test_run_multimodel_benchmark_dry_slice(self):
+        import tempfile
+        from scripts.run_multimodel_benchmark import run_multimodel_benchmark
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            res = run_multimodel_benchmark(mode="mock", tiers=["prompt"], out_dir=tmp_dir)
+            self.assertTrue(os.path.exists(res["jsonl"]))
+            self.assertTrue(os.path.exists(res["csv"]))
+            # 2 models * 1 tier * 36 scenarios * 3 variants = 216 runs
+            self.assertEqual(res["total_records"], 216)
 
 
 if __name__ == "__main__":
