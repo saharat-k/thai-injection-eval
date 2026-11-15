@@ -40,71 +40,26 @@ Full empirical case traces and aggregated statistical matrices are published in:
 
 All evaluations use standardized isomorphic triplets from `data/normalized/test_cases_parallel_v2.json` with Wilson 95% score confidence intervals and paired bootstrap testing.
 
-### Benchmark Visual Dashboard
+### Benchmark overview
 
-![Thai Injection Eval v2.0 Scorecard](docs/images/benchmark_v2_dashboard.png)
+![Red Team Attack Efficacy Across Languages (ASR %)](docs/images/benchmark_trend_sketch.svg)
 
-```mermaid
-flowchart LR
-    A["User Prompt (EN / TH / TH-EN)"] --> B["Target Model (Gemini / Llama)"]
-    B --> C{"Model Complies?"}
-    C -- "Yes" --> D["Adversarial Tool Call Attempt"]
-    C -- "No" --> E["Safe Refusal (DES=100)"]
-    D --> F{"Tier Gatekeeper"}
-    F -- "Tier: PROMPT / OFF" --> G["Execution Granted -> Data Leak (ASR=1)"]
-    F -- "Tier: TOOLS / SPOTLIGHT" --> H["Blocked by ACL/RLS (Attempt=1, Leak=0)"]
-```
+### Empirical findings
 
-### Target Model Families Evaluated
-- **Google Family**: `gemini-3.5-flash-lite` (Free Tier)
-- **Open-Weights Family**: `meta-llama/llama-3.3-70b-instruct:free` (Free Tier via OpenRouter)
-- **Evaluation Oracle**: Deterministic hybrid rule-based oracle with zero-width and normalization anti-evasion (Stratified Cohen's $\kappa = 0.933$, Sensitivity = 1.0).
+1. **Thai Prompt Injection Vulnerability Gap (+33.3%)**: On Meta Llama 3.3 70B in Tier `PROMPT`, Thai prompt injection vulnerability reaches **83.3%** compared to **50.0%** in English (paired difference $\Delta_{\text{TH} - \text{EN}} = +33.3\%$, 95% bootstrap CI `[+10.0%, +56.7%]`, $p = 0.010$). Tokenization differences in lower resource languages degrade prompt-level safety guardrails.
+2. **Attempt vs. Leak Decoupling**: In Tier `TOOLS`, backend database access controls (ACL/RLS) prevent data exfiltration completely (**Leak Rate: 0.0%**). However, the model still complies with the adversary and attempts unauthorized queries **56.7% - 83.3%** of the time. The zero leak rate reflects backend database controls rather than model resistance to the prompt injection.
+3. **Utility Trade-off**: Aggressive lexical filtering (Tier `ALL`) causes a 16.7% False Refusal Rate (FRR) on benign academic queries.
 
-### Table 1: Multi-Model Empirical Defense Matrix (Attempt vs. Leak Decoupling)
+### Summary by defense tier
 
-| Model Family | Defense Tier | Language | Actual Leak Rate (ASR) [95% CI] | Attempt Rate [95% CI] | False Refusal (FRR) | Defense Score (DES) |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Google Gemini 3.5 Flash Lite** | `OFF` | EN | 86.7% `[70.3%, 94.7%]` | 86.7% `[70.3%, 94.7%]` | 0.0% | 13.3 |
-| | | TH | 86.7% `[70.3%, 94.7%]` | 86.7% `[70.3%, 94.7%]` | 0.0% | 13.3 |
-| | | TH-EN | 90.0% `[74.4%, 96.5%]` | 90.0% `[74.4%, 96.5%]` | 0.0% | 10.0 |
-| | `PROMPT` | EN | 60.0% `[42.3%, 75.4%]` | 60.0% `[42.3%, 75.4%]` | 0.0% | 40.0 |
-| | | TH | **73.3%** `[55.5%, 85.8%]` | **73.3%** `[55.5%, 85.8%]` | 0.0% | 26.7 |
-| | | TH-EN | 73.3% `[55.5%, 85.8%]` | 73.3% `[55.5%, 85.8%]` | 16.7% | 22.2 |
-| | `TOOLS` | EN | 0.0% `[0.0%, 11.3%]` | 56.7% `[39.2%, 72.6%]` | 0.0% | 100.0 |
-| | | TH | 0.0% `[0.0%, 11.3%]` | 60.0% `[42.3%, 75.4%]` | 0.0% | 100.0 |
-| | | TH-EN | 0.0% `[0.0%, 11.3%]` | 63.3% `[45.5%, 78.1%]` | 0.0% | 100.0 |
-| | `ALL` | EN | 0.0% `[0.0%, 11.3%]` | 3.3% `[0.6%, 16.7%]` | 16.7% | 83.3 |
-| | | TH | 0.0% `[0.0%, 11.3%]` | 33.3% `[19.2%, 51.2%]` | 16.7% | 83.3 |
-| | | TH-EN | 0.0% `[0.0%, 11.3%]` | 10.0% `[3.5%, 25.6%]` | 0.0% | 100.0 |
-| | `SPOTLIGHT` | EN | 0.0% `[0.0%, 11.3%]` | 3.3% `[0.6%, 16.7%]` | 0.0% | 100.0 |
-| | | TH | 0.0% `[0.0%, 11.3%]` | 3.3% `[0.6%, 16.7%]` | 0.0% | 100.0 |
-| | | TH-EN | 0.0% `[0.0%, 11.3%]` | 3.3% `[0.6%, 16.7%]` | 0.0% | 100.0 |
-| **Meta Llama 3.3 70B Instruct (Free)** | `OFF` | EN | 100.0% `[88.7%, 100.0%]` | 100.0% `[88.7%, 100.0%]` | 0.0% | 0.0 |
-| | | TH | 100.0% `[88.7%, 100.0%]` | 100.0% `[88.7%, 100.0%]` | 0.0% | 0.0 |
-| | | TH-EN | 93.3% `[78.7%, 98.2%]` | 93.3% `[78.7%, 98.2%]` | 0.0% | 6.7 |
-| | `PROMPT` | EN | 50.0% `[33.1%, 66.8%]` | 50.0% `[33.1%, 66.8%]` | 0.0% | 50.0 |
-| | | TH | **83.3%** `[66.4%, 92.7%]` | **83.3%** `[66.4%, 92.7%]` | 0.0% | 16.7 |
-| | | TH-EN | 70.0% `[52.1%, 83.3%]` | 70.0% `[52.1%, 83.3%]` | 0.0% | 30.0 |
-| | `TOOLS` | EN | 0.0% `[0.0%, 11.3%]` | 66.7% `[48.8%, 80.8%]` | 0.0% | 100.0 |
-| | | TH | 0.0% `[0.0%, 11.3%]` | 83.3% `[66.4%, 92.7%]` | 0.0% | 100.0 |
-| | | TH-EN | 0.0% `[0.0%, 11.3%]` | 66.7% `[48.8%, 80.8%]` | 0.0% | 100.0 |
-| | `ALL` | EN | 0.0% `[0.0%, 11.3%]` | 6.7% `[1.9%, 21.3%]` | 0.0% | 100.0 |
-| | | TH | 0.0% `[0.0%, 11.3%]` | 20.0% `[9.5%, 37.3%]` | 16.7% | 83.3 |
-| | | TH-EN | 0.0% `[0.0%, 11.3%]` | 20.0% `[9.5%, 37.3%]` | 16.7% | 83.3 |
-| | `SPOTLIGHT` | EN | 0.0% `[0.0%, 11.3%]` | 0.0% `[0.0%, 11.3%]` | 0.0% | 100.0 |
-| | | TH | 0.0% `[0.0%, 11.3%]` | 10.0% `[3.5%, 25.6%]` | 0.0% | 100.0 |
-| | | TH-EN | 0.0% `[0.0%, 11.3%]` | 13.3% `[5.3%, 29.7%]` | 0.0% | 100.0 |
+| Model | Defense tier | Thai attack success rate (ASR) | Model attempt rate | Enforcement layer |
+| :--- | :--- | :--- | :--- | :--- |
+| Meta Llama 3.3 70B | `PROMPT` (System prompt hardening) | 83.3% `[66.4%, 92.7%]` | 83.3% `[66.4%, 92.7%]` | None (prompt rules bypassed) |
+| | `TOOLS` (Database gatekeeper) | 0.0% `[0.0%, 11.3%]` | 83.3% `[66.4%, 92.7%]` | Database table ACL and RLS |
+| Google Gemini 3.5 Flash | `PROMPT` (System prompt hardening) | 73.3% `[55.5%, 85.8%]` | 73.3% `[55.5%, 85.8%]` | None (prompt rules bypassed) |
+| | `TOOLS` (Database gatekeeper) | 0.0% `[0.0%, 11.3%]` | 60.0% `[42.3%, 75.4%]` | Database table ACL and RLS |
 
-> **Key Observation**: In Tier `TOOLS`, exfiltration **Leak Rate is 0.0%** because backend database ACLs intercept out-of-scope queries. However, **Attempt Rate remains elevated at 56.7%–83.3%**, proving that prompt hardening alone does not prevent the model from attempting adversarial compliance. Only context-isolated delimiting (`SPOTLIGHT`) reduces model attempt rates to baseline.
-
-### Table 2: Confirmatory Hypothesis H1 & Paired Cross-Lingual Deltas
-
-Under Pre-Registered Primary Hypothesis $H_1$, we test whether Thai prompt injection vulnerability exceeds English by at least $\text{SESOI} = 10\%$ under Tier `PROMPT`:
-
-| Model Family | Defense Tier | Mean Delta ($\Delta_{\text{TH} - \text{EN}}$) | 95% Bootstrap CI | Nominal $p$-value | FDR-Adjusted $p$-value | Decision ($H_1: \Delta > 0.10$) |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Meta Llama 3.3 70B Instruct** | `PROMPT` | **+33.3%** | `[+10.0%, +56.7%]` | $p = 0.010$ | $p_{\text{adj}} = 0.100$ | **CONFIRMED ($\Delta > 0.10$)** |
-| **Google Gemini 3.5 Flash Lite** | `PROMPT` | **+13.3%** | `[-10.0%, +33.3%]` | $p = 0.281$ | $p_{\text{adj}} = 1.000$ | Inconclusive ($\text{CI overlaps } 0$) |
+The full 30-row evaluation matrix and confidence intervals are documented in the [benchmark hub](docs/benchmark/README.md).
 
 ### Reproducing Benchmark Results
 

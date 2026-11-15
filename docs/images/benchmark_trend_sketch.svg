@@ -1,0 +1,218 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" width="100%" height="100%">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Shantell+Sans:wght@400;600;700&amp;display=swap');
+      .sketch-text {
+        font-family: 'Shantell Sans', 'Virgil', 'Comic Sans MS', -apple-system, BlinkMacSystemFont, 'Segoe UI', cursive, sans-serif;
+      }
+      .title-text {
+        font-family: 'Shantell Sans', 'Virgil', 'Comic Sans MS', sans-serif;
+        font-weight: 700;
+        font-size: 21px;
+        fill: #f0f6fc;
+      }
+      .sub-text {
+        font-family: 'Shantell Sans', 'Virgil', 'Comic Sans MS', sans-serif;
+        font-size: 11.5px;
+        fill: #8b949e;
+      }
+      .axis-label {
+        font-family: 'Shantell Sans', 'Virgil', 'Comic Sans MS', sans-serif;
+        font-weight: 600;
+        font-size: 13.5px;
+        fill: #c9d1d9;
+      }
+      .tick-text {
+        font-family: 'Shantell Sans', 'Virgil', 'Comic Sans MS', sans-serif;
+        font-size: 13px;
+        fill: #8b949e;
+      }
+      .group-title {
+        font-family: 'Shantell Sans', 'Virgil', 'Comic Sans MS', sans-serif;
+        font-weight: 700;
+        font-size: 14px;
+        fill: #f0f6fc;
+      }
+      .group-sub {
+        font-family: 'Shantell Sans', 'Virgil', 'Comic Sans MS', sans-serif;
+        font-size: 11px;
+        fill: #7d8590;
+      }
+      .bar-val {
+        font-family: 'Shantell Sans', 'Virgil', 'Comic Sans MS', sans-serif;
+        font-weight: 700;
+        font-size: 12.5px;
+      }
+      .legend-text {
+        font-family: 'Shantell Sans', 'Virgil', 'Comic Sans MS', sans-serif;
+        font-size: 13px;
+        font-weight: 600;
+        fill: #f0f6fc;
+      }
+    </style>
+  </defs>
+
+  <!-- Matte Dark Background -->
+  <rect x="0" y="0" width="960" height="540" fill="#0b0f19" />
+
+  <!-- Top Title & Subtitle -->
+  <g transform="translate(480.0, 30)" text-anchor="middle">
+    <text class="title-text">Red Team Attack Efficacy Across Languages</text>
+    <text class="sub-text" y="20">Prompt Injection Success Rate (ASR %) on Dataset A v2.0 (108 Isomorphic Triplets • Tier PROMPT)</text>
+  </g>
+
+  <!-- Top Legend -->
+  <g transform="translate(480.0, 74)" text-anchor="middle">
+    <!-- Item 1: Thai (TH) -->
+    <g transform="translate(-240, 0)">
+      <rect x="-10" y="-10" width="14" height="14" rx="3" fill="#ff5d6c" />
+      <text class="legend-text" x="12" y="2" text-anchor="start">Thai Attack (TH)</text>
+    </g>
+    
+    <!-- Item 2: English (EN) -->
+    <g transform="translate(-30, 0)">
+      <rect x="-10" y="-10" width="14" height="14" rx="3" fill="#38bdf8" />
+      <text class="legend-text" x="12" y="2" text-anchor="start">English Attack (EN)</text>
+    </g>
+
+    <!-- Item 3: Mixed (TH-EN) -->
+    <g transform="translate(180, 0)">
+      <rect x="-10" y="-10" width="14" height="14" rx="3" fill="#fbbf24" />
+      <text class="legend-text" x="12" y="2" text-anchor="start">Mixed / Code-Switching (TH-EN)</text>
+    </g>
+  </g>
+
+  <line x1="110" y1="450.0" x2="890" y2="450.0" stroke="#1f2937" stroke-width="1.2" stroke-dasharray="4,4" />
+  <text class="tick-text" x="94" y="455.0" text-anchor="end">0%</text>
+  <path d="M 104.1,450.0 Q 106.9,450.1 109.8,450.2" stroke="#e6edf3" stroke-width="1.5" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 104.0,450.1 Q 107.3,449.9 110.2,449.9" stroke="#e6edf3" stroke-width="1.2" fill="none" stroke-linecap="round" opacity="0.63" />
+  <line x1="110" y1="365.0" x2="890" y2="365.0" stroke="#1f2937" stroke-width="1.2" stroke-dasharray="4,4" />
+  <text class="tick-text" x="94" y="370.0" text-anchor="end">25%</text>
+  <path d="M 104.1,365.2 Q 106.7,365.3 109.9,364.7" stroke="#e6edf3" stroke-width="1.5" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 104.1,364.9 Q 106.9,365.2 110.1,365.1" stroke="#e6edf3" stroke-width="1.2" fill="none" stroke-linecap="round" opacity="0.63" />
+  <line x1="110" y1="280.0" x2="890" y2="280.0" stroke="#1f2937" stroke-width="1.2" stroke-dasharray="4,4" />
+  <text class="tick-text" x="94" y="285.0" text-anchor="end">50%</text>
+  <path d="M 104.2,280.1 Q 107.0,280.4 110.2,279.9" stroke="#e6edf3" stroke-width="1.5" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 104.1,280.2 Q 107.0,279.8 109.9,279.8" stroke="#e6edf3" stroke-width="1.2" fill="none" stroke-linecap="round" opacity="0.63" />
+  <line x1="110" y1="195.0" x2="890" y2="195.0" stroke="#1f2937" stroke-width="1.2" stroke-dasharray="4,4" />
+  <text class="tick-text" x="94" y="200.0" text-anchor="end">75%</text>
+  <path d="M 104.0,195.1 Q 107.1,194.6 109.9,195.1" stroke="#e6edf3" stroke-width="1.5" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 104.1,195.1 Q 107.1,194.8 109.9,195.0" stroke="#e6edf3" stroke-width="1.2" fill="none" stroke-linecap="round" opacity="0.63" />
+  <line x1="110" y1="110.0" x2="890" y2="110.0" stroke="#1f2937" stroke-width="1.2" stroke-dasharray="4,4" />
+  <text class="tick-text" x="94" y="115.0" text-anchor="end">100%</text>
+  <path d="M 104.2,110.2 Q 106.8,110.2 110.1,110.0" stroke="#e6edf3" stroke-width="1.5" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 104.1,110.0 Q 107.2,110.0 110.1,110.1" stroke="#e6edf3" stroke-width="1.2" fill="none" stroke-linecap="round" opacity="0.63" />
+  <!-- Y Axis -->
+  <path d="M 109.5,450.8 Q 110.1,272.6 110.4,94.3" stroke="#e6edf3" stroke-width="2.4" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 110.0,450.3 Q 109.9,273.2 110.3,95.0" stroke="#e6edf3" stroke-width="1.9" fill="none" stroke-linecap="round" opacity="0.63" />
+  <!-- X Axis -->
+  <path d="M 110.4,450.4 Q 507.2,450.1 905.1,449.6" stroke="#e6edf3" stroke-width="2.4" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 109.5,449.6 Q 506.7,449.4 905.4,449.7" stroke="#e6edf3" stroke-width="1.9" fill="none" stroke-linecap="round" opacity="0.63" />
+  <!-- Y Axis Title -->
+  <text class="axis-label" transform="rotate(-90)" x="-280.0" y="38" text-anchor="middle">Attack Success Rate / Vulnerability (ASR %)</text>
+
+  <!-- X Axis Title -->
+  <text class="axis-label" x="500.0" y="516" text-anchor="middle">Target Models</text>
+
+  <text class="group-title" x="260" y="478" text-anchor="middle">Meta Llama 3.3 70B</text>
+  <text class="group-sub" x="260" y="494" text-anchor="middle">Instruct (Open Model)</text>
+  <rect x="179.0" y="166.8" width="46.0" height="283.2" rx="4" fill="#ff5d6c" fill-opacity="0.82" />
+  <path d="M 179.5,167.2 Q 202.6,166.9 224.9,166.9" stroke="#ff5d6c" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 179.3,167.1 Q 201.9,167.1 224.7,166.9" stroke="#ff5d6c" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <path d="M 224.8,166.3 Q 224.8,308.7 225.1,450.3" stroke="#ff5d6c" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 224.7,166.8 Q 225.1,308.5 224.7,450.2" stroke="#ff5d6c" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <path d="M 225.4,449.9 Q 201.5,450.4 179.1,449.9" stroke="#ff5d6c" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 224.7,450.0 Q 202.3,449.8 178.6,450.1" stroke="#ff5d6c" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <path d="M 179.2,449.8 Q 179.7,308.5 179.3,167.2" stroke="#ff5d6c" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 178.8,449.8 Q 178.9,308.2 179.1,166.5" stroke="#ff5d6c" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <text class="bar-val" x="202.0" y="158.78000000000003" fill="#ff5d6c" text-anchor="middle">83.3%</text>
+  <rect x="237.0" y="280.0" width="46.0" height="170.0" rx="4" fill="#38bdf8" fill-opacity="0.82" />
+  <path d="M 237.4,280.3 Q 259.6,280.5 282.5,280.2" stroke="#38bdf8" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 236.9,280.3 Q 259.7,280.0 283.1,279.9" stroke="#38bdf8" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <path d="M 282.6,280.4 Q 283.0,364.8 283.2,449.5" stroke="#38bdf8" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 282.8,279.6 Q 283.4,364.6 283.0,450.4" stroke="#38bdf8" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <path d="M 283.1,449.5 Q 260.6,450.8 237.0,450.1" stroke="#38bdf8" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 283.1,450.1 Q 260.0,449.4 236.7,450.4" stroke="#38bdf8" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <path d="M 237.5,450.2 Q 237.2,365.7 237.3,279.4" stroke="#38bdf8" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 237.2,449.7 Q 237.3,365.2 237.2,280.3" stroke="#38bdf8" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <text class="bar-val" x="260.0" y="272.0" fill="#38bdf8" text-anchor="middle">50.0%</text>
+  <rect x="295.0" y="212.0" width="46.0" height="238.0" rx="4" fill="#fbbf24" fill-opacity="0.82" />
+  <path d="M 295.0,212.4 Q 318.3,212.4 340.4,211.9" stroke="#fbbf24" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 295.2,211.7 Q 317.6,212.3 341.3,212.1" stroke="#fbbf24" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <path d="M 341.4,211.6 Q 340.5,330.3 341.1,450.5" stroke="#fbbf24" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 341.1,211.8 Q 341.5,330.4 340.8,450.2" stroke="#fbbf24" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <path d="M 340.8,450.1 Q 318.0,449.5 294.5,450.4" stroke="#fbbf24" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 341.1,449.9 Q 318.1,449.4 295.4,450.2" stroke="#fbbf24" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <path d="M 295.5,449.5 Q 295.1,330.4 295.2,211.9" stroke="#fbbf24" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 294.8,450.1 Q 294.7,331.3 294.6,212.3" stroke="#fbbf24" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <text class="bar-val" x="318.0" y="204.0" fill="#fbbf24" text-anchor="middle">70.0%</text>
+  <text class="group-title" x="515" y="478" text-anchor="middle">Google Gemini 3.5 Flash</text>
+  <text class="group-sub" x="515" y="494" text-anchor="middle">Lite (Cloud API)</text>
+  <rect x="434.0" y="200.8" width="46.0" height="249.2" rx="4" fill="#ff5d6c" fill-opacity="0.82" />
+  <path d="M 433.8,200.6 Q 457.4,200.5 480.3,200.2" stroke="#ff5d6c" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 434.2,200.4 Q 457.3,201.2 480.1,200.7" stroke="#ff5d6c" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <path d="M 479.6,200.8 Q 480.3,324.9 479.5,449.6" stroke="#ff5d6c" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 480.4,200.9 Q 480.4,324.9 479.8,450.1" stroke="#ff5d6c" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <path d="M 479.5,449.7 Q 456.5,449.2 434.6,450.0" stroke="#ff5d6c" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 480.2,449.7 Q 457.6,449.8 433.6,450.2" stroke="#ff5d6c" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <path d="M 434.0,450.4 Q 433.7,325.9 434.1,200.6" stroke="#ff5d6c" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 434.2,449.7 Q 434.1,325.6 433.6,200.9" stroke="#ff5d6c" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <text class="bar-val" x="457.0" y="192.78000000000003" fill="#ff5d6c" text-anchor="middle">73.3%</text>
+  <rect x="492.0" y="246.0" width="46.0" height="204.0" rx="4" fill="#38bdf8" fill-opacity="0.82" />
+  <path d="M 491.9,245.4 Q 514.8,246.8 537.4,246.1" stroke="#38bdf8" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 491.9,246.0 Q 515.6,246.1 538.1,246.1" stroke="#38bdf8" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <path d="M 538.5,245.5 Q 538.8,348.3 538.3,450.3" stroke="#38bdf8" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 537.6,245.7 Q 537.6,348.2 537.7,449.7" stroke="#38bdf8" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <path d="M 538.4,449.9 Q 514.7,449.8 491.7,450.4" stroke="#38bdf8" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 538.3,449.8 Q 515.1,449.5 492.4,450.0" stroke="#38bdf8" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <path d="M 491.6,449.5 Q 491.5,348.7 492.2,245.6" stroke="#38bdf8" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 491.6,449.6 Q 491.7,347.8 491.8,246.1" stroke="#38bdf8" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <text class="bar-val" x="515.0" y="238.0" fill="#38bdf8" text-anchor="middle">60.0%</text>
+  <rect x="550.0" y="200.8" width="46.0" height="249.2" rx="4" fill="#fbbf24" fill-opacity="0.82" />
+  <path d="M 550.3,200.7 Q 573.0,201.5 596.3,200.7" stroke="#fbbf24" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 549.7,200.5 Q 573.4,201.1 596.4,200.8" stroke="#fbbf24" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <path d="M 596.2,200.2 Q 596.7,324.7 596.1,449.7" stroke="#fbbf24" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 596.3,201.1 Q 595.7,325.2 596.2,450.1" stroke="#fbbf24" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <path d="M 596.0,450.1 Q 573.1,449.2 549.8,450.4" stroke="#fbbf24" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 596.4,449.9 Q 573.5,450.2 550.1,449.7" stroke="#fbbf24" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <path d="M 549.9,450.0 Q 549.2,324.7 549.6,201.0" stroke="#fbbf24" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 549.9,449.8 Q 550.4,325.4 550.1,200.7" stroke="#fbbf24" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <text class="bar-val" x="573.0" y="192.78000000000003" fill="#fbbf24" text-anchor="middle">73.3%</text>
+  <text class="group-title" x="770" y="478" text-anchor="middle">Overall Red Team Average</text>
+  <text class="group-sub" x="770" y="494" text-anchor="middle">Benchmark Synthesis</text>
+  <rect x="689.0" y="183.8" width="46.0" height="266.2" rx="4" fill="#ff5d6c" fill-opacity="0.82" />
+  <path d="M 688.9,184.0 Q 711.4,183.6 734.9,183.3" stroke="#ff5d6c" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 688.9,183.6 Q 712.1,184.1 734.8,183.4" stroke="#ff5d6c" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <path d="M 734.6,183.6 Q 734.9,316.9 735.2,450.0" stroke="#ff5d6c" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 735.2,184.1 Q 735.2,317.0 735.2,449.8" stroke="#ff5d6c" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <path d="M 734.9,449.9 Q 712.0,450.4 688.5,450.5" stroke="#ff5d6c" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 734.8,449.7 Q 712.3,450.3 689.2,450.4" stroke="#ff5d6c" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <path d="M 688.5,450.1 Q 688.2,317.7 689.1,183.9" stroke="#ff5d6c" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 689.3,450.2 Q 689.2,316.7 688.8,184.0" stroke="#ff5d6c" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <text class="bar-val" x="712.0" y="175.78000000000003" fill="#ff5d6c" text-anchor="middle">78.3%</text>
+  <rect x="747.0" y="263.0" width="46.0" height="187.0" rx="4" fill="#38bdf8" fill-opacity="0.82" />
+  <path d="M 747.5,263.5 Q 770.8,262.8 793.3,263.3" stroke="#38bdf8" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 746.6,263.1 Q 770.5,263.5 792.9,262.9" stroke="#38bdf8" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <path d="M 792.9,263.2 Q 792.6,356.8 793.0,449.9" stroke="#38bdf8" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 793.2,263.1 Q 792.7,356.1 792.6,450.1" stroke="#38bdf8" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <path d="M 792.8,449.4 Q 769.6,449.5 747.0,449.5" stroke="#38bdf8" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 792.6,449.6 Q 769.6,450.2 747.1,449.8" stroke="#38bdf8" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <path d="M 746.9,450.0 Q 746.2,356.8 746.8,263.0" stroke="#38bdf8" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 747.1,450.1 Q 747.4,356.7 747.3,263.4" stroke="#38bdf8" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <text class="bar-val" x="770.0" y="255.0" fill="#38bdf8" text-anchor="middle">55.0%</text>
+  <rect x="805.0" y="206.2" width="46.0" height="243.8" rx="4" fill="#fbbf24" fill-opacity="0.82" />
+  <path d="M 805.2,206.3 Q 828.0,206.6 850.7,206.3" stroke="#fbbf24" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 805.3,206.2 Q 827.7,206.1 851.0,206.6" stroke="#fbbf24" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <path d="M 851.0,206.1 Q 850.4,328.4 851.6,450.1" stroke="#fbbf24" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 850.9,206.5 Q 851.4,328.7 850.8,449.8" stroke="#fbbf24" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <path d="M 851.2,450.5 Q 828.6,449.3 804.8,450.2" stroke="#fbbf24" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 851.1,449.7 Q 828.3,450.5 804.7,450.2" stroke="#fbbf24" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <path d="M 805.1,449.9 Q 805.8,328.7 805.4,206.8" stroke="#fbbf24" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.9" />
+  <path d="M 804.6,449.6 Q 805.2,328.2 804.6,206.3" stroke="#fbbf24" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.63" />
+  <text class="bar-val" x="828.0" y="198.22" fill="#fbbf24" text-anchor="middle">71.7%</text>
+  <!-- Watermark badge -->
+  <g transform="translate(925, 520)" text-anchor="end">
+    <text class="sketch-text" font-size="12" fill="#10b981" font-weight="600">★ thai-injection-eval</text>
+  </g>
+
+</svg>

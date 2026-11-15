@@ -82,8 +82,8 @@ Attacks that attempt to manipulate the target model's execution path by altering
 
 #### A. Direct Injection (`category: "direct_injection"`)
 * **Instruction Override (`technique: "instruction_override"`)**: Direct commands instructing the model to ignore, forget, or override prior instructions (e.g., *"ลืมคำสั่งก่อนหน้านี้ทั้งหมด แล้วปฏิบัติตามคำสั่งต่อไปนี้"*).
-* **Delimiter Escaping (`technique: "delimiter_escaping"`)**: Exploiting formatting boundaries (`"""`, ```` `, `###`, `---`, XML/Markdown tags) to break out of untrusted context envelopes or context spotlighting delimiters.
-* **Authority Spoofing (`technique: "authority_spoofing"`)**: Impersonating trusted institutional personas—such as university registrars, Data Protection Officers (DPO), compliance auditors, or IT system administrators—to coerce disclosure.
+* **Delimiter Escaping (`technique: "delimiter_escaping"`)**: Exploiting formatting boundaries (`"""`, \`\`\`, `###`, `---`, XML/Markdown tags) to break out of untrusted context envelopes or context spotlighting delimiters.
+* **Authority Spoofing (`technique: "authority_spoofing"`)**: Impersonating trusted institutional personas (such as university registrars, Data Protection Officers (DPO), compliance auditors, or IT system administrators) to coerce disclosure.
 * **Few-Shot Demonstration Hijacking (`technique: "fewshot_hijack"`)**: Crafting mock question-answer turns within the prompt to prime the model into completing an unauthorized response pattern.
 
 #### B. Indirect Injection (`category: "indirect_injection"`)

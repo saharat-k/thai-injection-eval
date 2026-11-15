@@ -44,19 +44,19 @@ flowchart LR
 
 เพื่อป้องกันอคติจากการทดลอง โปรเจกต์แยกชุดทดสอบออกเป็น 3 ไฟล์ตามวัตถุประสงค์:
 
-### 3.1 ชุดทดสอบคู่ขนาน 3 ภาษา [`data/test_cases_parallel.json`](../data/test_cases_parallel.json) *(ชุดหลักสำหรับวิจัย)*
+### 3.1 ชุดทดสอบคู่ขนาน 3 ภาษา [`data/normalized/test_cases_parallel.json`](../data/normalized/test_cases_parallel.json) *(ชุดหลักสำหรับวิจัย)*
 * **ออกแบบอย่างสมดุล**: ทุกเจตนาการโจมตี (`pair_id`) มีคู่ขนานครบทั้ง **3 รูปแบบภาษา (`TH`, `EN`, `MIX`)** ในความยากและเป้าหมายเดียวกัน:
   * **เคสโจมตี 12 คู่ (36 เคส)**: `direct` (2), `indirect` (2), `recon` (2), `semantic` (2), `roleplay` (1), `fewshot` (2), `obfuscation` (1)
   * **เคสคำถามปกติ (Benign Control) 3 คู่ (9 เคส)**: สำหรับวัดอัตราการปฏิเสธผิดพลาด (False Refusal Rate - FRR) แยกตามภาษา
 * **รวมทั้งหมด 45 เคส**: สามารถเปรียบเทียบข้ามภาษาได้อย่างเป็นธรรม (Fair Cross-Lingual Evaluation)
 
-### 3.2 ชุดทดสอบเจาะจุดบอด [`data/test_cases_probing.json`](../data/test_cases_probing.json) *(Advanced Evaluation)*
+### 3.2 ชุดทดสอบเจาะจุดบอด [`data/normalized/test_cases_probing.json`](../data/normalized/test_cases_probing.json) *(Advanced Evaluation)*
 * ออกแบบมาสำหรับวัดช่องโหว่ที่ไม่ถูกบล็อกโดยโครงสร้าง (`blocked by construction`) ของ `PUBLIC_TABLES` allowlist ประกอบด้วย 8 คู่ (24 เคส ครบ `TH`/`EN`/`MIX`):
   1. **`indirect_public_tools`**: คำสั่งแฝงแบบไม่ใช้วงเล็บเหลี่ยมในตารางสาธารณะ (`announcements.ANN992`, `course_evaluations.EV993`) ที่หลุดรอดการลบล้างของ `_sanitize_db_cell()` แล้วสั่งดึงตารางสาธารณะอื่น (`enrollments`, `awards`)
   2. **`dlp_bypass_probe`**: ทดสอบการหลบเลี่ยง Output DLP ด้วยการเข้ารหัสที่ยังไม่ถอดรหัสในระบบ (ROT13, URL Percent-Encoding, Tilde Delimiter, HTML Decimal Entities)
   3. **`collateral_public_leak`**: ทดสอบการรั่วไหลของข้อมูลนักศึกษาคนอื่นที่ไม่ได้ถามถึง (Collateral Leak) จากการคิวรีตารางสาธารณะด้วยคำค้นกว้าง
 
-### 3.3 ชุดทดสอบ Indirect Injection & Spotlighting [`data/test_cases_indirect.json`](../data/test_cases_indirect.json) *(Spotlighting Evaluation)*
+### 3.3 ชุดทดสอบ Indirect Injection & Spotlighting [`data/normalized/test_cases_indirect.json`](../data/normalized/test_cases_indirect.json) *(Spotlighting Evaluation)*
 * ออกแบบมาเพื่อทดสอบการโจมตีแบบ Indirect Injection ที่ข้ามตารางสาธารณะ (Pivot across public tables: `announcements`, `course_evaluations` $\to$ `enrollments`, `awards`) เพื่อวัดความสามารถในการต้านทานการถูกบงการ (Manipulation) และการรั่วไหลของข้อมูล (Leakage) โดยเฉพาะ
 * ประกอบด้วย 12 คู่ (36 เคส ครบ `TH`/`EN`/`MIX`):
   * **Authority Spoofing (3 คู่ / 9 เคส)**: แอบอ้างคำสั่งของผู้บริหารหรือผู้ตรวจสอบ
@@ -66,11 +66,11 @@ flowchart LR
 * รองรับการวิเคราะห์ผลทางสถิติแบบจับคู่ (Paired McNemar & Newcombe Paired CI) ใน [`scripts/analyze.py`](../scripts/analyze.py)
 * ⚠️ **ข้อจำกัดของ Tier `tools`**: ในชุดทดสอบนี้ ตารางปลายทางของการ Pivot ทั้งหมด (`enrollments`, `awards`) เป็นตารางที่อนุญาตใน Allowlist ดังนั้น Table-level ACL ในโหมด `tools` จึงไม่อาจสกัดกั้นการ Pivot ข้ามตารางสาธารณะได้ ทำให้คาดหมายว่า `tools ≈ off` ซึ่งเป็นหลักฐานว่าการควบคุมสิทธิ์ระดับตารางไม่เพียงพอ (ดูรายละเอียดใน [`LIMITATIONS.md`](../LIMITATIONS.md))
 
-### 3.4 ชุดทดสอบดั้งเดิม [`data/test_cases.json`](../data/test_cases.json) *(Legacy Baseline)*
+### 3.4 ชุดทดสอบดั้งเดิม [`data/normalized/test_cases.json`](../data/normalized/test_cases.json) *(Legacy Baseline)*
 * ประกอบด้วย 36 กรณีศึกษาดั้งเดิม (ภาษาไทย 24 เคส, อังกฤษ 8 เคส, ปนภาษา 4 เคส)
 * ⚠️ **ข้อควรระวัง**: ห้ามใช้ `test_cases.json` ในการเปรียบเทียบอัตราความปลอดภัยข้ามภาษา เนื่องจากขนาดตัวอย่างและสัดส่วนเวกเตอร์ในแต่ละภาษาไม่เท่ากัน ให้ใช้ `test_cases_parallel.json` สำหรับการวิจัยข้ามภาษาเท่านั้น
 
-### 3.5 ชุดทดสอบ Thai Linguistic Exploits และ Direct DLP Evasion [`data/test_cases_linguistic.json`](../data/test_cases_linguistic.json) *(Linguistic & DLP Benchmark)*
+### 3.5 ชุดทดสอบ Thai Linguistic Exploits และ Direct DLP Evasion [`data/normalized/test_cases_linguistic.json`](../data/normalized/test_cases_linguistic.json) *(Linguistic & DLP Benchmark)*
 * **ออกแบบเฉพาะสำหรับลักษณะทางภาษาศาสตร์ของภาษาไทย (Thai-Specific Linguistic Vectors)**: ครอบคลุมจุดอ่อนเฉพาะตัวของภาษาที่ไม่มีการเว้นวรรคระหว่างคำ (Scriptio continua), การซ้อนทับของสระ-วรรณยุกต์, และการหลบเลี่ยงการตรวจสอบของ Output DLP โดยตรง:
   1. **`zero_width`**: การแทรกอักขระล่องหน (Zero-Width Space `\u200b`, Zero-Width Non-Joiner `\u200c`, BOM `\ufeff`) ลงในคำสำคัญเพื่อทำลาย Token Boundary
   2. **`word_segmentation`**: การตัด/เว้นวรรคคำแบบไม่เป็นธรรมชาติ (Concatenation, Syllable Spacing, Punctuation Delimiters) โดยคงโครงสร้าง Grapheme Cluster ของสระและวรรณยุกต์
@@ -99,7 +99,7 @@ $$w = \frac{\hat{p} + \frac{z^2}{2n} \pm z \sqrt{\frac{\hat{p}(1-\hat{p})}{n} + 
 โดยที่ $z = 1.95996$ สำหรับระดับความเชื่อมั่น 95%
 
 ### 4.3 การคำนวณช่วงความเชื่อมั่นแบบกลุ่ม (Cluster-Aware Wilson Score Interval)
-ในชุดทดสอบ `test_cases_linguistic.json` ซึ่งสร้าง 3 ตัวแปรคำสั่ง (Variants) จากแต่ละเมล็ดพันธุ์ (`seed_id`):
+ในชุดทดสอบ `data/normalized/test_cases_linguistic.json` ซึ่งสร้าง 3 ตัวแปรคำสั่ง (Variants) จากแต่ละเมล็ดพันธุ์ (`seed_id`):
 * การปฏิบัติต่อทั้ง 210 เคสเสมือนเป็นตัวอย่างอิสระจากกัน (Independent Samples) จะก่อให้เกิดปัญหา **การทำซ้ำเทียม (Pseudo-Replication)** ซึ่งบีบให้ช่วงความเชื่อมั่นแคบกว่าความเป็นจริง
 * ระบบจึงนำเสนอ **Cluster ASR by Seed**: โดยนับว่า Cluster ประสบความสำเร็จหากมีตัวแปรใดตัวแปรหนึ่งของเมล็ดพันธุ์นั้นเจาะระบบสำเร็จ ($n_{\text{clusters}} = 50$ สำหรับ Attack Seeds, $n_{\text{clusters}} = 20$ สำหรับ Benign Control Seeds) และคำนวณ Wilson 95% CI บนระดับ Cluster ควบคู่กับรายงานแบบแยกรายเวกเตอร์และรายกฎการแปลงรูป
 

@@ -181,7 +181,7 @@ $$\text{FRR} = \frac{\sum_{j=1}^{N_{\text{benign}}} \mathbb{I}(\text{Refused}_j 
 $$w = \frac{\hat{p} + \frac{z^2}{2n} \pm z \sqrt{\frac{\hat{p}(1-\hat{p})}{n} + \frac{z^2}{4n^2}}}{1 + \frac{z^2}{n}} \quad (z = 1.95996)$$
 
 ### 4. Cluster-Aware ASR สำหรับชุดทดสอบภาษาศาสตร์
-ในชุดทดสอบ `test_cases_linguistic.json` ซึ่งสร้างตัวแปรคำสั่ง 3 รูปแบบจากแต่ละเมล็ดพันธุ์ตั้งต้น (`seed_id`) ระบบคำนวณ **Cluster ASR by Seed** ($n_{\text{clusters}} = 50$) เพื่อป้องกันปัญหาการทำซ้ำเทียม (Pseudo-Replication) ตามมาตรฐานการวิเคราะห์ข้อมูลทางสถิติ
+ในชุดทดสอบ `data/normalized/test_cases_linguistic.json` ซึ่งสร้างตัวแปรคำสั่ง 3 รูปแบบจากแต่ละเมล็ดพันธุ์ตั้งต้น (`seed_id`) ระบบคำนวณ **Cluster ASR by Seed** ($n_{\text{clusters}} = 50$) เพื่อป้องกันปัญหาการทำซ้ำเทียม (Pseudo-Replication) ตามมาตรฐานการวิเคราะห์ข้อมูลทางสถิติ
 
 ---
 
