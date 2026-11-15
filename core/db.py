@@ -45,15 +45,25 @@ def set_session_user_context(user_id: Optional[str] = None, role: Optional[str] 
 
 def get_session_user_context() -> tuple[Optional[str], Optional[str]]:
     """Retrieve thread-local user context (user_id, role)."""
-    return getattr(_thread_local, "user_id", None), getattr(_thread_local, "user_role", None)
+    uid = getattr(_thread_local, "user_id", None)
+    role = getattr(_thread_local, "user_role", None)
+    if uid is None and role is None:
+        try:
+            from core.tools.context import get_current_security_context
+            ctx = get_current_security_context()
+            if ctx.user_id or (ctx.user_role and ctx.user_role != "guest"):
+                return ctx.user_id, ctx.user_role
+        except Exception:
+            pass
+    return uid, role
 
 
 def is_rls_enabled() -> bool:
     """Check if Row-Level Security (RLS) is active in the environment or current session."""
-    return (
-        os.getenv("ENABLE_ROW_LEVEL_SECURITY", "0").lower() in ("1", "true", "yes")
-        or getattr(_thread_local, "user_id", None) is not None
-    )
+    if os.getenv("ENABLE_ROW_LEVEL_SECURITY", "0").lower() in ("1", "true", "yes"):
+        return True
+    uid, _ = get_session_user_context()
+    return uid is not None
 
 
 def init_university_db(db_path: str = UNIVERSITY_DB_PATH) -> sqlite3.Connection:

@@ -85,6 +85,31 @@ class TestRowLevelSecurity(unittest.TestCase):
         student_ids = {r[idx] for r in data["rows"]}
         self.assertGreater(len(student_ids), 1)
 
+    def test_security_context_bridges_to_session_user_context(self):
+        """SecurityContext should automatically bridge to get_session_user_context and RLS."""
+        from core.tools.context import SecurityContext, set_current_security_context
+
+        set_session_user_context(None, None)
+        ctx = SecurityContext(user_id="S001", user_role="student", defense_tier="tools")
+        set_current_security_context(ctx)
+        try:
+            self.assertEqual(get_session_user_context(), ("S001", "student"))
+            self.assertTrue(is_rls_enabled())
+
+            # lookup_student_directory for S002 should return empty because S001 is isolated
+            res_str = agent.lookup_student_directory("S002")
+            data = json.loads(res_str)
+            self.assertEqual(len(data), 0)
+
+            # lookup_student_directory for S001 should return S001
+            res_s1 = agent.lookup_student_directory("S001")
+            data_s1 = json.loads(res_s1)
+            self.assertEqual(len(data_s1), 1)
+            self.assertEqual(data_s1[0]["student_id"], "S001")
+        finally:
+            set_current_security_context(None)
+
+
 
 class TestDLPExtendedDecoders(unittest.TestCase):
     """Verify DLP multi-decoder canary interception."""
