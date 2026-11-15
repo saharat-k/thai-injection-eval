@@ -300,7 +300,13 @@ def init_db(db_path=RESULTS_DB_PATH):
         return _res_conn
 
 
-def audit(action, details=None):
+def audit(action, details=None) -> bool:
+    """Record an audit event to the audit_log table.
+
+    Returns:
+        bool: True if the audit record was successfully written and committed,
+              False if writing failed (e.g., database lock, disk error).
+    """
     try:
         conn = _get_res_conn()
         with _db_lock:
@@ -309,8 +315,10 @@ def audit(action, details=None):
                 (action, now(), json.dumps(details, ensure_ascii=False, default=str) if details is not None else None),
             )
             conn.commit()
+        return True
     except Exception as e:
         sys.stderr.write(f"[AUDIT_ERROR] Failed to record audit log '{action}': {e}\n")
+        return False
 
 
 def load_canaries_by_category(uni_conn=None) -> dict[str, set[str]]:

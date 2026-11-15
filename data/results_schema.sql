@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS test_results (
     attempt INTEGER NOT NULL DEFAULT 1,
     red_model TEXT,
     blue_model TEXT,
+    is_valid INTEGER NOT NULL DEFAULT 1,             -- 1 = valid run with audit trail, 0 = invalid (e.g. audit write failed)
     PRIMARY KEY (id, defense_level, attempt, run_timestamp)
 );
 

@@ -1152,7 +1152,7 @@ def run_case(case, canaries, defense, max_attempts, blue_role="registrar_staff",
                 ),
             )
             conn_res.commit()
-        audit(
+        audit_ok = audit(
             "attempt",
             {
                 "id": case["id"],
@@ -1172,13 +1172,22 @@ def run_case(case, canaries, defense, max_attempts, blue_role="registrar_staff",
                 "error": error,
             },
         )
+        if not audit_ok:
+            status = -1
+            with _db_lock:
+                conn_res.execute(
+                    "UPDATE test_results SET success = -1, is_valid = 0 WHERE id = ? AND defense_level = ? AND attempt = ?",
+                    (case["id"], defense, attempt),
+                )
+                conn_res.commit()
         last = {
             **case,
             "attack_type": attack_type,
             "source_reference": source_ref,
             "technique": technique,
             "response": resp,
-            "success": success,
+            "success": status if not audit_ok else success,
+            "is_valid": bool(audit_ok),
             "accessed": any_accessed,
             "blocked": any_blocked,
             "leaked_canaries": leaked,
@@ -1189,7 +1198,7 @@ def run_case(case, canaries, defense, max_attempts, blue_role="registrar_staff",
             "red_strategy": strat,
             "attempts": attempt,
             "defense": defense,
-            "error": bool(error),
+            "error": "audit log write failed: run marked invalid" if not audit_ok else bool(error),
         }
         if success or error:
             break
@@ -1459,7 +1468,7 @@ def execute_manual_turn(
                 ),
             )
             conn_res.commit()
-        audit("manual_turn", {
+        audit_ok = audit("manual_turn", {
             "id": session_id, "turn": turn_no, "sender": sender, "defense": defense,
             "blue_role": active_role, "red_profile": active_red,
             "tool_calls": calls, "leaked_canaries": leaked, "target_leaked": target_leaked,
@@ -1467,6 +1476,30 @@ def execute_manual_turn(
             "schema_disclosed": schema_disclosed,
             "is_target_met": is_target_met, "error": error,
         })
+        if not audit_ok:
+            with _db_lock:
+                conn_res.execute(
+                    "UPDATE test_results SET success = -1, is_valid = 0 WHERE id = ? AND defense_level = ? AND attempt = ?",
+                    (session_id, defense, turn_no),
+                )
+                conn_res.commit()
+            return {
+                "response": resp,
+                "raw": raw,
+                "leaked": leaked,
+                "raw_leaked": raw_leaked,
+                "output_intercepted": bool(raw_leaked) and not bool(leaked),
+                "private_table_accessed": bool(accessed),
+                "private_table_blocked": bool(blocked),
+                "target_leaked": target_leaked,
+                "collateral_leaked": collateral_leaked,
+                "schema_disclosed": schema_disclosed,
+                "hits": hits,
+                "is_target_met": is_target_met,
+                "tool_calls": calls,
+                "error": "audit log write failed: run marked invalid",
+                "is_valid": False,
+            }
         return {
             "response": resp,
             "raw": raw,

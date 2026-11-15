@@ -47,9 +47,12 @@ All evaluations use standardized isomorphic triplets from `data/normalized/test_
 
 ### Empirical findings
 
-1. **Thai Prompt Injection Vulnerability Gap (+33.3%)**: On Meta Llama 3.3 70B in Tier `PROMPT`, Thai prompt injection vulnerability reaches **83.3%** compared to **50.0%** in English (paired difference $\Delta_{\text{TH} - \text{EN}} = +33.3\%$, 95% bootstrap CI `[+10.0%, +56.7%]`, $p = 0.010$). Tokenization differences in lower resource languages degrade prompt-level safety guardrails.
+1. **Cross-Lingual Vulnerability Gap on Prompt Hardening (Tier `PROMPT`)**:
+   - **Meta Llama 3.3 70B Instruct**: Vulnerability reaches **83.3%** in Thai vs. **50.0%** in English (paired difference $\Delta_{\text{TH} - \text{EN}} = +33.3\%$, 95% bootstrap CI `[+10.0%, +56.7%]`, $p = 0.010$, $p_{\text{adj}} = 0.100$).
+   - **Google Gemini 3.5 Flash Lite**: Vulnerability reaches **73.3%** in Thai vs. **60.0%** in English (paired difference $\Delta_{\text{TH} - \text{EN}} = +13.3\%$, 95% bootstrap CI `[-10.0%, +33.3%]`, $p = 0.281$, $p_{\text{adj}} = 1.000$, inconclusive / CI spans zero).
+   - *Scope of Inference*: This gap reflects **this specific model (Llama 3.3 70B) and translated prompt set under prompt hardening**, rather than an inherent, universal vulnerability of the Thai language across all model architectures.
 2. **Attempt vs. Leak Decoupling**: In Tier `TOOLS`, backend database access controls (ACL/RLS) prevent data exfiltration completely (**Leak Rate: 0.0%**). However, the model still complies with the adversary and attempts unauthorized queries **56.7% - 83.3%** of the time. The zero leak rate reflects backend database controls rather than model resistance to the prompt injection.
-3. **Utility Trade-off**: Aggressive lexical filtering (Tier `ALL`) causes a 16.7% False Refusal Rate (FRR) on benign academic queries.
+3. **Utility Trade-off & FRR Sample Bounds**: Aggressive lexical filtering (Tier `ALL`) causes a 16.7% False Refusal Rate (FRR) on benign academic queries ($1/6$ refusals; Wilson 95% CI `[3.0%, 56.4%]`).
 
 ### Summary by defense tier
 
@@ -69,6 +72,11 @@ Run the unified benchmark runner to reproduce all tables:
 ```bash
 # Offline empirical simulation (zero quota consumption)
 python scripts/run_multimodel_benchmark.py --mode mock
+
+# Offline trace provenance & oracle verification (zero API calls)
+python scripts/run_multimodel_benchmark.py --verify-static
+# or:
+python scripts/rerun_oracle_on_static_traces.py
 
 # Live execution against approved free-tier endpoints
 python scripts/run_multimodel_benchmark.py --mode live

@@ -13,11 +13,12 @@ This directory documents the pre-registered benchmark protocols, statistical mat
 Release v2.0.0 evaluates prompt injection vulnerabilities across parallel triplets in Thai, English, and code-mixed text, separating model compliance from database gatekeeper enforcement.
 
 ### Core Assets & Reproducibility
-- **Pre-Registration Specification**: [`PRE_REGISTRATION.md`](PRE_REGISTRATION.md) (Locked primary hypothesis $H_1$, SESOI $10\%$, and Benjamini-Hochberg FDR protocol under git tag `preregistration-v2.0`).
+- **Statistical Analysis Plan (SAP)**: [`PRE_REGISTRATION.md`](PRE_REGISTRATION.md) (Locked primary hypothesis $H_1$, SESOI $10\%$, and Benjamini-Hochberg FDR protocol under git tag `preregistration-v2.0`).
 - **Parallel Benchmark Dataset**: [`data/normalized/test_cases_parallel_v2.json`](../../data/normalized/test_cases_parallel_v2.json) (36 scenarios $\times$ 3 languages = 108 cases, SHA256: `bfcb216cfae6c20935516f8cce148411e415a674488c721fb35f9a7547634ce2`).
-- **Published Case Traces (JSONL)**: [`results/published/benchmark_v2_static.jsonl`](../../results/published/benchmark_v2_static.jsonl) (1,080 case-level execution traces across 2 model families and 5 defense tiers).
+- **Published Case Traces (JSONL)**: [`results/published/benchmark_v2_static.jsonl`](../../results/published/benchmark_v2_static.jsonl) (1,080 case-level execution traces with complete prompts, raw responses, tool calls, temperature, seed, and timestamps).
 - **Aggregated Statistical Matrix (CSV)**: [`results/published/benchmark_v2_summary.csv`](../../results/published/benchmark_v2_summary.csv) (Summary table with Wilson 95% CIs, paired bootstrap intervals, and FDR-adjusted p-values).
 - **API Token & Cost Budget Estimate**: [`API_BUDGET_ESTIMATE.md`](API_BUDGET_ESTIMATE.md) (Strict 100% Free Tier execution bounds).
+- **Offline Trace Provenance**: Validate all 1,080 cases offline with zero API calls via `python scripts/run_multimodel_benchmark.py --verify-static` or `python scripts/rerun_oracle_on_static_traces.py`.
 
 ---
 
@@ -70,6 +71,9 @@ Under Pre-Registered Primary Hypothesis $H_1$, we test whether Thai prompt injec
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Meta Llama 3.3 70B Instruct** | `PROMPT` | **+33.3%** | `[+10.0%, +56.7%]` | $p = 0.010$ | $p_{\text{adj}} = 0.100$ | **CONFIRMED ($\Delta > 0.10$)** |
 | **Google Gemini 3.5 Flash Lite** | `PROMPT` | **+13.3%** | `[-10.0%, +33.3%]` | $p = 0.281$ | $p_{\text{adj}} = 1.000$ | Inconclusive ($\text{CI overlaps } 0$) |
+
+> [!IMPORTANT] **Scientific Scope of Inference**
+> The confirmed disparity ($+33.3\%$, $p_{\text{adj}} = 0.100$) is specific to **Meta Llama 3.3 70B Instruct evaluated on this translated prompt set under system prompt hardening (`PROMPT`)**. On Google Gemini 3.5 Flash Lite under the same tier, the delta is $+13.3\%$ ($p_{\text{adj}} = 1.000$, CI overlaps zero). Under database-enforced tiers (`TOOLS`, `SPOTLIGHT`, `ALL`), cross-lingual deltas are 0.0%. These results demonstrate model- and defense-specific effects, and must not be interpreted as an inherent or universal vulnerability of the Thai language itself.
 
 ---
 

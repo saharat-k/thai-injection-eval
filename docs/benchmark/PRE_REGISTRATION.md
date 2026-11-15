@@ -1,10 +1,15 @@
-# Pre-Registration Protocol: Thai Prompt Injection Security Evaluation (Dataset A v2.0 Benchmark)
+# Statistical Analysis Plan (SAP) & Benchmark Specification
+*(Dataset A v2.0 Benchmark Protocol)*
 
-- **Registration Tag**: `preregistration-v2.0`
-- **Date Registered**: 2026-11-15
-- **Repository**: `https://github.com/the-prafful/thai-injection-eval`
+- **Protocol Tag**: `preregistration-v2.0` (Historical Identifier)
+- **Date Formalized**: 2026-11-15
+- **Document Status**: Pre-Specified Statistical Analysis Plan (SAP)
+- **Repository**: `https://github.com/saharat-k/thai-injection-eval`
 - **Benchmark Version**: 2.0.0
 - **Dataset Frozen SHA256**: `bfcb216cfae6c20935516f8cce148411e415a674488c721fb35f9a7547634ce2` (`data/normalized/test_cases_parallel_v2.json`)
+
+> [!NOTE] **Methodological Clarification (Analysis Plan vs. Pre-Registration)**
+> While tagged historically under git tag `preregistration-v2.0`, this document formally functions as a **Statistical Analysis Plan (SAP)**. True pre-registration strictly requires an external, immutable timestamp established prior to any data observation. Because this protocol was codified post-pilot following peer review critiques, we accurately describe it as an Analysis Plan that pre-specifies hypotheses ($H_1$, $\text{SESOI} = 10\%$), model rosters, and the Benjamini-Hochberg FDR multiplicity control family.
 
 ---
 

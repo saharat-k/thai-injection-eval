@@ -41,6 +41,12 @@ class TestDocumentationAndArtifacts(unittest.TestCase):
         self.assertIn("language", sample)
         self.assertIn("defense_tier", sample)
         self.assertIn("verdict", sample)
+        self.assertIn("prompt", sample)
+        self.assertIn("raw_response", sample)
+        self.assertIn("tool_calls", sample)
+        self.assertIn("temperature", sample)
+        self.assertIn("seed", sample)
+        self.assertIn("model_version", sample)
 
         # Check CSV
         with open(csv_path, "r", encoding="utf-8") as f:

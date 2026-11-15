@@ -48,8 +48,10 @@ class TestAuditCritiqueFixes(unittest.TestCase):
         self.assertIn("_data_boundary", res_spot)
         self.assertIn(res_spot["_spotlight_delimiter"], res_spot["_data_boundary"])
 
-    def test_search_records_schema_timing_oracle_eliminated(self):
+    def test_search_records_schema_existence_oracle_eliminated(self):
         # When defense is tools, nonexistent tables and private tables must return IDENTICAL error responses
+        # to eliminate the content-based schema enumeration / existence oracle.
+        # Note: Timing side-channels are not closed without constant-time delays or empirical latency measurement.
         agent.configure_defense("tools", blue_role="student_guest")
 
         res_nonexistent = json.loads(agent.search_records("random_nonexistent_table_999", "test"))
@@ -157,9 +159,47 @@ class TestAuditCritiqueFixes(unittest.TestCase):
         # Passing mock or non-serializable objects should not raise an unhandled exception
         mock_obj = Mock()
         try:
-            agent.audit("test_mock_event", {"param": mock_obj, "status": "ok"})
+            ok = agent.audit("test_mock_event", {"param": mock_obj, "status": "ok"})
+            self.assertTrue(ok)
         except Exception as e:
             self.fail(f"audit() raised unexpected exception on mock object: {e}")
+
+    def test_audit_failure_marks_run_invalid(self):
+        from unittest.mock import patch, Mock
+        from core.agent.runtime import execute_manual_turn
+
+        case = {
+            "id": "AUDIT-FAIL-TEST",
+            "language": "th",
+            "attack_type": "direct",
+            "prompt": "Test prompt",
+        }
+        mock_sess = Mock()
+        mock_sess.send.return_value = "Blue reply"
+
+        # Mock audit() to simulate audit write failure
+        with patch("core.agent.runtime.audit", return_value=False):
+            res = execute_manual_turn(
+                session=mock_sess,
+                case=case,
+                canaries=set(),
+                defense="off",
+                attack="Attack text",
+                turn_no=1,
+                session_id="SESS-AUDIT-FAIL",
+                sender="Attacker",
+            )
+            self.assertFalse(res.get("is_valid", True))
+            self.assertIn("audit log write failed: run marked invalid", res.get("error", ""))
+
+            # Verify in SQLite database that the row is marked invalid (success = -1, is_valid = 0)
+            conn = agent._get_res_conn()
+            row = conn.execute(
+                "SELECT success, is_valid FROM test_results WHERE id = 'SESS-AUDIT-FAIL' AND attempt = 1"
+            ).fetchone()
+            self.assertIsNotNone(row)
+            self.assertEqual(row[0], -1)
+            self.assertEqual(row[1], 0)
 
 
 if __name__ == "__main__":

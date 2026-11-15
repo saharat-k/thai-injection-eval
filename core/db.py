@@ -167,6 +167,7 @@ def init_results_db(db_path: str = RESULTS_DB_PATH) -> sqlite3.Connection:
         ("attempt", "INTEGER DEFAULT 1"),
         ("red_model", "TEXT"),
         ("blue_model", "TEXT"),
+        ("is_valid", "INTEGER NOT NULL DEFAULT 1"),
     )
     for col, typ in migrations:
         if col not in have:
