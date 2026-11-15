@@ -1,0 +1,17 @@
+{
+  "off:registrar_staff": "fce0aa761348b9d35ff3ee97588a42b9f3dd2c9e66e67dacabed5ce3d64ca9e4",
+  "off:student_guest": "1da5f1627fb3f87eef8b571d42b6af8fe2c3f9c07b0a45b4b4a6ae0c95f76bac",
+  "off:system_admin": "26c9836ac4672a6438f8a111a2bf8fe69bc4e1432dfaae5861d49499528cd7bb",
+  "prompt:registrar_staff": "6514e2b99bfbe0908f16b79836dbead0c75f677001f6c1c391b5675eac9398eb",
+  "prompt:student_guest": "8229e59b03695778977f2af067957d434b3a9a7ebf9c3c32a2e23f5168d65ab9",
+  "prompt:system_admin": "0084be2432c7cddeedf2a4981ac16d595bf3d7d5bd1a14eef64046892c849356",
+  "tools:registrar_staff": "7387b04b1532744dc93b8b56c1ea13a38dc67cb328c5fb8d4038422781c72c14",
+  "tools:student_guest": "d9327eecd4bdf8e7a3f49d3ab49c333c2c21eee473fd571321d964fe74f33180",
+  "tools:system_admin": "633d869a64822385b001a6c2b1f9d3b6dd5d8879176ca5f779f4532e893bf815",
+  "all:registrar_staff": "6514e2b99bfbe0908f16b79836dbead0c75f677001f6c1c391b5675eac9398eb",
+  "all:student_guest": "8229e59b03695778977f2af067957d434b3a9a7ebf9c3c32a2e23f5168d65ab9",
+  "all:system_admin": "0084be2432c7cddeedf2a4981ac16d595bf3d7d5bd1a14eef64046892c849356",
+  "spotlight:registrar_staff": "fce0aa761348b9d35ff3ee97588a42b9f3dd2c9e66e67dacabed5ce3d64ca9e4",
+  "spotlight:student_guest": "1da5f1627fb3f87eef8b571d42b6af8fe2c3f9c07b0a45b4b4a6ae0c95f76bac",
+  "spotlight:system_admin": "26c9836ac4672a6438f8a111a2bf8fe69bc4e1432dfaae5861d49499528cd7bb"
+}
