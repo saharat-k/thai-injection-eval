@@ -199,6 +199,20 @@ def apply_defense_output(
         text,
     )
 
+    # 2b. Redact verbal Thai digit sequences that match canaries when extended decoders active
+    if extended_decoders:
+        try:
+            from core.evaluator.mutators import extract_thai_digit_spans
+            for digit_seq, start_idx, end_idx in extract_thai_digit_spans(text):
+                for c in canaries:
+                    clean_c = re.sub(r"\D", "", str(c))
+                    if len(clean_c) >= 8 and (clean_c in digit_seq or (len(digit_seq) >= 10 and digit_seq in clean_c)):
+                        span_text = text[start_idx:end_idx]
+                        text = text.replace(span_text, "[REDACTED]")
+                        break
+        except Exception:
+            pass
+
     # 3. Redact Base64 and Hex segments that decode to a canary
     for candidate in re.findall(r"[A-Za-z0-9+/]{12,}={0,2}", text):
         if len(candidate) % 4 == 0:

@@ -234,6 +234,90 @@ def thai_words_to_number(text: str) -> Optional[float]:
     return total if total > 0 or "ศูนย์" in text else None
 
 
+def extract_thai_digit_spans(text: str) -> list[tuple[str, int, int]]:
+    """Extract consecutive sequences of Thai verbal digits and numerals with text spans.
+
+    Recognizes individual digit spellings such as 'หนึ่งสองสาม', 'หนึ่ง-สอง-สาม',
+    'หนึ่ง สอง สาม', zero-width spaces, mixed Thai/Arabic numerals ('๑สอง3สี่'),
+    and interleaved polite particles ('หนึ่งครับสองค่ะสาม').
+    Returns tuples of (digit_string, start_index, end_index) for sequences with length >= 4.
+    """
+    if not text:
+        return []
+
+    # Sort digit tokens by length descending so longer tokens match first
+    digit_tokens = [
+        # Thai verbal words
+        ("ศูนย์", "0"), ("หนึ่ง", "1"), ("เอ็ด", "1"), ("สอง", "2"), ("ยี่", "2"),
+        ("สาม", "3"), ("สี่", "4"), ("ห้า", "5"), ("หก", "6"), ("เจ็ด", "7"),
+        ("แปด", "8"), ("เก้า", "9"),
+        # Traditional Thai numerals
+        ("๐", "0"), ("๑", "1"), ("๒", "2"), ("๓", "3"), ("๔", "4"),
+        ("๕", "5"), ("๖", "6"), ("๗", "7"), ("๘", "8"), ("๙", "9"),
+        # Standard ASCII digits
+        ("0", "0"), ("1", "1"), ("2", "2"), ("3", "3"), ("4", "4"),
+        ("5", "5"), ("6", "6"), ("7", "7"), ("8", "8"), ("9", "9"),
+        # Fullwidth digits
+        ("０", "0"), ("１", "1"), ("２", "2"), ("３", "3"), ("４", "4"),
+        ("５", "5"), ("６", "6"), ("７", "7"), ("８", "8"), ("９", "9"),
+    ]
+
+    ignorable_words = [
+        "ครับ", "ค่ะ", "คะ", "นะ", "จ้ะ", "จ๊ะ", "ฮะ", "จ้า", "คับ",
+    ]
+    ignorable_chars = set(" \t\r\n-–—_.,/|:#\u200b\u200c\u200d\ufeff\u00ad\u200e\u200f")
+
+    results = []
+    current_digits = []
+    start_idx = -1
+    last_digit_end = -1
+    i = 0
+    n = len(text)
+
+    while i < n:
+        # Check ignorable single characters
+        if text[i] in ignorable_chars:
+            i += 1
+            continue
+
+        # Check ignorable polite particles (only inside an active sequence or between digits)
+        matched_particle = False
+        if current_digits:
+            for p in ignorable_words:
+                if text.startswith(p, i):
+                    i += len(p)
+                    matched_particle = True
+                    break
+        if matched_particle:
+            continue
+
+        # Check digit tokens
+        matched_digit = False
+        for token, digit in digit_tokens:
+            if text.startswith(token, i):
+                if not current_digits:
+                    start_idx = i
+                current_digits.append(digit)
+                i += len(token)
+                last_digit_end = i
+                matched_digit = True
+                break
+
+        if not matched_digit:
+            if current_digits:
+                if len(current_digits) >= 4:
+                    results.append(("".join(current_digits), start_idx, last_digit_end))
+                current_digits = []
+                start_idx = -1
+                last_digit_end = -1
+            i += 1
+
+    if current_digits and len(current_digits) >= 4:
+        results.append(("".join(current_digits), start_idx, last_digit_end))
+
+    return results
+
+
 def thai_digit_words_to_digits(text: str) -> list[str]:
     """Extract consecutive sequences of Thai verbal digits as Arabic digit strings.
 
@@ -241,44 +325,7 @@ def thai_digit_words_to_digits(text: str) -> list[str]:
     or 'หนึ่ง สอง สาม' (e.g. for national IDs, telephone numbers, or secret tokens).
     Returns all extracted digit sequences with length >= 4.
     """
-    if not text:
-        return []
-
-    digit_words = [
-        ("ศูนย์", "0"), ("หนึ่ง", "1"), ("เอ็ด", "1"), ("สอง", "2"), ("ยี่", "2"),
-        ("สาม", "3"), ("สี่", "4"), ("ห้า", "5"), ("หก", "6"), ("เจ็ด", "7"),
-        ("แปด", "8"), ("เก้า", "9"),
-    ]
-
-    results = []
-    current_digits = []
-    i = 0
-    n = len(text)
-
-    while i < n:
-        if text[i] in " \t\r\n-–—_.,/|":
-            i += 1
-            continue
-
-        matched = False
-        for word, digit in digit_words:
-            if text.startswith(word, i):
-                current_digits.append(digit)
-                i += len(word)
-                matched = True
-                break
-
-        if not matched:
-            if current_digits:
-                if len(current_digits) >= 4:
-                    results.append("".join(current_digits))
-                current_digits = []
-            i += 1
-
-    if current_digits and len(current_digits) >= 4:
-        results.append("".join(current_digits))
-
-    return results
+    return [item[0] for item in extract_thai_digit_spans(text)]
 
 
 def arithmetic_split(val: float | int | str) -> str:

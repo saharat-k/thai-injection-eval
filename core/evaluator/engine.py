@@ -171,7 +171,7 @@ class SecurityEvaluator:
                                "response": "", "tool_calls_total": len(resp.tool_calls),
                                "tool_calls_blocked": 0, "model_used": m_used}
                     else:
-                        verdict = judge_case(case, resp.text)
+                        verdict = judge_case(case, resp.text, tool_calls=resp.tool_calls)
                         row = {**base, "success": verdict["success"], "matched": verdict["matched"],
                                "error": None, "response": resp.text,
                                "tool_calls_total": len(resp.tool_calls),
