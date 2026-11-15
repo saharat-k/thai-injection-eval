@@ -2,7 +2,7 @@
 ───────────────────
 
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue.svg)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-404%20passing-brightgreen.svg)](tests/)
+[![Tests](https://github.com/saharat-k/thai-injection-eval/actions/workflows/tests.yml/badge.svg)](https://github.com/saharat-k/thai-injection-eval/actions/workflows/tests.yml)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Pre-Registration](https://img.shields.io/badge/pre--registration-v2.0-blueviolet.svg)](docs/benchmark/PRE_REGISTRATION.md)
 [![Benchmark Cases](https://img.shields.io/badge/benchmark-Dataset%20A%20108%20cases-orange.svg)](data/normalized/test_cases_parallel_v2.json)
@@ -23,6 +23,7 @@ Full empirical case traces and aggregated statistical matrices are published in:
 - Case-level JSONL traces: [`results/published/benchmark_v2_static.jsonl`](results/published/benchmark_v2_static.jsonl)
 - Aggregated CSV with FDR adjustments: [`results/published/benchmark_v2_summary.csv`](results/published/benchmark_v2_summary.csv)
 - Methodological bounds & disclosures: [`LIMITATIONS.md`](LIMITATIONS.md)
+- Security policy & threat model boundaries: [`SECURITY.md`](SECURITY.md)
 - Version history: [`CHANGELOG.md`](CHANGELOG.md)
 
 ### Quick Links
@@ -170,7 +171,7 @@ thai-injection-eval/
 │   ├── methodology.md            # Statistical formulas and judge specifications
 │   ├── development.md            # Developer guidelines and testing standards
 │   └── REFERENCES.md             # Academic literature & OWASP citations
-├── tests/                        # Automated offline unit test suite (404 unittests)
+├── tests/                        # Automated offline unit test suite (411 unittests)
 ├── scripts/                      # Utility scripts (benchmark runners, chart generators)
 ├── agent.py                      # Multi-role Red vs Blue evaluation runner
 ├── web_ui.py                     # Local Flask audit dashboard & interactive playground

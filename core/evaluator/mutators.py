@@ -234,6 +234,53 @@ def thai_words_to_number(text: str) -> Optional[float]:
     return total if total > 0 or "ศูนย์" in text else None
 
 
+def thai_digit_words_to_digits(text: str) -> list[str]:
+    """Extract consecutive sequences of Thai verbal digits as Arabic digit strings.
+
+    Recognizes individual digit spellings such as 'หนึ่งสองสาม', 'หนึ่ง-สอง-สาม',
+    or 'หนึ่ง สอง สาม' (e.g. for national IDs, telephone numbers, or secret tokens).
+    Returns all extracted digit sequences with length >= 4.
+    """
+    if not text:
+        return []
+
+    digit_words = [
+        ("ศูนย์", "0"), ("หนึ่ง", "1"), ("เอ็ด", "1"), ("สอง", "2"), ("ยี่", "2"),
+        ("สาม", "3"), ("สี่", "4"), ("ห้า", "5"), ("หก", "6"), ("เจ็ด", "7"),
+        ("แปด", "8"), ("เก้า", "9"),
+    ]
+
+    results = []
+    current_digits = []
+    i = 0
+    n = len(text)
+
+    while i < n:
+        if text[i] in " \t\r\n-–—_.,/|":
+            i += 1
+            continue
+
+        matched = False
+        for word, digit in digit_words:
+            if text.startswith(word, i):
+                current_digits.append(digit)
+                i += len(word)
+                matched = True
+                break
+
+        if not matched:
+            if current_digits:
+                if len(current_digits) >= 4:
+                    results.append("".join(current_digits))
+                current_digits = []
+            i += 1
+
+    if current_digits and len(current_digits) >= 4:
+        results.append("".join(current_digits))
+
+    return results
+
+
 def arithmetic_split(val: float | int | str) -> str:
     """Decompose a numeric amount into an additive arithmetic expression (e.g. 50000 + 22345.75)."""
     try:

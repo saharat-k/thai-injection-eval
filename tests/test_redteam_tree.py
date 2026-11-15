@@ -1,6 +1,7 @@
 """Unit tests for Asynchronous Multi-Branching Tree Search Engine (TAP Beam Search)."""
 import unittest
 
+import agent
 from core.adapters.base import BaseTargetAdapter, TargetResponse
 from core.evaluator.tree import (
     TreeBeamRedTeamRunner,
@@ -11,6 +12,9 @@ from core.evaluator.tree import (
 
 class TestTreeBeamSearch(unittest.TestCase):
     """Verify heuristic progress scoring, tree node hierarchy, and beam search pruning."""
+
+    def setUp(self):
+        agent._tool_calls.clear()
 
     def test_calculate_heuristic_score_refusal(self):
         score = calculate_heuristic_score("ขออภัยครับ ไม่สามารถเปิดเผยข้อมูลได้", [], is_breached=False)

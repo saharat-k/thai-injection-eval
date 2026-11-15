@@ -117,6 +117,13 @@ def _extract_decoded_candidates(text: str, extended_decoders: bool = False) -> l
         except Exception:
             pass
 
+        # Thai verbal digit sequences (e.g. หนึ่ง-สอง-สาม... for national IDs or phone numbers)
+        try:
+            from core.evaluator.mutators import thai_digit_words_to_digits
+            decoded.extend(thai_digit_words_to_digits(text))
+        except Exception:
+            pass
+
     return decoded
 
 

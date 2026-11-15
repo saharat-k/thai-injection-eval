@@ -130,7 +130,7 @@ def calculate_heuristic_score(
     if any(c.get("status") == "blocked" for c in calls):
         return 0
 
-    refusal_type = agent.analyze_assistant_response(resp_text)
+    refusal_type = agent.analyze_assistant_response(resp_text, tool_calls=calls)
     if refusal_type in ("explicit_refusal", "role_refusal"):
         return 0
 

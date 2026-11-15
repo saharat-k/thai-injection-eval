@@ -60,12 +60,24 @@ class TestDocumentationAndArtifacts(unittest.TestCase):
         self.assertIn("Benchmark v2.0.0", readme)
         self.assertIn("Dataset A", readme)
         self.assertIn("Attempt vs. Leak Decoupling", readme)
+        self.assertIn("actions/workflows/tests.yml/badge.svg", readme)
 
         with open("LIMITATIONS.md", "r", encoding="utf-8") as f:
             limitations = f.read()
         self.assertIn("Attempt Rate", limitations)
         self.assertIn("Leak Rate", limitations)
         self.assertIn("SESOI", limitations)
+
+    def test_security_md_exists_and_covers_boundaries(self):
+        security_path = "SECURITY.md"
+        self.assertTrue(os.path.exists(security_path), f"Missing {security_path}")
+        with open(security_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        self.assertIn("Vulnerability", content)
+        self.assertIn("Threat Model Boundaries", content)
+        self.assertIn("Synthetic Sandboxed Environment", content)
+        self.assertIn("Multimodal", content)
+        self.assertIn("Safe Harbor", content)
 
 
 if __name__ == "__main__":
