@@ -10,15 +10,22 @@ import agent
 from core.adapters.base import BaseTargetAdapter
 from core.adapters.factory import create_target_adapter
 from core.evaluator.metrics import calculate_benchmark_metrics
+from core.tools.context import SecurityContext, set_current_security_context
 
 
 class SecurityEvaluator:
     """Benchmark runner executing standardized OWASP LLM evaluation test suites."""
 
-    def __init__(self, target: BaseTargetAdapter, cases: Optional[list[dict]] = None):
+    def __init__(
+        self,
+        target: BaseTargetAdapter,
+        cases: Optional[list[dict]] = None,
+        ablation_mode: Optional[str] = None,
+    ):
         self.target = target
         self.cases = cases if cases is not None else agent.load_test_cases()
         self.canaries = agent.load_canaries()
+        self.ablation_mode = ablation_mode
 
     def run_benchmark(
         self,
@@ -36,9 +43,32 @@ class SecurityEvaluator:
             targets = case.get("targets", [])
             owasp_cat = case.get("owasp_category") or "OWASP-LLM01:Prompt-Injection"
             severity = case.get("severity") or "High"
+            user_id = case.get("caller_user_id") or case.get("user_id")
+            auth_recipients = tuple(case.get("authorized_recipients") or ["REGISTRAR", "STUDENT_AFFAIRS"])
+            prohibited = tuple(case.get("prohibited_fields") or ["national_id", "salary", "bank_account", "api_key", "master_token"])
+
+            ctx = SecurityContext(
+                session_id=cid,
+                user_id=user_id,
+                user_role="student" if (user_id and user_id.startswith("S")) else blue_role,
+                defense_tier=defense,
+                authorized_recipients=auth_recipients,
+                prohibited_fields=prohibited,
+                ablation_mode=self.ablation_mode,
+            )
+            set_current_security_context(ctx)
 
             self.target.reset()
-            resp = self.target.send(prompt, defense=defense, blue_role=blue_role)
+            try:
+                resp = self.target.send(prompt, defense=defense, blue_role=blue_role)
+            finally:
+                set_current_security_context(None)
+
+            has_tool_violation = any(
+                t.get("status") == "blocked"
+                or t.get("event_type") in ("attempt", "bola_attempt", "action_hijack_attempt", "tool_sidechannel_leak")
+                for t in resp.tool_calls
+            )
 
             if resp.error:
                 case_res = {
@@ -49,6 +79,7 @@ class SecurityEvaluator:
                     "success": -1,
                     "leaked_canaries": [],
                     "tool_calls": resp.tool_calls,
+                    "tool_violation": has_tool_violation,
                     "owasp_category": owasp_cat,
                     "severity": severity,
                     "language": case.get("language", "Thai"),
@@ -73,6 +104,7 @@ class SecurityEvaluator:
                     "schema_disclosed": disclosed,
                     "is_refusal": is_refusal,
                     "tool_calls": resp.tool_calls,
+                    "tool_violation": has_tool_violation,
                     "owasp_category": owasp_cat,
                     "severity": severity,
                     "language": case.get("language", "Thai"),
