@@ -1,14 +1,17 @@
-"""Statistical evaluation helpers.
+"""Statistical evaluation helpers and inferential hypothesis testing.
 
 Includes:
 - Wilson 95% score interval for single proportions.
 - Exact McNemar test (exact binomial test on discordant pairs) for paired comparisons.
 - Newcombe paired difference confidence interval (Method 10).
 - Aggregation helper (majority vote >= 2 of 3 repeats).
+- Paired triplet bootstrap testing with confidence intervals.
+- Benjamini-Hochberg False Discovery Rate (FDR) adjustment.
 """
 from __future__ import annotations
 
 import math
+import random
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 Z_95 = 1.959963984540054  # two-sided 95% normal quantile
@@ -174,3 +177,120 @@ def estimate_requests(n_cases: int, n_defenses: int, repeats: int, buffer_multip
         "buffer_multiplier": buffer_multiplier,
     }
 
+
+def calculate_triplet_paired_bootstrap(
+    triplets: dict[str, dict[str, list[int]]],
+    n_bootstraps: int = 1000,
+    confidence: float = 0.95,
+    seed: Optional[int] = 42,
+) -> dict[str, Any]:
+    """Calculate paired triplet bootstrap confidence intervals and empirical p-value.
+
+    Tests the paired cross-lingual difference: Delta = Score(TH) - Score(EN) per scenario.
+
+    Args:
+        triplets: Dictionary of scenario_id -> {"th": [...], "en": [...], "th-en": [...]}.
+        n_bootstraps: Number of bootstrap iterations.
+        confidence: Confidence level (e.g. 0.95 for 95% CI).
+        seed: Random seed for deterministic reproducibility.
+
+    Returns:
+        dict with mean_delta, ci_lower, ci_upper, p_value, n_triplets, and n_bootstraps.
+    """
+    if not triplets:
+        return {
+            "mean_delta": 0.0,
+            "ci_lower": 0.0,
+            "ci_upper": 0.0,
+            "p_value": 1.0,
+            "n_triplets": 0,
+            "n_bootstraps": n_bootstraps,
+        }
+
+    rng = random.Random(seed)
+    deltas = []
+    for scn_id, langs in triplets.items():
+        th_scores = langs.get("th", [0])
+        en_scores = langs.get("en", [0])
+        th_mean = sum(th_scores) / len(th_scores) if th_scores else 0.0
+        en_mean = sum(en_scores) / len(en_scores) if en_scores else 0.0
+        deltas.append(th_mean - en_mean)
+
+    n = len(deltas)
+    mean_delta = sum(deltas) / n
+
+    bootstrap_means = []
+    for _ in range(n_bootstraps):
+        sample = [rng.choice(deltas) for _ in range(n)]
+        bootstrap_means.append(sum(sample) / n)
+
+    bootstrap_means.sort()
+
+    alpha = 1.0 - confidence
+    lower_idx = int((alpha / 2.0) * n_bootstraps)
+    upper_idx = int((1.0 - alpha / 2.0) * n_bootstraps)
+    upper_idx = min(upper_idx, n_bootstraps - 1)
+
+    ci_lower = bootstrap_means[lower_idx]
+    ci_upper = bootstrap_means[upper_idx]
+
+    # Two-sided empirical p-value for H0: delta == 0
+    if mean_delta >= 0:
+        count_le_zero = sum(1 for m in bootstrap_means if m <= 0.0)
+        p_val = min(1.0, 2.0 * (count_le_zero / n_bootstraps))
+    else:
+        count_ge_zero = sum(1 for m in bootstrap_means if m >= 0.0)
+        p_val = min(1.0, 2.0 * (count_ge_zero / n_bootstraps))
+
+    return {
+        "mean_delta": round(mean_delta, 4),
+        "ci_lower": round(ci_lower, 4),
+        "ci_upper": round(ci_upper, 4),
+        "p_value": round(p_val, 4),
+        "n_triplets": n,
+        "n_bootstraps": n_bootstraps,
+    }
+
+
+def apply_fdr_correction(
+    p_values: list[float],
+    alpha: float = 0.05,
+) -> list[dict[str, Any]]:
+    """Apply Benjamini-Hochberg False Discovery Rate (FDR) adjustment to p-values.
+
+    Args:
+        p_values: List of nominal p-values across hypothesis family.
+        alpha: Family-wise false discovery rate threshold.
+
+    Returns:
+        List of dicts containing original_p, adjusted_p, significant (bool), and rank.
+    """
+    m = len(p_values)
+    if m == 0:
+        return []
+
+    # Pair with original indices
+    indexed_p = sorted(enumerate(p_values), key=lambda x: x[1])
+
+    # Calculate BH adjusted p-values
+    # q_(i) = min_{j >= i} ( (m / j) * p_(j) )
+    adj_values = [0.0] * m
+    min_so_far = 1.0
+    for rank_1_based in range(m, 0, -1):
+        idx, p = indexed_p[rank_1_based - 1]
+        adjusted = min(1.0, (m / rank_1_based) * p)
+        min_so_far = min(min_so_far, adjusted)
+        adj_values[rank_1_based - 1] = min_so_far
+
+    # Reconstruct in original order
+    results = [None] * m
+    for rank_idx, (orig_idx, orig_p) in enumerate(indexed_p):
+        adjusted_p = round(adj_values[rank_idx], 4)
+        results[orig_idx] = {
+            "rank": rank_idx + 1,
+            "original_p": round(orig_p, 4),
+            "adjusted_p": adjusted_p,
+            "significant": adjusted_p <= alpha,
+        }
+
+    return results
