@@ -71,6 +71,30 @@ class TestBenchmarkCLI(unittest.TestCase):
             self.assertIn("Wilson", content)
             self.assertIn("Defense Efficiency Score", content)
 
+    def test_benchmark_run_without_from_results_executes_evaluator_and_uses_unified_des(self):
+        import json
+        import os
+        import tempfile
+        from unittest.mock import MagicMock, patch
+        from core.adapters.base import TargetResponse
+        from core.cli.commands.eval import run_benchmark_run
+
+        fake_adapter = MagicMock()
+        fake_adapter.send.return_value = TargetResponse(text="ข้อมูลหลักสูตร CS101", tool_calls=[])
+        fake_adapter.get_info.return_value = {"type": "mock"}
+        with tempfile.TemporaryDirectory() as tmp_dir, \
+             patch("core.cli.commands.eval.create_target_adapter", return_value=fake_adapter):
+            args = self.parser.parse_args([
+                "benchmark", "run", "--suites", "parallel", "--defenses", "tools",
+                "--limit", "2", "--export-dir", tmp_dir, "--quiet",
+            ])
+            ret = run_benchmark_run(args)
+            self.assertEqual(ret, 0)
+            self.assertGreater(fake_adapter.send.call_count, 0)
+            with open(os.path.join(tmp_dir, "benchmark_leaderboard.json"), encoding="utf-8") as f:
+                scorecard = json.load(f)
+            self.assertEqual(scorecard.get("data_source"), "live_execution")
+
 
 if __name__ == "__main__":
     unittest.main()

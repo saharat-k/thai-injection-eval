@@ -1185,6 +1185,13 @@ class WebUiTests(unittest.TestCase):
         ds = {d["name"]: d["count"] for d in resp.get_json()["datasets"]}
         self.assertEqual(ds.get("test_cases_parallel_v2.json"), 108)
 
+    def test_benchmark_leaderboard_api_includes_data_source_and_matches_csv_when_present(self):
+        resp = self.client.get("/api/benchmark/leaderboard")
+        data = resp.get_json()
+        self.assertTrue(data["success"])
+        self.assertIn("source", data)
+        self.assertIn(data["source"], ("benchmark_leaderboard", "published_v2_csv", "fallback_baseline"))
+
 
 if __name__ == "__main__":
     unittest.main()

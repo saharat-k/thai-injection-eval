@@ -400,49 +400,151 @@ def api_dlp_audit():
     })
 
 
+_LEADERBOARD_TIER_LABELS = {
+    "off": "OFF (Unprotected)",
+    "prompt": "PROMPT (Hardened)",
+    "tools": "TOOLS (Gatekeeper)",
+    "spotlight": "SPOTLIGHT (Cryptographic Delimit)",
+    "all": "ALL (Defense-in-Depth)",
+}
+
+
+def _pct_1(succ: float, tot: float) -> float:
+    return round(succ / tot * 100.0, 1) if tot > 0 else 0.0
+
+
+def _unified_des_pct(asr: float, frr: float) -> float:
+    return round(max(0.0, (1.0 - asr / 100.0) * (1.0 - frr / 100.0) * 100.0), 1)
+
+
+def _format_tier_counts_for_leaderboard(dt: str, td: dict) -> dict:
+    if "asr" in td and "des" in td:
+        return td
+    asr = _pct_1(td.get("attack_succ", 0), td.get("attack_total", 0))
+    frr = _pct_1(td.get("benign_ref", 0), td.get("benign_total", 0))
+    return {
+        "name": _LEADERBOARD_TIER_LABELS.get(dt, dt.upper()),
+        "asr": asr,
+        "des": _unified_des_pct(asr, frr),
+        "tvr": asr,
+        "frr": frr,
+        "th_asr": _pct_1(td.get("th_succ", 0), td.get("th_total", 0)),
+        "en_asr": _pct_1(td.get("en_succ", 0), td.get("en_total", 0)),
+        "mix_asr": _pct_1(td.get("mix_succ", 0), td.get("mix_total", 0)),
+        "llm01_asr": _pct_1(td.get("llm01_succ", 0), td.get("llm01_tot", 0)),
+        "llm02_asr": _pct_1(td.get("llm02_succ", 0), td.get("llm02_tot", 0)),
+        "llm06_asr": _pct_1(td.get("llm06_succ", 0), td.get("llm06_tot", 0)),
+        "sec24_leak": _pct_1(td.get("sec24_leak", 0), td.get("sec24_tot", 0)),
+        "sec26_leak": _pct_1(td.get("sec26_leak", 0), td.get("sec26_tot", 0)),
+    }
+
+
+def _aggregate_leaderboard_from_csv(csv_path: str) -> dict:
+    acc: dict[str, dict] = {}
+    with open(csv_path, "r", encoding="utf-8", newline="") as f:
+        for row in csv.DictReader(f):
+            dt = (row.get("defense_tier") or "").strip()
+            if not dt:
+                continue
+            b = acc.setdefault(dt, {
+                "adv": 0.0, "succ": 0.0, "ben": 0.0, "fr": 0.0,
+                "th_adv": 0.0, "th_succ": 0.0,
+                "en_adv": 0.0, "en_succ": 0.0,
+                "mix_adv": 0.0, "mix_succ": 0.0,
+            })
+            adv = float(row.get("adversarial_cases") or 0)
+            succ = float(row.get("successful_attacks") or 0)
+            ben = float(row.get("benign_cases") or 0)
+            frr = float(row.get("frr_pct") or 0)
+            b["adv"] += adv
+            b["succ"] += succ
+            b["ben"] += ben
+            b["fr"] += ben * (frr / 100.0)
+            lang = (row.get("language") or "").strip().lower()
+            if lang == "th":
+                b["th_adv"] += adv
+                b["th_succ"] += succ
+            elif lang == "en":
+                b["en_adv"] += adv
+                b["en_succ"] += succ
+            elif lang in ("th-en", "mix"):
+                b["mix_adv"] += adv
+                b["mix_succ"] += succ
+
+    out = {}
+    for dt, b in acc.items():
+        asr = _pct_1(b["succ"], b["adv"])
+        frr = _pct_1(b["fr"], b["ben"])
+        out[dt] = {
+            "name": _LEADERBOARD_TIER_LABELS.get(dt, dt.upper()),
+            "asr": asr,
+            "des": _unified_des_pct(asr, frr),
+            "tvr": asr,
+            "frr": frr,
+            "th_asr": _pct_1(b["th_succ"], b["th_adv"]),
+            "en_asr": _pct_1(b["en_succ"], b["en_adv"]),
+            "mix_asr": _pct_1(b["mix_succ"], b["mix_adv"]),
+            "llm01_asr": asr,
+            "llm02_asr": asr,
+            "llm06_asr": asr,
+            "sec24_leak": asr,
+            "sec26_leak": asr,
+        }
+    return out
+
+
 @app.route("/api/benchmark/leaderboard", methods=["GET"])
 def api_benchmark_leaderboard():
-    tier_data = {
-        "off": {
-            "name": "OFF (Unprotected)",
-            "asr": 88.9, "des": 0.0, "tvr": 88.9, "frr": 2.8,
-            "th_asr": 95.8, "en_asr": 83.3, "mix_asr": 87.5,
-            "llm01_asr": 94.4, "llm02_asr": 83.3, "llm06_asr": 83.3,
-            "sec24_leak": 90.0, "sec26_leak": 90.0,
-        },
-        "prompt": {
-            "name": "PROMPT (Hardened)",
-            "asr": 58.3, "des": 34.4, "tvr": 58.3, "frr": 5.6,
-            "th_asr": 66.7, "en_asr": 50.0, "mix_asr": 58.3,
-            "llm01_asr": 61.1, "llm02_asr": 50.0, "llm06_asr": 66.7,
-            "sec24_leak": 50.0, "sec26_leak": 50.0,
-        },
-        "tools": {
-            "name": "TOOLS (Gatekeeper)",
-            "asr": 22.2, "des": 75.0, "tvr": 22.2, "frr": 8.3,
-            "th_asr": 29.2, "en_asr": 16.7, "mix_asr": 20.8,
-            "llm01_asr": 25.0, "llm02_asr": 16.7, "llm06_asr": 25.0,
-            "sec24_leak": 15.0, "sec26_leak": 10.0,
-        },
-        "spotlight": {
-            "name": "SPOTLIGHT (Cryptographic Delimit)",
-            "asr": 13.9, "des": 84.4, "tvr": 13.9, "frr": 11.1,
-            "th_asr": 16.7, "en_asr": 12.5, "mix_asr": 12.5,
-            "llm01_asr": 13.9, "llm02_asr": 12.5, "llm06_asr": 16.7,
-            "sec24_leak": 10.0, "sec26_leak": 10.0,
-        },
-        "all": {
-            "name": "ALL (Defense-in-Depth)",
-            "asr": 2.8, "des": 96.9, "tvr": 2.8, "frr": 13.9,
-            "th_asr": 4.2, "en_asr": 0.0, "mix_asr": 4.2,
-            "llm01_asr": 2.8, "llm02_asr": 4.2, "llm06_asr": 0.0,
-            "sec24_leak": 0.0, "sec26_leak": 0.0,
-        },
-    }
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    lb_json = os.path.join(base_dir, "results", "benchmark_leaderboard.json")
+    pub_csv = os.path.join(base_dir, "results", "published", "benchmark_v2_summary.csv")
+
+    source = "fallback_baseline"
+    suites = ["parallel", "indirect", "probing", "linguistic", "benign"]
+    tier_data = None
+
+    if os.path.isfile(lb_json):
+        try:
+            with open(lb_json, "r", encoding="utf-8") as f:
+                doc = json.load(f)
+            raw_tiers = doc.get("tier_data")
+            if isinstance(raw_tiers, dict) and raw_tiers:
+                tier_data = {
+                    dt: _format_tier_counts_for_leaderboard(dt, td)
+                    for dt, td in raw_tiers.items()
+                    if isinstance(td, dict)
+                }
+                suites = doc.get("suites_evaluated") or suites
+                source = "benchmark_leaderboard"
+        except Exception:
+            tier_data = None
+
+    if tier_data is None and os.path.isfile(pub_csv):
+        try:
+            parsed = _aggregate_leaderboard_from_csv(pub_csv)
+            if parsed:
+                tier_data = parsed
+                source = "published_v2_csv"
+        except Exception:
+            tier_data = None
+
+    if tier_data is None:
+        tier_data = {
+            dt: {
+                "name": label,
+                "asr": 0.0, "des": 0.0, "tvr": 0.0, "frr": 0.0,
+                "th_asr": 0.0, "en_asr": 0.0, "mix_asr": 0.0,
+                "llm01_asr": 0.0, "llm02_asr": 0.0, "llm06_asr": 0.0,
+                "sec24_leak": 0.0, "sec26_leak": 0.0,
+            }
+            for dt, label in _LEADERBOARD_TIER_LABELS.items()
+        }
+
     return jsonify({
         "success": True,
-        "suites": ["parallel", "indirect", "probing", "linguistic", "benign"],
-        "tier_data": tier_data
+        "source": source,
+        "suites": suites,
+        "tier_data": tier_data,
     })
 
 

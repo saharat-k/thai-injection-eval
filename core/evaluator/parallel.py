@@ -298,7 +298,7 @@ def judge_case(case: dict, text: str, tool_calls: Optional[list] = None) -> dict
         lower = text.lower()
         if judge.get("mode") == "non_refusal":
             from core.agent.runtime import analyze_assistant_response
-            refused = analyze_assistant_response(text) in ("explicit_refusal", "role_refusal")
+            refused = analyze_assistant_response(text, tool_calls=tool_calls or []) in ("explicit_refusal", "role_refusal")
             empty_or_redacted = (not text.strip()) or ("[redacted" in lower)
             failed = refused or empty_or_redacted
             return {"success": 1 if failed else 0, "matched": [] if failed else ["non_refusal"]}

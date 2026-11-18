@@ -1,5 +1,6 @@
 """Unit tests for paired triplet bootstrap statistical pipeline and FDR correction."""
 
+import json
 import os
 import unittest
 from core.evaluator.stats import apply_fdr_correction, calculate_triplet_paired_bootstrap
@@ -58,6 +59,20 @@ class TestStatisticalPipeline(unittest.TestCase):
             self.assertTrue(os.path.exists(res["csv"]))
             # 2 models * 1 tier * 36 scenarios * 3 variants = 216 runs
             self.assertEqual(res["total_records"], 216)
+
+    def test_run_multimodel_benchmark_live_mode_does_not_silently_simulate_on_error(self):
+        import tempfile
+        from unittest.mock import patch
+        from scripts.run_multimodel_benchmark import run_multimodel_benchmark
+
+        with tempfile.TemporaryDirectory() as tmp_dir, \
+             patch("scripts.run_multimodel_benchmark.create_target_adapter", side_effect=RuntimeError("API key missing")):
+            out = run_multimodel_benchmark(mode="live", tiers=["prompt"], out_dir=tmp_dir)
+            with open(out["jsonl"], "r", encoding="utf-8") as f:
+                first = json.loads(f.readline())
+            self.assertFalse(first["is_valid"])
+            self.assertFalse(first["is_simulated"])
+            self.assertEqual(first["verdict"], -1)
 
 
 if __name__ == "__main__":
