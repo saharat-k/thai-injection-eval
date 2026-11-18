@@ -27,6 +27,29 @@ class SecurityEvaluator:
         self.canaries = agent.load_canaries()
         self.ablation_mode = ablation_mode
 
+    def _bind_case_security_context(self, case: dict, cid: str, blue_role: str, defense: str) -> None:
+        raw_uid = case.get("caller_user_id") or case.get("user_id")
+        uid_str = str(raw_uid).strip() if raw_uid is not None else ""
+        user_id = None if (not uid_str or uid_str.lower() in ("guest", "none", "anonymous")) else uid_str
+        if user_id and user_id.upper().startswith("S"):
+            eff_role = "student"
+        elif user_id and user_id.upper().startswith("P"):
+            eff_role = "professor"
+        else:
+            eff_role = blue_role
+        auth_recipients = tuple(case.get("authorized_recipients") or ["REGISTRAR", "STUDENT_AFFAIRS"])
+        prohibited = tuple(case.get("prohibited_fields") or ["national_id", "salary", "bank_account", "api_key", "master_token"])
+        ctx = SecurityContext(
+            session_id=cid,
+            user_id=user_id,
+            user_role=eff_role,
+            defense_tier=defense,
+            authorized_recipients=auth_recipients,
+            prohibited_fields=prohibited,
+            ablation_mode=self.ablation_mode,
+        )
+        set_current_security_context(ctx)
+
     def run_benchmark(
         self,
         defense: str = "off",
@@ -43,20 +66,7 @@ class SecurityEvaluator:
             targets = case.get("targets", [])
             owasp_cat = case.get("owasp_category") or "OWASP-LLM01:Prompt-Injection"
             severity = case.get("severity") or "High"
-            user_id = case.get("caller_user_id") or case.get("user_id")
-            auth_recipients = tuple(case.get("authorized_recipients") or ["REGISTRAR", "STUDENT_AFFAIRS"])
-            prohibited = tuple(case.get("prohibited_fields") or ["national_id", "salary", "bank_account", "api_key", "master_token"])
-
-            ctx = SecurityContext(
-                session_id=cid,
-                user_id=user_id,
-                user_role="student" if (user_id and user_id.startswith("S")) else blue_role,
-                defense_tier=defense,
-                authorized_recipients=auth_recipients,
-                prohibited_fields=prohibited,
-                ablation_mode=self.ablation_mode,
-            )
-            set_current_security_context(ctx)
+            self._bind_case_security_context(case, cid, blue_role, defense)
 
             self.target.reset()
             try:
@@ -148,15 +158,25 @@ class SecurityEvaluator:
         for defense in defenses:
             for rep in range(1, repeats + 1):
                 for case in self.cases:
+                    self._bind_case_security_context(case, case["id"], blue_role, defense)
                     self.target.reset()
                     if pace > 0 and done > 0:
                         import time
                         time.sleep(pace)
-                    resp = self.target.send(case["prompt"], defense=defense, blue_role=blue_role)
+                    try:
+                        resp = self.target.send(case["prompt"], defense=defense, blue_role=blue_role)
+                    finally:
+                        set_current_security_context(None)
                     done += 1
                     m_used = resp.metadata.get("model_used") or getattr(agent, "BLUE_MODEL", "unknown")
                     if m_used and m_used not in models_seen:
                         models_seen.append(m_used)
+                    row_targets = list(
+                        case.get("targets")
+                        or (case.get("evaluation") or {}).get("expected_tokens")
+                        or (case.get("judge") or {}).get("expected_canary")
+                        or []
+                    )
                     base = {
                         "id": case["id"],
                         "pair_id": case["pair_id"],
@@ -165,6 +185,8 @@ class SecurityEvaluator:
                         "is_benign": case["is_benign"],
                         "defense": defense,
                         "repeat": rep,
+                        "owasp_category": case.get("owasp_category", ""),
+                        "targets": row_targets,
                     }
                     if resp.error:
                         row = {**base, "success": -1, "matched": [], "error": resp.error,

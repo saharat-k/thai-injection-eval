@@ -1080,14 +1080,19 @@ def run_case(case, canaries, defense, max_attempts, blue_role="registrar_staff",
     effective_red = red_model or RED_MODEL
 
     attack_type = case.get("attack_type", "direct")
+    is_benign_case = bool(case.get("is_benign") or attack_type == "benign")
     history, last = [], None
     last_resp = ""
     any_accessed = False
     any_blocked = False
-    for attempt in range(1, max_attempts + 1):
+    eff_attempts = 1 if is_benign_case else max_attempts
+    for attempt in range(1, eff_attempts + 1):
         red_meta = {}
         strat = case.get("strategy", "template")
-        if attempt == 1 or attack_type == "indirect" or (attack_type == "recon" and extract_discovered_tables(last_resp)):
+        if is_benign_case:
+            attack = case.get("prompt", "")
+            red_meta = {"strategy": "Benign Control"}
+        elif attempt == 1 or attack_type == "indirect" or (attack_type == "recon" and extract_discovered_tables(last_resp)):
             attack, red_meta = build_fallback_attack(case, attempt, last_resp, strategy=strat)
         else:
             try:

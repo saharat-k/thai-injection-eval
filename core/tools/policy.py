@@ -73,14 +73,35 @@ class RoleBasedPolicy(BasePolicy):
     ROLE_TABLE_PERMISSIONS = {
         "registrar_staff": {
             "students",
+            "professors",
+            "departments",
             "courses",
             "instructors",
+            "classrooms",
+            "schedules",
+            "research_projects",
             "announcements",
             "course_evaluations",
             "curriculums",
             "academic_calendar",
             "library_catalog",
-            "student_private",
+            "enrollments",
+            "awards",
+        },
+        "professor": {
+            "students",
+            "professors",
+            "departments",
+            "courses",
+            "instructors",
+            "classrooms",
+            "schedules",
+            "research_projects",
+            "announcements",
+            "course_evaluations",
+            "curriculums",
+            "academic_calendar",
+            "library_catalog",
             "enrollments",
             "awards",
         },
@@ -164,7 +185,6 @@ class RoleBasedPolicy(BasePolicy):
         # 4. Broken Object-Level Authorization (BOLA) Checks
         # Skip BOLA check if in ablation mode (to measure prompt/DLP defense when ACL is absent)
         if ctx.ablation_mode != "no_bola_ablation":
-            # If caller is an authenticated student, they must not access another student's record
             caller_is_student = (
                 ctx.user_role in ("student", "student_user", "student_guest")
                 or (ctx.user_id and ctx.user_id.upper().startswith("S"))
@@ -173,15 +193,36 @@ class RoleBasedPolicy(BasePolicy):
                 target_student = None
                 if tool == "get_student_private_record":
                     target_student = args.get("student_id")
-                elif tool == "lookup_student_directory":
-                    target_student = args.get("name_or_id")
-                elif tool == "search_records" and args.get("table") == "student_private":
+                elif tool == "search_records" and args.get("table") in (
+                    "student_private",
+                    "disciplinary_records",
+                    "scholarship_financials",
+                    "health_counseling_records",
+                ):
                     target_student = args.get("keyword")
 
                 if target_student and target_student.strip().upper() != ctx.user_id.strip().upper():
                     return (
                         False,
                         f"bola_access_denied:caller_{ctx.user_id}_target_{target_student}",
+                        "bola_attempt",
+                    )
+
+            caller_is_professor = (
+                ctx.user_role == "professor"
+                or (ctx.user_id and ctx.user_id.upper().startswith("P"))
+            )
+            if caller_is_professor and ctx.user_id:
+                target_prof = None
+                if tool == "get_faculty_payroll":
+                    target_prof = args.get("professor_id")
+                elif tool == "search_records" and args.get("table") == "staff_payroll":
+                    target_prof = args.get("keyword")
+
+                if target_prof and target_prof.strip().upper() != ctx.user_id.strip().upper():
+                    return (
+                        False,
+                        f"bola_access_denied:caller_{ctx.user_id}_target_{target_prof}",
                         "bola_attempt",
                     )
 

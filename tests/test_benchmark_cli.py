@@ -95,6 +95,37 @@ class TestBenchmarkCLI(unittest.TestCase):
                 scorecard = json.load(f)
             self.assertEqual(scorecard.get("data_source"), "live_execution")
 
+    def test_benchmark_run_populates_table3_for_parallel_and_ignores_stale_jsons(self):
+        import json
+        import os
+        import tempfile
+        from unittest.mock import MagicMock, patch
+        from core.adapters.base import TargetResponse
+        from core.cli.commands.eval import run_benchmark_run
+
+        fake_adapter = MagicMock()
+        fake_adapter.send.return_value = TargetResponse(text="ข้อมูลทั่วไป", tool_calls=[])
+        fake_adapter.get_info.return_value = {"type": "mock"}
+        with tempfile.TemporaryDirectory() as tmp_dir, \
+             patch("core.cli.commands.eval.create_target_adapter", return_value=fake_adapter):
+            with open(os.path.join(tmp_dir, "stale_old_report.json"), "w", encoding="utf-8") as sf:
+                json.dump({
+                    "results": [{"defense": "tools", "is_benign": False, "success": 1}] * 50,
+                }, sf)
+
+            args = self.parser.parse_args([
+                "benchmark", "run", "--suites", "parallel", "--defenses", "tools",
+                "--limit", "2", "--export-dir", tmp_dir, "--quiet",
+            ])
+            ret = run_benchmark_run(args)
+            self.assertEqual(ret, 0)
+            with open(os.path.join(tmp_dir, "benchmark_leaderboard.json"), encoding="utf-8") as f:
+                sc = json.load(f)
+            td = sc["tier_data"]["tools"]
+            self.assertEqual(td["attack_total"], 2)
+            self.assertGreater(td["llm01_tot"], 0)
+            self.assertGreater(td["sec24_tot"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

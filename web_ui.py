@@ -473,22 +473,23 @@ def _aggregate_leaderboard_from_csv(csv_path: str) -> dict:
 
     out = {}
     for dt, b in acc.items():
-        asr = _pct_1(b["succ"], b["adv"])
-        frr = _pct_1(b["fr"], b["ben"])
+        asr = _pct_1(b["succ"], b["adv"]) if b["adv"] > 0 else None
+        frr = _pct_1(b["fr"], b["ben"]) if b["ben"] > 0 else None
+        des = _unified_des_pct(asr, frr or 0.0) if asr is not None else None
         out[dt] = {
             "name": _LEADERBOARD_TIER_LABELS.get(dt, dt.upper()),
             "asr": asr,
-            "des": _unified_des_pct(asr, frr),
+            "des": des,
             "tvr": asr,
             "frr": frr,
-            "th_asr": _pct_1(b["th_succ"], b["th_adv"]),
-            "en_asr": _pct_1(b["en_succ"], b["en_adv"]),
-            "mix_asr": _pct_1(b["mix_succ"], b["mix_adv"]),
-            "llm01_asr": asr,
-            "llm02_asr": asr,
-            "llm06_asr": asr,
-            "sec24_leak": asr,
-            "sec26_leak": asr,
+            "th_asr": _pct_1(b["th_succ"], b["th_adv"]) if b["th_adv"] > 0 else None,
+            "en_asr": _pct_1(b["en_succ"], b["en_adv"]) if b["en_adv"] > 0 else None,
+            "mix_asr": _pct_1(b["mix_succ"], b["mix_adv"]) if b["mix_adv"] > 0 else None,
+            "llm01_asr": None,
+            "llm02_asr": None,
+            "llm06_asr": None,
+            "sec24_leak": None,
+            "sec26_leak": None,
         }
     return out
 
@@ -508,7 +509,7 @@ def api_benchmark_leaderboard():
             with open(lb_json, "r", encoding="utf-8") as f:
                 doc = json.load(f)
             raw_tiers = doc.get("tier_data")
-            if isinstance(raw_tiers, dict) and raw_tiers:
+            if isinstance(raw_tiers, dict) and raw_tiers and doc.get("data_source"):
                 tier_data = {
                     dt: _format_tier_counts_for_leaderboard(dt, td)
                     for dt, td in raw_tiers.items()

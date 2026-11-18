@@ -141,6 +141,18 @@ class OpenAILikeTargetAdapter(BaseTargetAdapter):
         handler = handlers.get(fn_name)
         return handler() if handler else json.dumps({"error": f"unknown tool '{fn_name}'"})
 
+    @classmethod
+    def _execute_and_record_tool(cls, fn_name: str, fn_args: dict, tool_calls_turn: list[dict]) -> str:
+        """Dispatch tool call and capture authoritative telemetry from agent._tool_calls."""
+        before_idx = len(agent._tool_calls)
+        res = cls._dispatch_tool_call(fn_name, fn_args)
+        new_calls = list(agent._tool_calls[before_idx:])
+        if new_calls:
+            tool_calls_turn.extend(new_calls)
+        else:
+            tool_calls_turn.append({"tool": fn_name, "args": fn_args})
+        return res
+
     def _get_effective_system_prompt(self, defense: str, role: str) -> str:
         """Construct system prompt matching defense tier and role if not custom."""
         if self.system_prompt:
@@ -227,12 +239,7 @@ class OpenAILikeTargetAdapter(BaseTargetAdapter):
                         except Exception:
                             fn_args = {"keyword": str(raw_args)}
 
-                        tool_entry = {"tool": fn_name, "args": fn_args}
-                        tool_calls_turn.append(tool_entry)
-                        if tool_entry not in agent._tool_calls:
-                            agent._tool_calls.append(tool_entry)
-
-                        res = self._dispatch_tool_call(fn_name, fn_args)
+                        res = self._execute_and_record_tool(fn_name, fn_args, tool_calls_turn)
 
                         self.messages.append({
                             "role": "tool",
@@ -241,6 +248,7 @@ class OpenAILikeTargetAdapter(BaseTargetAdapter):
                         })
                 else:
                     reply_text = message.get("content") or ""
+                    raw_reply = reply_text
                     if defense == "all":
                         canaries = agent.load_canaries() if hasattr(agent, "load_canaries") else set()
                         reply_text = agent.apply_defense_output(reply_text, defense, canaries)
@@ -255,6 +263,7 @@ class OpenAILikeTargetAdapter(BaseTargetAdapter):
                     "role": role,
                     "model": self.model,
                     "base_url": self.base_url,
+                    "raw_text": raw_reply if "raw_reply" in locals() else reply_text,
                 },
             )
 

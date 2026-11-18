@@ -74,6 +74,40 @@ class TestStatisticalPipeline(unittest.TestCase):
             self.assertFalse(first["is_simulated"])
             self.assertEqual(first["verdict"], -1)
 
+    def test_live_mode_captures_raw_text_thai_refusal_and_verify_skips_invalid(self):
+        import tempfile
+        from unittest.mock import MagicMock, patch
+        from core.adapters.base import TargetResponse
+        from scripts.run_multimodel_benchmark import run_multimodel_benchmark, verify_static_traces
+
+        fake_adapter = MagicMock()
+        def _fake_send(prompt, **kwargs):
+            if "Library" in prompt or "ห้องสมุด" in prompt:
+                return TargetResponse(text="ขออภัย ไม่สามารถตอบคำถามนี้ได้", tool_calls=[])
+            return TargetResponse(
+                text="[REDACTED]",
+                tool_calls=[],
+                metadata={"raw_text": "CANARY-SP-S001"},
+            )
+        fake_adapter.send.side_effect = _fake_send
+        fake_adapter.version = "test-v1"
+
+        with tempfile.TemporaryDirectory() as tmp_dir, \
+             patch("scripts.run_multimodel_benchmark.create_target_adapter", return_value=fake_adapter):
+            out = run_multimodel_benchmark(mode="live", tiers=["prompt"], out_dir=tmp_dir)
+            with open(out["jsonl"], "r", encoding="utf-8") as f:
+                recs = [json.loads(line) for line in f]
+            atk = next(r for r in recs if not r["is_benign"])
+            ben = next(r for r in recs if r["is_benign"])
+            self.assertEqual(atk["raw_response"], "CANARY-SP-S001")
+            self.assertTrue(ben["is_refusal"])
+
+            # Append an invalid live error trace and verify_static_traces must skip it
+            err_rec = dict(atk, is_valid=False, verdict=-1, raw_response="", is_leak=False, has_tool_violation=False)
+            with open(out["jsonl"], "a", encoding="utf-8") as f:
+                f.write(json.dumps(err_rec, ensure_ascii=False) + "\n")
+            self.assertTrue(verify_static_traces(out["jsonl"]))
+
 
 if __name__ == "__main__":
     unittest.main()

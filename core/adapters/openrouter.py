@@ -10,10 +10,9 @@ import agent
 from core.adapters.base import TargetResponse
 from core.adapters.openai_like import OpenAILikeTargetAdapter
 
-# Approved Free-Tier Models on OpenRouter (Hard Quota Invariant)
+# Approved Free-Tier Models on OpenRouter (Hard Quota Invariant - GEMINI.md Rule 2)
 APPROVED_OPENROUTER_MODELS = {
     "openrouter/free",
-    "meta-llama/llama-3.3-70b-instruct:free",
     "meta-llama/llama-3.1-8b-instruct:free",
     "qwen/qwen-2.5-72b-instruct:free",
     "mistralai/mistral-7b-instruct:free",
@@ -38,13 +37,16 @@ class OpenRouterTargetAdapter(OpenAILikeTargetAdapter):
         if "model" in kwargs and "model" not in cfg:
             cfg["model"] = kwargs["model"]
         if "model" not in cfg or not cfg["model"]:
-            cfg["model"] = "meta-llama/llama-3.3-70b-instruct:free"
+            cfg["model"] = "openrouter/free"
 
-        # Quota Protection Gate: Enforce free tier model invariant in live calls
-        # (Allows testing mock models if prefixed with meta-llama or free)
-        model_name = cfg["model"]
-        if not (model_name.endswith(":free") or model_name == "openrouter/free" or "meta-llama" in model_name):
-            # In testing/benchmarking, fail-fast on paid endpoints
+        # Strip routing prefix ("openrouter:openrouter/free" -> "openrouter/free")
+        model_name = str(cfg["model"]).strip()
+        if model_name.startswith("openrouter:"):
+            model_name = model_name.split(":", 1)[1].strip()
+            cfg["model"] = model_name
+
+        # Quota Protection Gate: Enforce approved free-tier roster strictly
+        if model_name not in APPROVED_OPENROUTER_MODELS or "llama-3.3-70b-instruct" in model_name.lower():
             raise ValueError(
                 f"Quota Protection Gate: Model '{model_name}' is not in approved free-tier roster. "
                 f"Approved models: {sorted(list(APPROVED_OPENROUTER_MODELS))}"
@@ -147,12 +149,7 @@ class OpenRouterTargetAdapter(OpenAILikeTargetAdapter):
                         except Exception:
                             fn_args = {"keyword": str(raw_args)}
 
-                        tool_entry = {"tool": fn_name, "args": fn_args}
-                        tool_calls_turn.append(tool_entry)
-                        if tool_entry not in agent._tool_calls:
-                            agent._tool_calls.append(tool_entry)
-
-                        res = self._dispatch_tool_call(fn_name, fn_args)
+                        res = self._execute_and_record_tool(fn_name, fn_args, tool_calls_turn)
 
                         self.messages.append({
                             "role": "tool",
@@ -161,15 +158,19 @@ class OpenRouterTargetAdapter(OpenAILikeTargetAdapter):
                         })
                 else:
                     reply_text = message.get("content") or ""
+                    raw_reply = reply_text
                     if defense == "all":
-                        reply_text = agent.apply_defense_output(reply_text, defense)
+                        canaries = agent.load_canaries() if hasattr(agent, "load_canaries") else set()
+                        reply_text = agent.apply_defense_output(reply_text, defense, canaries)
                     break
 
             self.messages.append({"role": "assistant", "content": reply_text})
+            meta = dict(self.last_provider_metadata)
+            meta["raw_text"] = raw_reply if "raw_reply" in locals() else reply_text
             return TargetResponse(
                 text=reply_text,
                 tool_calls=tool_calls_turn,
-                metadata=dict(self.last_provider_metadata),
+                metadata=meta,
             )
         except Exception as e:
             return TargetResponse(
