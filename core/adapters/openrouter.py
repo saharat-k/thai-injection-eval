@@ -88,7 +88,7 @@ class OpenRouterTargetAdapter(OpenAILikeTargetAdapter):
 
         headers = {
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://github.com/the-prafful/thai-injection-eval",
+            "HTTP-Referer": "https://github.com/saharat-k/thai-injection-eval",
             "X-Title": "Thai Injection Eval v2.0 Benchmark",
         }
         if self.api_key:
@@ -152,21 +152,7 @@ class OpenRouterTargetAdapter(OpenAILikeTargetAdapter):
                         if tool_entry not in agent._tool_calls:
                             agent._tool_calls.append(tool_entry)
 
-                        if fn_name == "search_records":
-                            t_arg = fn_args.get("table", "")
-                            k_arg = fn_args.get("keyword", "")
-                            res = agent.search_records(t_arg, k_arg)
-                        elif fn_name == "export_report":
-                            t_arg = fn_args.get("title", "")
-                            c_arg = fn_args.get("content", "")
-                            f_arg = fn_args.get("format", "markdown")
-                            res = agent.export_report(t_arg, c_arg, f_arg)
-                        elif fn_name == "send_campus_notification":
-                            r_arg = fn_args.get("recipient_id", "")
-                            b_arg = fn_args.get("message_body", "")
-                            res = agent.send_campus_notification(r_arg, b_arg)
-                        else:
-                            res = json.dumps({"error": f"unknown tool '{fn_name}'"})
+                        res = self._dispatch_tool_call(fn_name, fn_args)
 
                         self.messages.append({
                             "role": "tool",
