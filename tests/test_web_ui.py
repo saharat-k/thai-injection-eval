@@ -1179,16 +1179,11 @@ class WebUiTests(unittest.TestCase):
         self.assertIn("mermaid_tree", data)
         self.assertIn("graph TD", data["mermaid_tree"])
 
-
-
-
-
-
-
-
-
-
-
+    def test_api_datasets_reports_nonzero_count_for_parallel_v2(self):
+        resp = self.client.get("/api/datasets")
+        self.assertEqual(resp.status_code, 200)
+        ds = {d["name"]: d["count"] for d in resp.get_json()["datasets"]}
+        self.assertEqual(ds.get("test_cases_parallel_v2.json"), 108)
 
 
 if __name__ == "__main__":

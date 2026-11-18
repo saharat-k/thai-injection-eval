@@ -1057,6 +1057,9 @@ def load_test_cases(path="test_cases.json"):
                 break
     with open(target_path, "r", encoding="utf-8") as f:
         data = json.load(f)
+    if isinstance(data, dict) and "scenarios" in data and "cases" not in data:
+        from core.evaluator.parallel import expand_scenarios_to_cases
+        return expand_scenarios_to_cases(data)
     cases = data.get("cases", data) if isinstance(data, dict) else data
     for c in cases:
         if isinstance(c, dict):

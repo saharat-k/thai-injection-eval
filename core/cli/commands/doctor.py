@@ -66,6 +66,7 @@ def run_diagnostics() -> Dict[str, Any]:
 
     # 4. Benchmark & Test Data
     datasets = [
+        ("Parallel v2 (Dataset A)", ["data/normalized/test_cases_parallel_v2.json"]),
         ("Parallel Cases", ["data/normalized/test_cases_parallel.json", "data/test_cases_parallel.json"]),
         ("Probing Cases", ["data/normalized/test_cases_probing.json", "data/test_cases_probing.json"]),
         ("Baseline Cases", ["data/normalized/test_cases.json", "data/test_cases.json"]),

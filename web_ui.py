@@ -183,8 +183,15 @@ def list_normalized_datasets():
                 try:
                     with open(fp, "r", encoding="utf-8") as jf:
                         content = json.load(jf)
-                    cases = content.get("cases", content) if isinstance(content, dict) else content
-                    count = len(cases) if isinstance(cases, list) else 0
+                    if isinstance(content, dict) and "scenarios" in content and "cases" not in content:
+                        count = sum(
+                            len(s.get("variants", {}))
+                            for s in content.get("scenarios", [])
+                            if isinstance(s, dict)
+                        )
+                    else:
+                        cases = content.get("cases", content) if isinstance(content, dict) else content
+                        count = len(cases) if isinstance(cases, list) else 0
                 except Exception:
                     count = 0
                 datasets.append({"name": f, "path": fp, "count": count})

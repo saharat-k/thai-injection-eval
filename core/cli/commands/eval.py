@@ -16,6 +16,7 @@ from core.evaluator.reporter import (
 )
 from core.evaluator.parallel import (
     DEFAULT_PARALLEL_PATH,
+    expand_scenarios_to_cases,
     file_sha256,
     load_parallel_document,
     validate_parallel_document,
@@ -45,6 +46,15 @@ def _find_case_file(filename: str) -> str:
     return filename
 
 
+def _extract_cases_from_payload(raw_data) -> list[dict]:
+    """Normalize either legacy flat 'cases' lists or Dataset A v2.0 'scenarios' objects."""
+    if isinstance(raw_data, dict):
+        if "scenarios" in raw_data and "cases" not in raw_data:
+            return expand_scenarios_to_cases(raw_data)
+        return raw_data.get("cases", [])
+    return raw_data if isinstance(raw_data, list) else []
+
+
 def run_eval_list(args) -> int:
     """List available evaluation test cases."""
     fmt = getattr(args, "format", "table")
@@ -72,7 +82,7 @@ def run_eval_list(args) -> int:
     try:
         with open(cases_file, "r", encoding="utf-8") as f:
             raw_data = json.load(f)
-            cases = raw_data.get("cases", raw_data) if isinstance(raw_data, dict) else raw_data
+            cases = _extract_cases_from_payload(raw_data)
     except Exception as e:
         print(f"[-] Failed to load cases file {cases_file}: {e}", file=sys.stderr)
         return 2
@@ -115,6 +125,7 @@ def run_eval_info(args) -> int:
 
     # Search across baseline, parallel, probing, indirect, and linguistic datasets
     files = [
+        _find_case_file("test_cases_parallel_v2.json"),
         _find_case_file("test_cases_parallel.json"),
         _find_case_file("test_cases_linguistic.json"),
         _find_case_file("test_cases_indirect.json"),
@@ -130,7 +141,7 @@ def run_eval_info(args) -> int:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 d = json.load(f)
-                cases = d.get("cases", d) if isinstance(d, dict) else d
+                cases = _extract_cases_from_payload(d)
                 for c in cases:
                     if str(c.get("id", "")).upper() == case_id.upper():
                         target_case = c
@@ -212,7 +223,7 @@ def run_eval_run(args) -> int:
         try:
             with open(cases_file, "r", encoding="utf-8") as f:
                 d = json.load(f)
-                cases = d.get("cases", d) if isinstance(d, dict) else d
+                cases = _extract_cases_from_payload(d)
         except Exception as e:
             print(f"[-] Error loading custom cases {cases_file}: {e}", file=sys.stderr)
             return 2

@@ -1,5 +1,6 @@
 """Offline unit tests for the parallel 3-language benchmark, rule-based judge, and Wilson 95% CI."""
 import io
+import os
 import unittest
 from contextlib import redirect_stdout
 
@@ -260,6 +261,19 @@ class TestReproduciblePublishingAndMakeReport(unittest.TestCase):
                 json.dump(summary_doc, f)
             with self.assertRaises(ValueError):
                 generate_published_artifacts(published_dir=tmpdir)
+
+    def test_load_test_cases_and_parallel_document_support_v2_scenarios(self):
+        import agent
+        v2_path = os.path.join("data", "normalized", "test_cases_parallel_v2.json")
+        cases = agent.load_test_cases(v2_path)
+        self.assertEqual(len(cases), 108)
+        self.assertEqual({c["lang"] for c in cases}, {"EN", "TH", "MIX"})
+        doc = load_parallel_document(v2_path)
+        self.assertEqual(len(doc["cases"]), 108)
+        self.assertEqual(validate_parallel_document(doc), [])
+        benign_case = next(c for c in doc["cases"] if c["is_benign"] and c["lang"] == "TH")
+        self.assertEqual(judge_case(benign_case, "ห้องสมุดเปิดให้บริการเวลา 08:30-20:00 น.")["success"], 0)
+        self.assertEqual(judge_case(benign_case, "ขออภัย ไม่สามารถให้ข้อมูลได้")["success"], 1)
 
 
 if __name__ == "__main__":
