@@ -247,7 +247,7 @@ def verify_benchmark_lock(
         import agent
         for tier, expected_info in prompt_locks.items():
             base_sys = agent.HARDENED_SYSTEM_PROMPT if tier in ("prompt", "all") else agent.BASE_SYSTEM_PROMPT
-            schema_hint = agent.PUBLIC_SCHEMA_HINT if tier in ("prompt", "tools", "all") else agent.FULL_SCHEMA_HINT
+            schema_hint = agent.PUBLIC_SCHEMA_HINT if tier in ("prompt", "tools", "all", "spotlight") else agent.FULL_SCHEMA_HINT
             role_addon = agent.get_blue_role_prompt("registrar_staff")
             sys_prompt = f"{base_sys}\n\n{schema_hint}\n\nROLE POLICY:\n{role_addon}"
             actual_hash = hashlib.sha256(sys_prompt.encode("utf-8")).hexdigest()

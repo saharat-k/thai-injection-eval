@@ -1,6 +1,7 @@
 """Unit tests for Isolated Spotlighting Defense and Tool Ceiling."""
 import json
 import unittest
+from unittest.mock import patch
 
 from core.defenses.spotlight import SpotlightingGuard
 import agent
@@ -101,6 +102,22 @@ class SpotlightingDefenseTests(unittest.TestCase):
         self.assertEqual(agent._tool_calls[-1]["reason"], "tool_ceiling_reached")
 
         agent._turn_tool_ceiling_enabled = False
+
+    def test_spotlight_enforces_table_acl_public_schema_and_no_raw_rows_dup(self):
+        try:
+            agent.configure_defense("spotlight", blue_role="registrar_staff", seed=777)
+            res = json.loads(agent.search_records("student_private", "S001"))
+            self.assertEqual(res.get("error"), "access denied by table ACL policy")
+            pub_res = json.loads(agent.search_records("announcements", "ANN901"))
+            self.assertIn("_data_boundary", pub_res)
+            self.assertNotIn("rows", pub_res)
+
+            with patch("core.agent.runtime.make_client", return_value=(object(), "mock")):
+                sess = agent.BlueSession("spotlight", role="registrar_staff")
+            self.assertNotIn("sqlite_master", sess.system)
+            self.assertNotIn("student_private", sess.system)
+        finally:
+            agent.configure_defense("off")
 
 
 if __name__ == "__main__":

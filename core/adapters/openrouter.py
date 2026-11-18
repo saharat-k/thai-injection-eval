@@ -175,12 +175,8 @@ class OpenRouterTargetAdapter(OpenAILikeTargetAdapter):
                         })
                 else:
                     reply_text = message.get("content") or ""
-                    if defense in ("all", "spotlight"):
-                        canaries = agent.load_canaries() if hasattr(agent, "load_canaries") else set()
-                        for c in canaries:
-                            if c in reply_text:
-                                reply_text = "[REDACTED - DLP SECURITY FILTER]"
-                                break
+                    if defense == "all":
+                        reply_text = agent.apply_defense_output(reply_text, defense)
                     break
 
             self.messages.append({"role": "assistant", "content": reply_text})

@@ -53,7 +53,7 @@ def build_prompt_fixtures():
     for tier in tiers:
         for role in roles:
             base_sys = agent.core_prompts.HARDENED_SYSTEM_PROMPT if tier in ("prompt", "all") else agent.core_prompts.BASE_SYSTEM_PROMPT
-            schema_hint = agent.core_prompts.PUBLIC_SCHEMA_HINT if tier in ("prompt", "tools", "all") else agent.core_prompts.FULL_SCHEMA_HINT
+            schema_hint = agent.core_prompts.PUBLIC_SCHEMA_HINT if tier in ("prompt", "tools", "all", "spotlight") else agent.core_prompts.FULL_SCHEMA_HINT
             role_addon = agent.core_prompts.get_blue_role_prompt(role)
             system = f"{base_sys}\n\n{schema_hint}"
             if role_addon:

@@ -10,6 +10,7 @@ import json
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, Set, Tuple
 
+from core.defenses.dlp import detect_leaked_canaries
 from core.tools.context import SecurityContext
 
 
@@ -104,6 +105,9 @@ class RoleBasedPolicy(BasePolicy):
             "student_private",
             "staff_payroll",
             "internal_secrets",
+            "disciplinary_records",
+            "scholarship_financials",
+            "health_counseling_records",
             "enrollments",
             "awards",
             "sqlite_master",
@@ -132,17 +136,18 @@ class RoleBasedPolicy(BasePolicy):
         # 1. Side-channel Canary Leak Detection in Tool Arguments
         if canaries:
             args_str = json.dumps(args, ensure_ascii=False)
-            for canary in canaries:
-                if canary and canary in args_str:
-                    return False, f"canary_in_tool_args:{canary}", "tool_sidechannel_leak"
+            leaked = detect_leaked_canaries(args_str, canaries, extended_decoders=True)
+            if leaked:
+                return False, f"canary_in_tool_args:{sorted(list(leaked))}", "tool_sidechannel_leak"
 
         # 2. Action Hijacking Check for Campus Notifications
         if tool == "send_campus_notification":
-            recipient = str(args.get("recipient", "")).strip().upper()
+            raw_recipient = str(args.get("recipient_id") or args.get("recipient") or "")
+            recipient = raw_recipient.strip().upper()
             if recipient not in [r.upper() for r in ctx.authorized_recipients]:
                 return (
                     False,
-                    f"unauthorized_recipient_hijack:{recipient}",
+                    f"unauthorized_recipient_hijack:{raw_recipient}",
                     "action_hijack_attempt",
                 )
 
@@ -160,7 +165,11 @@ class RoleBasedPolicy(BasePolicy):
         # Skip BOLA check if in ablation mode (to measure prompt/DLP defense when ACL is absent)
         if ctx.ablation_mode != "no_bola_ablation":
             # If caller is an authenticated student, they must not access another student's record
-            if ctx.user_role == "student" or (ctx.user_id and ctx.user_id.startswith("S")):
+            caller_is_student = (
+                ctx.user_role in ("student", "student_user", "student_guest")
+                or (ctx.user_id and ctx.user_id.upper().startswith("S"))
+            )
+            if caller_is_student and ctx.user_id:
                 target_student = None
                 if tool == "get_student_private_record":
                     target_student = args.get("student_id")
@@ -169,7 +178,7 @@ class RoleBasedPolicy(BasePolicy):
                 elif tool == "search_records" and args.get("table") == "student_private":
                     target_student = args.get("keyword")
 
-                if target_student and ctx.user_id and target_student.strip() != ctx.user_id.strip():
+                if target_student and target_student.strip().upper() != ctx.user_id.strip().upper():
                     return (
                         False,
                         f"bola_access_denied:caller_{ctx.user_id}_target_{target_student}",

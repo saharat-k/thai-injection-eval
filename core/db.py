@@ -51,7 +51,7 @@ def get_session_user_context() -> tuple[Optional[str], Optional[str]]:
         try:
             from core.tools.context import get_current_security_context
             ctx = get_current_security_context()
-            if ctx.user_id or (ctx.user_role and ctx.user_role != "guest"):
+            if ctx.user_id:
                 return ctx.user_id, ctx.user_role
         except Exception:
             pass

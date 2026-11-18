@@ -204,7 +204,7 @@ class BlueSession:
         model_spec = model or BLUE_MODEL
         self.client, self.model = make_client(model_spec)
         base_sys = HARDENED_SYSTEM_PROMPT if defense in ("prompt", "all") else BASE_SYSTEM_PROMPT
-        schema_hint = PUBLIC_SCHEMA_HINT if defense in ("prompt", "tools", "all") else FULL_SCHEMA_HINT
+        schema_hint = PUBLIC_SCHEMA_HINT if defense in ("prompt", "tools", "all", "spotlight") else FULL_SCHEMA_HINT
         role_addon = get_blue_role_prompt(self.role)
         self.system = f"{base_sys}\n\n{schema_hint}"
         if role_addon:

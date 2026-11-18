@@ -76,7 +76,6 @@ class SpotlightingGuard:
 
         payload = {
             "columns": cols,
-            "rows": safe_rows,
             "_spotlight_delimiter": active_delimiter,
             "_data_boundary": boundary_framing,
         }

@@ -87,7 +87,7 @@ class OpenAILikeTargetAdapter(BaseTargetAdapter):
         if self.system_prompt:
             return self.system_prompt
         base_sys = agent.HARDENED_SYSTEM_PROMPT if defense in ("prompt", "all") else agent.BASE_SYSTEM_PROMPT
-        schema_hint = agent.PUBLIC_SCHEMA_HINT if defense in ("prompt", "tools", "all") else agent.FULL_SCHEMA_HINT
+        schema_hint = agent.PUBLIC_SCHEMA_HINT if defense in ("prompt", "tools", "all", "spotlight") else agent.FULL_SCHEMA_HINT
         role_addon = agent.get_blue_role_prompt(role)
         sys_text = f"{base_sys}\n\n{schema_hint}"
         if role_addon:
