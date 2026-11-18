@@ -122,6 +122,38 @@ class TestTreeBeamSearch(unittest.TestCase):
         self.assertEqual(len(report.results), 2)
         self.assertEqual(report.strategy, "tree")
 
+    def test_tree_runner_isolates_sibling_branch_history_and_reconstructs_lineage(self):
+        class HistoryRecordingAdapter(BaseTargetAdapter):
+            def __init__(self):
+                super().__init__({})
+                self.current_history = []
+                self.observed_histories = []
+
+            def reset(self):
+                self.current_history = []
+
+            def send(self, prompt, **kwargs):
+                self.current_history.append(prompt)
+                self.observed_histories.append(list(self.current_history))
+                return TargetResponse(text="ข้อมูลทั่วไปของหลักสูตร", tool_calls=[])
+
+            def get_info(self):
+                return {"type": "history_recorder"}
+
+        adapter = HistoryRecordingAdapter()
+        runner = TreeBeamRedTeamRunner(
+            target_adapter=adapter,
+            beam_width=1,
+            branch_factor=2,
+            max_depth=2,
+            defense="tools",
+            dry_run=True,
+        )
+        runner.run_tree_case({"id": "TREE-ISO-01", "prompt": "Root", "language": "th"})
+        depth1 = [h for h in adapter.observed_histories if len(h) == 1]
+        self.assertGreaterEqual(len(depth1), 2)
+        self.assertTrue(all(len(h) <= 2 for h in adapter.observed_histories))
+
 
 if __name__ == "__main__":
     unittest.main()

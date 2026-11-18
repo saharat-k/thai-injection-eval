@@ -249,27 +249,41 @@ class TreeBeamRedTeamRunner(MultiTurnRedTeamRunner):
                 on_turn_callback(case, turn, turn.turn_no, res.max_attempts)
         return res
 
+    @staticmethod
+    def _get_ancestor_nodes(
+        node: TreeNode,
+        node_map: Optional[Dict[str, TreeNode]],
+    ) -> List[TreeNode]:
+        """Return ancestor nodes from depth 1 down to node's immediate parent (excluding root)."""
+        if not node_map:
+            return []
+        ancestors: List[TreeNode] = []
+        curr = node_map.get(node.parent_id or "")
+        while curr and curr.node_id != "root":
+            ancestors.insert(0, curr)
+            curr = node_map.get(curr.parent_id or "")
+        return ancestors
+
     def _generate_branch_prompt(
         self,
         case: dict,
         parent: TreeNode,
         depth: int,
         branch_idx: int,
+        node_map: Optional[Dict[str, TreeNode]] = None,
     ) -> Tuple[str, Dict[str, str]]:
         """Generate a diverse prompt mutation for a specific child branch."""
         # 1. If live Red LLM is available and not in dry-run mode
         has_any_key = any(os.getenv(k) for k in ("GEMINI_API_KEY", "OPENROUTER_API_KEY", "GITHUB_TOKEN", "GROQ_API_KEY"))
         if not self.dry_run and has_any_key:
             try:
-                # Reconstruct lineage history for red model context
+                # Reconstruct full root-to-parent lineage history for red model context
                 history: List[Tuple[str, str]] = []
                 curr: Optional[TreeNode] = parent
-                while curr and curr.parent_id is not None:
-                    history.insert(0, (curr.prompt, curr.response))
-                    # Note: We traverse via parent_id if tracked in a map, or simplified lineage
-                    break
-                if parent.prompt and parent.response:
-                    history.append((parent.prompt, parent.response))
+                while curr and curr.node_id != "root":
+                    if curr.prompt and curr.response:
+                        history.insert(0, (curr.prompt, curr.response))
+                    curr = node_map.get(curr.parent_id or "") if node_map else None
 
                 # Inject branch diversity hint
                 strategy_variant = "tap" if branch_idx == 0 else ("crescendo" if branch_idx == 1 else "template")
@@ -315,12 +329,21 @@ class TreeBeamRedTeamRunner(MultiTurnRedTeamRunner):
 
         return prompt, {"strategy": strat, "branch_idx": str(branch_idx), "analysis": f"Tree Depth {depth} Branch {branch_idx}"}
 
-    def _evaluate_node(self, node: TreeNode, case: dict, expected_tokens: List[str]) -> TreeNode:
-        """Evaluate a single tree node against the target adapter."""
+    def _evaluate_node(
+        self,
+        node: TreeNode,
+        case: dict,
+        expected_tokens: List[str],
+        ancestor_prompts: Optional[List[str]] = None,
+    ) -> TreeNode:
+        """Evaluate a single tree node against the target adapter with isolated branch history."""
         if not self.dry_run and self.pacing_delay > 0:
             time.sleep(self.pacing_delay)
 
         with self._target_lock:
+            self.target.reset()
+            for anc_prompt in ancestor_prompts or []:
+                self.target.send(anc_prompt, defense=self.defense, blue_role=self.blue_role)
             resp = self.target.send(node.prompt, defense=self.defense, blue_role=self.blue_role)
 
         resp_text = resp.text or ""
@@ -392,6 +415,7 @@ class TreeBeamRedTeamRunner(MultiTurnRedTeamRunner):
             metadata={"description": "Baseline Initial Root Prompt"},
         )
 
+        node_map: Dict[str, TreeNode] = {"root": root}
         active_beam: List[TreeNode] = [root]
         winning_node: Optional[TreeNode] = None
         turn_to_breach: Optional[int] = None
@@ -409,7 +433,9 @@ class TreeBeamRedTeamRunner(MultiTurnRedTeamRunner):
                 for b_idx in range(self.branch_factor):
                     node_counter += 1
                     child_id = f"node_{depth}_{node_counter}"
-                    child_prompt, meta = self._generate_branch_prompt(case, parent_node, depth, b_idx)
+                    child_prompt, meta = self._generate_branch_prompt(
+                        case, parent_node, depth, b_idx, node_map=node_map
+                    )
                     child_node = TreeNode(
                         node_id=child_id,
                         parent_id=parent_node.node_id,
@@ -417,6 +443,7 @@ class TreeBeamRedTeamRunner(MultiTurnRedTeamRunner):
                         prompt=child_prompt,
                         metadata=meta,
                     )
+                    node_map[child_id] = child_node
                     parent_node.children.append(child_node)
                     candidates_this_depth.append(child_node)
                     total_nodes += 1
@@ -424,7 +451,13 @@ class TreeBeamRedTeamRunner(MultiTurnRedTeamRunner):
             # Concurrently evaluate candidate nodes for this depth
             with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
                 futures = [
-                    executor.submit(self._evaluate_node, node, case, expected_tokens)
+                    executor.submit(
+                        self._evaluate_node,
+                        node,
+                        case,
+                        expected_tokens,
+                        [anc.prompt for anc in self._get_ancestor_nodes(node, node_map)],
+                    )
                     for node in candidates_this_depth
                 ]
                 for fut in concurrent.futures.as_completed(futures):
@@ -465,13 +498,6 @@ class TreeBeamRedTeamRunner(MultiTurnRedTeamRunner):
         # Construct lineage turns for report compatibility
         turns: List[RedTeamTurnResult] = []
         target_node = winning_node or (active_beam[0] if active_beam else root)
-        # Reconstruct path from root to chosen node
-        node_map: Dict[str, TreeNode] = {}
-        def _index_tree(n: TreeNode):
-            node_map[n.node_id] = n
-            for ch in n.children:
-                _index_tree(ch)
-        _index_tree(root)
 
         path: List[TreeNode] = []
         curr: Optional[TreeNode] = target_node
