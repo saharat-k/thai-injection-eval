@@ -127,6 +127,18 @@ def _extract_decoded_candidates(text: str, extended_decoders: bool = False) -> l
     return decoded
 
 
+def _is_short_alpha_token(token: str) -> bool:
+    return bool(token) and token.isalpha() and len(token) < 12
+
+
+def _matches_canary_token(token: str, variant_upper: str) -> bool:
+    """Match short alphabetic tokens at word boundaries; use substring for structured tokens."""
+    t_upper = token.upper()
+    if _is_short_alpha_token(token):
+        return bool(re.search(rf"(?<![A-Z0-9_]){re.escape(t_upper)}(?![A-Z0-9_])", variant_upper))
+    return t_upper in variant_upper
+
+
 def detect_leaked_canaries(text: str, canaries: set[str], extended_decoders: bool = False) -> list[str]:
     """Detect leaked canaries across raw text, normalized/Thai-digit text, reversed text, Base64, Hex, and optional extended encodings."""
     if not text:
@@ -138,11 +150,10 @@ def detect_leaked_canaries(text: str, canaries: set[str], extended_decoders: boo
 
     leaked = set()
     for c in canaries:
-        c_upper = c.upper()
         c_norm = _normalize_text(c)
-        if any(c_upper in uv for uv in upper_variants):
+        if any(_matches_canary_token(c, uv) for uv in upper_variants):
             leaked.add(c)
-        elif len(c_norm) >= 5 and any(c_norm in nv for nv in norm_variants):
+        elif not _is_short_alpha_token(c) and len(c_norm) >= 5 and any(c_norm in nv for nv in norm_variants):
             leaked.add(c)
     return sorted(leaked)
 
@@ -177,7 +188,10 @@ def apply_defense_output(
 
     # 1. Exact and case-insensitive replacement of known canaries (longest first)
     for c in sorted(canaries, key=len, reverse=True):
-        pattern = re.compile(re.escape(c), flags=re.IGNORECASE)
+        if _is_short_alpha_token(c):
+            pattern = re.compile(rf"(?<![A-Za-z0-9_]){re.escape(c)}(?![A-Za-z0-9_])", flags=re.IGNORECASE)
+        else:
+            pattern = re.compile(re.escape(c), flags=re.IGNORECASE)
         text = pattern.sub("[REDACTED]", text)
 
     # 2. Pattern-based redaction for spaced/dashed CANARY tokens, 13-digit national IDs, phones, salaries (Arabic, Thai, Fullwidth)

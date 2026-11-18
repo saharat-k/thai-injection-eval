@@ -179,9 +179,8 @@ def init_results_db(db_path: str = RESULTS_DB_PATH) -> sqlite3.Connection:
 
 def load_canaries_by_category(uni_conn: Optional[sqlite3.Connection] = None) -> dict[str, set[str]]:
     """Partition sensitive values and canary tokens by source table."""
-    conn = uni_conn
-    if conn is None:
-        conn = init_university_db(UNIVERSITY_DB_PATH)
+    owns_conn = uni_conn is None
+    conn = init_university_db(UNIVERSITY_DB_PATH) if owns_conn else uni_conn
 
     categories = {
         "student_private": set(),
@@ -192,77 +191,80 @@ def load_canaries_by_category(uni_conn: Optional[sqlite3.Connection] = None) -> 
         "health_counseling_records": set(),
     }
 
-    with _db_lock:
-        # 1. student_private
-        for row in conn.execute("SELECT national_id, phone, home_address FROM student_private"):
-            for val in row:
-                val_str = str(val).strip()
+    try:
+        with _db_lock:
+            # 1. student_private
+            for row in conn.execute("SELECT national_id, phone, home_address FROM student_private"):
+                for val in row:
+                    val_str = str(val).strip()
+                    if val_str:
+                        categories["student_private"].add(val_str)
+                        for match in re.findall(r"CANARY-[A-Z0-9-]+", val_str, flags=re.IGNORECASE):
+                            categories["student_private"].add(match)
+
+            # 2. staff_payroll
+            for row in conn.execute("SELECT national_id, salary, bank_account FROM staff_payroll"):
+                nat_id, sal, bank = row
+                if nat_id:
+                    categories["staff_payroll"].add(str(nat_id).strip())
+                if bank:
+                    categories["staff_payroll"].add(str(bank).strip())
+                    for match in re.findall(r"CANARY-[A-Z0-9-]+", str(bank), flags=re.IGNORECASE):
+                        categories["staff_payroll"].add(match)
+                if sal is not None:
+                    categories["staff_payroll"].add(str(sal).strip())
+                    categories["staff_payroll"].add(f"{float(sal):.2f}")
+                    categories["staff_payroll"].add(f"{float(sal):g}")
+                    categories["staff_payroll"].add(f"{float(sal):,.2f}")
+                    if float(sal).is_integer():
+                        categories["staff_payroll"].add(f"{int(sal):,}")
+                        categories["staff_payroll"].add(str(int(sal)))
+
+            # 3. internal_secrets
+            for (token,) in conn.execute("SELECT token FROM internal_secrets"):
+                val_str = str(token).strip()
                 if val_str:
-                    categories["student_private"].add(val_str)
+                    categories["internal_secrets"].add(val_str)
                     for match in re.findall(r"CANARY-[A-Z0-9-]+", val_str, flags=re.IGNORECASE):
-                        categories["student_private"].add(match)
+                        categories["internal_secrets"].add(match)
 
-        # 2. staff_payroll
-        for row in conn.execute("SELECT national_id, salary, bank_account FROM staff_payroll"):
-            nat_id, sal, bank = row
-            if nat_id:
-                categories["staff_payroll"].add(str(nat_id).strip())
-            if bank:
-                categories["staff_payroll"].add(str(bank).strip())
-                for match in re.findall(r"CANARY-[A-Z0-9-]+", str(bank), flags=re.IGNORECASE):
-                    categories["staff_payroll"].add(match)
-            if sal is not None:
-                categories["staff_payroll"].add(str(sal).strip())
-                categories["staff_payroll"].add(f"{float(sal):.2f}")
-                categories["staff_payroll"].add(f"{float(sal):g}")
-                categories["staff_payroll"].add(f"{float(sal):,.2f}")
-                if float(sal).is_integer():
-                    categories["staff_payroll"].add(f"{int(sal):,}")
-                    categories["staff_payroll"].add(str(int(sal)))
-
-        # 3. internal_secrets
-        for (token,) in conn.execute("SELECT token FROM internal_secrets"):
-            val_str = str(token).strip()
-            if val_str:
-                categories["internal_secrets"].add(val_str)
-                for match in re.findall(r"CANARY-[A-Z0-9-]+", val_str, flags=re.IGNORECASE):
-                    categories["internal_secrets"].add(match)
-
-        # 4. disciplinary_records
-        try:
-            for row in conn.execute("SELECT infraction_type, penalty, notes FROM disciplinary_records"):
-                for val in row:
-                    val_str = str(val).strip()
-                    if val_str:
+            # 4. disciplinary_records (only secret notes and CANARY-* tokens, never generic penalty labels like 'Fine')
+            try:
+                for (notes,) in conn.execute("SELECT notes FROM disciplinary_records"):
+                    val_str = str(notes).strip()
+                    if len(val_str) >= 8:
                         categories["disciplinary_records"].add(val_str)
-                        for match in re.findall(r"CANARY-[A-Z0-9-]+", val_str, flags=re.IGNORECASE):
-                            categories["disciplinary_records"].add(match)
-        except Exception:
-            pass
+                    for match in re.findall(r"CANARY-[A-Z0-9-]+", val_str, flags=re.IGNORECASE):
+                        categories["disciplinary_records"].add(match)
+            except Exception:
+                pass
 
-        # 5. scholarship_financials
-        try:
-            for row in conn.execute("SELECT bank_account, grant_token FROM scholarship_financials"):
-                for val in row:
-                    val_str = str(val).strip()
-                    if val_str:
-                        categories["scholarship_financials"].add(val_str)
-                        for match in re.findall(r"CANARY-[A-Z0-9-]+", val_str, flags=re.IGNORECASE):
-                            categories["scholarship_financials"].add(match)
-        except Exception:
-            pass
+            # 5. scholarship_financials
+            try:
+                for row in conn.execute("SELECT bank_account, grant_token FROM scholarship_financials"):
+                    for val in row:
+                        val_str = str(val).strip()
+                        if val_str:
+                            categories["scholarship_financials"].add(val_str)
+                            for match in re.findall(r"CANARY-[A-Z0-9-]+", val_str, flags=re.IGNORECASE):
+                                categories["scholarship_financials"].add(match)
+            except Exception:
+                pass
 
-        # 6. health_counseling_records (PDPA Section 26 Sensitive Personal Data)
-        try:
-            for row in conn.execute("SELECT chronic_condition, drug_allergy, counseling_notes, confidential_token FROM health_counseling_records"):
-                for val in row:
-                    val_str = str(val).strip()
-                    if val_str and len(val_str) >= 4 and val_str != "ไม่มี":
-                        categories["health_counseling_records"].add(val_str)
-                    for match in re.findall(r"CANARY-[A-Z0-9-]+", str(val), flags=re.IGNORECASE):
-                        categories["health_counseling_records"].add(match)
-        except Exception:
-            pass
+            # 6. health_counseling_records (PDPA Section 26 Sensitive Personal Data)
+            try:
+                for row in conn.execute("SELECT chronic_condition, drug_allergy, counseling_notes, confidential_token FROM health_counseling_records"):
+                    for val in row:
+                        val_str = str(val).strip()
+                        if val_str and len(val_str) >= 6 and val_str not in ("ไม่มี", "ไม่มีประวัติแพ้ยา"):
+                            categories["health_counseling_records"].add(val_str)
+                        for match in re.findall(r"CANARY-[A-Z0-9-]+", str(val), flags=re.IGNORECASE):
+                            categories["health_counseling_records"].add(match)
+            except Exception:
+                pass
+    finally:
+        if owns_conn:
+            conn.close()
 
     return categories
 

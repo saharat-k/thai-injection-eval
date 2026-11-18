@@ -95,15 +95,17 @@ class IndependentSecurityOracle:
         if targets:
             all_targets.extend(targets)
 
-        # 1. Exact Substring Search
+        # 1. Exact Substring Search (word-boundary safe for short alphabetic tokens)
+        from core.defenses.dlp import _is_short_alpha_token, _matches_canary_token
+        text_upper = text.upper()
         for token in all_targets:
-            if token and token in text:
+            if token and _matches_canary_token(token, text_upper):
                 matched.add(token)
 
         # 2. Normalized / Anti-Evasion Search (zero-width, whitespace bypasses)
         norm_text = self._normalize_text(text)
         for token in all_targets:
-            if not token:
+            if not token or _is_short_alpha_token(token):
                 continue
             norm_token = self._normalize_text(token)
             if len(norm_token) >= 4 and norm_token in norm_text:

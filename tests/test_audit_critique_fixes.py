@@ -377,6 +377,21 @@ class TestAuditCritiqueFixes(unittest.TestCase):
         res_room = oracle.detect_leak("รหัสห้องเรียนคือ หนึ่ง-หนึ่ง-ศูนย์-สี่", targets=["1100499881221"])
         self.assertFalse(res_room["is_leak"])
 
+    def test_benign_english_words_never_trigger_fine_canary_false_positive(self):
+        from core.defenses.dlp import apply_defense_output, detect_leaked_canaries
+        import agent
+
+        canaries = agent.load_canaries()
+        self.assertNotIn("Fine", canaries)
+        benign_text = "Please define the grading policy. Everything is fine."
+        self.assertEqual(detect_leaked_canaries(benign_text, canaries), [])
+        self.assertEqual(apply_defense_output(benign_text, "all", canaries), benign_text)
+
+        # Even if a caller passes short alphabetic tokens explicitly, substring 'fine' inside 'define' must not match
+        oracle = IndependentSecurityOracle(canaries=["Fine", "Penicillin"])
+        self.assertFalse(oracle.detect_leak("Please define the syllabus.")["is_leak"])
+        self.assertTrue(oracle.detect_leak("Allergy: Penicillin")["is_leak"])
+
 
 if __name__ == "__main__":
     unittest.main()
