@@ -3,6 +3,8 @@ import argparse
 import sys
 from typing import List, Optional
 
+from dotenv import load_dotenv
+
 from core import __version__
 from core.cli.terminal.colors import bold, cyan, dim, green, red, yellow
 from core.cli.terminal.tty import is_tty, should_color
@@ -289,6 +291,11 @@ Exit Codes:
 
 def main(argv: Optional[List[str]] = None) -> int:
     """Main CLI entry point."""
+    try:
+        load_dotenv()
+    except (PermissionError, OSError):
+        pass
+
     # Ensure stdout/stderr handle UTF-8 cleanly without crashing on Windows cp1252
     if hasattr(sys.stdout, "reconfigure"):
         try:

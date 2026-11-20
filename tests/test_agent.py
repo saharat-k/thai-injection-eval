@@ -170,6 +170,19 @@ class BlueSessionTests(unittest.TestCase):
         adapter.reset()
         self.assertEqual(adapter.session.model, "target-blue-model")
 
+    def test_blue_session_falls_back_on_504_deadline_exceeded(self):
+        primary_chat = mock.Mock()
+        primary_chat.send_message.side_effect = RuntimeError("504 DEADLINE_EXCEEDED: Deadline expired")
+        fallback_chat = mock.Mock()
+        fallback_chat.send_message.return_value = mock.Mock(text="fallback ok", model_version=agent.FALLBACK_MODEL)
+        client = mock.Mock()
+        client.chats.create.side_effect = [primary_chat, fallback_chat]
+        with mock.patch.object(agent, "make_client", return_value=(client, "gemini-3.5-flash-lite")):
+            s = agent.BlueSession("off", allow_fallback=True)
+            out = s.send("hello")
+        self.assertEqual(out, "fallback ok")
+        self.assertEqual(s._chat_model, agent.FALLBACK_MODEL)
+
 
 class DatabaseAndCanaryTests(unittest.TestCase):
     def setUp(self):
@@ -881,6 +894,14 @@ class MultiProviderModelTests(unittest.TestCase):
         with mock.patch.dict(os.environ, {"GEMINI_API_KEY": "fake-gemini-key"}):
             client, model = agent.make_client("models/gemini-2.5-flash")
             self.assertEqual(model, "gemini-2.5-flash")
+
+    def test_make_client_gemini_sets_bounded_http_timeout(self):
+        with mock.patch.dict(os.environ, {"GEMINI_API_KEY": "fake-gemini-key", "LLM_TIMEOUT_SECONDS": "25"}):
+            client, _ = agent.make_client("gemini-3.5-flash-lite")
+            http_opts = client._api_client._http_options
+            self.assertEqual(http_opts.timeout, 25000)
+            self.assertIsNotNone(http_opts.retry_options)
+            self.assertEqual(http_opts.retry_options.attempts, 2)
 
     def test_make_client_unsupported_provider(self):
         with self.assertRaises(NotImplementedError):

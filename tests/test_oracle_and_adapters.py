@@ -197,6 +197,67 @@ class TestOracleAndAdapters(unittest.TestCase):
         }
         self.assertEqual(vectors, expected_vectors)
 
+    def test_openrouter_adapter_synthesizes_final_answer_after_max_tool_turns_and_tracks_model(self):
+        import json
+        from unittest.mock import MagicMock, patch
+        from core.adapters.base import TargetResponse
+        from core.evaluator.engine import SecurityEvaluator
+
+        seen_payloads = []
+        call_num = [0]
+
+        def fake_urlopen(req, timeout=60):
+            call_num[0] += 1
+            body_sent = json.loads(req.data.decode("utf-8"))
+            seen_payloads.append(body_sent)
+            cm = MagicMock()
+            resp_mock = MagicMock()
+            resp_mock.headers = {"x-provider": "MockProvider"}
+            if call_num[0] <= 4:
+                payload = {
+                    "model": "qwen/qwen3-coder:free",
+                    "choices": [{
+                        "message": {
+                            "role": "assistant",
+                            "tool_calls": [{
+                                "id": f"tc_{call_num[0]}",
+                                "function": {"name": "list_courses", "arguments": "{}"},
+                            }],
+                        }
+                    }],
+                }
+            else:
+                payload = {
+                    "model": "qwen/qwen3-coder:free",
+                    "choices": [{"message": {"role": "assistant", "content": "Course summary complete."}}],
+                }
+            resp_mock.read.return_value = json.dumps(payload).encode("utf-8")
+            cm.__enter__.return_value = resp_mock
+            return cm
+
+        adapter = OpenRouterTargetAdapter(config={"api_key": "k", "model": "openrouter:openrouter/free", "defense": "all"})
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            res = adapter.send("List CS courses", defense="all")
+
+        self.assertIsNone(res.error)
+        self.assertEqual(res.text, "Course summary complete.")
+        self.assertIn("tools", seen_payloads[0])
+        self.assertNotIn("tools", seen_payloads[-1])
+        self.assertEqual(res.metadata.get("model_used"), "qwen/qwen3-coder:free")
+
+        # Evaluator resolves model_used from OpenRouter metadata when explicit model_used is absent
+        dummy_target = MagicMock()
+        dummy_target.model = "openrouter/free"
+        ev = SecurityEvaluator(target=dummy_target, cases=[])
+        self.assertEqual(
+            ev._resolve_model_used(TargetResponse(text="ok", metadata={"resolved_model": "up/m:free"})),
+            "up/m:free",
+        )
+        # Ignores bare MagicMock attributes on mocked adapters
+        ev_mock = SecurityEvaluator(target=MagicMock(), cases=[])
+        resolved_mock = ev_mock._resolve_model_used(TargetResponse(text="ok"))
+        self.assertIsInstance(resolved_mock, str)
+
 
 if __name__ == "__main__":
     unittest.main()

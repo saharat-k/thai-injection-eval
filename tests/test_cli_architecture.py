@@ -439,6 +439,13 @@ class CliArchitectureTests(unittest.TestCase):
         agent.interactive_menu()
         mock_run_chat.assert_called_once()
 
+    def test_cli_main_loads_dotenv_for_live_env_keys(self):
+        """CLI main() must invoke load_dotenv so .env keys work without shell export."""
+        with patch("core.cli.app.load_dotenv") as mock_ld, patch("sys.stdout"):
+            code = main(["doctor", "--quiet"])
+        self.assertEqual(code, 0)
+        mock_ld.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()

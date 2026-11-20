@@ -50,6 +50,18 @@ class SecurityEvaluator:
         )
         set_current_security_context(ctx)
 
+    def _resolve_model_used(self, resp: TargetResponse) -> str:
+        meta = resp.metadata if isinstance(getattr(resp, "metadata", None), dict) else {}
+        for candidate in (
+            meta.get("model_used"),
+            meta.get("resolved_model"),
+            getattr(self.target, "model", None),
+            getattr(agent, "BLUE_MODEL", None),
+        ):
+            if isinstance(candidate, str) and candidate.strip():
+                return candidate
+        return "unknown"
+
     def run_benchmark(
         self,
         defense: str = "off",
@@ -168,7 +180,7 @@ class SecurityEvaluator:
                     finally:
                         set_current_security_context(None)
                     done += 1
-                    m_used = resp.metadata.get("model_used") or getattr(agent, "BLUE_MODEL", "unknown")
+                    m_used = self._resolve_model_used(resp)
                     if m_used and m_used not in models_seen:
                         models_seen.append(m_used)
                     row_targets = list(
@@ -259,7 +271,7 @@ class SecurityEvaluator:
                         time.sleep(pace)
                     resp = self.target.send(case["prompt"], defense=defense, blue_role=role)
                     done += 1
-                    m_used = resp.metadata.get("model_used") or getattr(agent, "BLUE_MODEL", "unknown")
+                    m_used = self._resolve_model_used(resp)
                     if m_used and m_used not in models_seen:
                         models_seen.append(m_used)
                     base = {

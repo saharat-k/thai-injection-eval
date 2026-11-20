@@ -101,14 +101,15 @@ class OpenRouterTargetAdapter(OpenAILikeTargetAdapter):
         max_turns = getattr(agent, "MAX_TOOL_CALLS_PER_TURN", 4)
 
         try:
-            for _ in range(max_turns):
+            for turn_idx in range(max_turns + 1):
                 payload = {
                     "model": self.model,
                     "messages": self.messages,
                     "temperature": self.temperature,
-                    "tools": self._get_tools_spec(),
-                    "tool_choice": "auto",
                 }
+                if turn_idx < max_turns:
+                    payload["tools"] = self._get_tools_spec()
+                    payload["tool_choice"] = "auto"
 
                 req = urllib.request.Request(
                     f"{self.base_url}/chat/completions",
@@ -138,7 +139,7 @@ class OpenRouterTargetAdapter(OpenAILikeTargetAdapter):
                     message = choice.get("message", {})
 
                 tool_calls = message.get("tool_calls")
-                if tool_calls:
+                if tool_calls and turn_idx < max_turns:
                     self.messages.append(message)
                     for tc in tool_calls:
                         fn = tc.get("function", {})
@@ -166,6 +167,7 @@ class OpenRouterTargetAdapter(OpenAILikeTargetAdapter):
 
             self.messages.append({"role": "assistant", "content": reply_text})
             meta = dict(self.last_provider_metadata)
+            meta["model_used"] = self.last_provider_metadata.get("resolved_model") or self.model
             meta["raw_text"] = raw_reply if "raw_reply" in locals() else reply_text
             return TargetResponse(
                 text=reply_text,

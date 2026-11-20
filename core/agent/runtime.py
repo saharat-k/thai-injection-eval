@@ -126,6 +126,11 @@ from core.tools.legacy import (
     _manual_turn_lock,
 )
 
+try:
+    load_dotenv()
+except (PermissionError, OSError):
+    pass
+
 RED_MODEL = os.getenv("RED_MODEL", "gemini-3.5-flash-lite")
 BLUE_MODEL = os.getenv("BLUE_MODEL", "gemini-3.5-flash-lite")
 FALLBACK_MODEL = "gemini-3.1-flash-lite"
@@ -278,8 +283,8 @@ class BlueSession:
                     except Exception as e:
                         last_err = e
                         err_str = str(e)
-                        if "429" in err_str or "404" in err_str or "503" in err_str or "UNAVAILABLE" in err_str or "10053" in err_str:
-                            if "GenerateRequestsPerDay" in err_str or "404" in err_str:
+                        if any(k in err_str for k in ("429", "404", "503", "504", "UNAVAILABLE", "DEADLINE_EXCEEDED", "ReadTimeout", "10053")):
+                            if any(k in err_str for k in ("GenerateRequestsPerDay", "404", "504", "DEADLINE_EXCEEDED", "ReadTimeout")):
                                 break
                             if tries == 0:
                                 time.sleep(2)

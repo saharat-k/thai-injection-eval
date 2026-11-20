@@ -12,8 +12,17 @@ import urllib.request
 from typing import Optional, Tuple
 
 from google import genai
+from google.genai import types
 
 from core.defenses.dlp import sanitize_error
+
+
+def _llm_timeout_seconds() -> int:
+    """Return bounded HTTP request timeout in seconds (minimum 10s for Gemini)."""
+    try:
+        return max(10, int(os.getenv("LLM_TIMEOUT_SECONDS", "60")))
+    except (TypeError, ValueError):
+        return 60
 
 
 class OpenAILikeResponse:
@@ -74,7 +83,7 @@ class OpenAILikeModels:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=60) as resp:
+            with urllib.request.urlopen(req, timeout=_llm_timeout_seconds()) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
                 choice = data.get("choices", [{}])[0]
                 message = choice.get("message", {})
@@ -155,7 +164,13 @@ def make_client(spec: str = "gemini-3.5-flash-lite") -> Tuple[Any, str]:
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             raise ValueError("GEMINI_API_KEY is not set. Please set it in your environment or .env file.")
-        return genai.Client(api_key=api_key), norm_model
+        return genai.Client(
+            api_key=api_key,
+            http_options=types.HttpOptions(
+                timeout=_llm_timeout_seconds() * 1000,
+                retry_options=types.HttpRetryOptions(attempts=2),
+            ),
+        ), norm_model
     elif provider == "openrouter":
         api_key = os.getenv("OPENROUTER_API_KEY")
         if not api_key:
