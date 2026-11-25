@@ -46,9 +46,9 @@ PROTECTED_TOOL_NAMES = (
 )
 
 _PROTECTED_TOKEN_RE = re.compile(
-    r"(\b(?:"
+    r"((?<![A-Za-z0-9_])(?:"
     + "|".join(re.escape(name) for name in sorted(PROTECTED_TOOL_NAMES, key=len, reverse=True))
-    + r"|[SPK]\d{3})\b)"
+    + r"|[SPK]\d{3})(?![A-Za-z0-9_]))"
 )
 
 DEFAULT_TARGETS = [
@@ -163,12 +163,18 @@ def inject_zero_width(text: str, targets: Optional[List[str]] = None) -> str:
             lambda seg: re.sub(r"[A-Za-z0-9_\u0e01-\u0e5b]+", _zw_word, seg),
         )
 
-    # Fallback for short standalone unprotected strings while keeping grapheme clusters intact
-    if result == text and len(text) > 2 and not _PROTECTED_TOKEN_RE.fullmatch(text):
-        clusters = _split_into_grapheme_clusters(text)
-        if len(clusters) >= 2:
-            mid = len(clusters) // 2
-            result = "".join(clusters[:mid]) + ZERO_WIDTH_SPACE + "".join(clusters[mid:])
+    # Fallback for short standalone unprotected spans while keeping tools, IDs, and grapheme clusters intact
+    if result == text:
+        def _zw_short_span(span: str) -> str:
+            if len(span) <= 2:
+                return span
+            clusters = _split_into_grapheme_clusters(span)
+            if len(clusters) >= 2:
+                mid = len(clusters) // 2
+                return "".join(clusters[:mid]) + ZERO_WIDTH_SPACE + "".join(clusters[mid:])
+            return span
+
+        result = _apply_to_unprotected_spans(result, _zw_short_span)
 
     return result
 

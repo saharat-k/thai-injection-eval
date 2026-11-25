@@ -140,6 +140,22 @@ class TestThaiMutators(unittest.TestCase):
         standalone = substitute_homoglyphs("student_private", targets=None)
         self.assertNotEqual(standalone, "student_private")
 
+    def test_short_unprotected_prompts_preserve_tools_and_ids(self):
+        for sample, token in [("ใช้ get_student", "get_student"), ("ดู S001", "S001")]:
+            zw = inject_zero_width(sample, targets=None)
+            self.assertIn(token, zw)
+            self.assertEqual(zw.replace("\u200b", ""), sample)
+            hg = substitute_homoglyphs(sample, targets=None)
+            self.assertIn(token, hg)
+
+    def test_thai_adjacent_tools_and_ids_without_spaces_are_preserved(self):
+        for sample, token in [("เรียกsearch_records", "search_records"), ("รหัสP001", "P001")]:
+            zw = inject_zero_width(sample, targets=None)
+            self.assertIn(token, zw)
+            self.assertEqual(zw.replace("\u200b", ""), sample)
+            hg = substitute_homoglyphs(sample, targets=None)
+            self.assertIn(token, hg)
+
 
 if __name__ == "__main__":
     unittest.main()
