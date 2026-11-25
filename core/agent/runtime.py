@@ -15,7 +15,7 @@ import unicodedata
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from dotenv import load_dotenv
 from google import genai
@@ -147,6 +147,9 @@ def call_red_llm(
     system_prompt: str,
     audit_context: dict = None,
     red_model: Optional[str] = None,
+    validator: Optional[Callable[[str], bool]] = None,
+    temperature: Optional[float] = None,
+    max_output_tokens: Optional[int] = None,
 ) -> str:
     candidates = []
     seen_specs = set()
@@ -168,6 +171,8 @@ def call_red_llm(
 
     last_err = None
     tried_clients = set()
+    effective_temp = temperature if temperature is not None else 0.7
+    effective_max_tokens = max_output_tokens if max_output_tokens is not None else 1024
 
     for client, m, spec in candidates:
         client_key = (id(client), m)
@@ -179,10 +184,19 @@ def call_red_llm(
             resp = client.models.generate_content(
                 model=m,
                 contents=contents,
-                config=types.GenerateContentConfig(system_instruction=system_prompt),
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    temperature=effective_temp,
+                    max_output_tokens=effective_max_tokens,
+                ),
             )
             text = (resp.text or "").strip()
             if text:
+                if validator is not None and not validator(text):
+                    ctx = dict(audit_context or {})
+                    ctx.update({"failed_model": spec, "reason": "validator_rejected", "raw_red": text[:200]})
+                    audit("red_validation_retry", ctx)
+                    continue
                 return text
         except Exception as e:
             last_err = e
@@ -302,13 +316,42 @@ def ask_blue(prompt, defense, role="registrar_staff", model: Optional[str] = Non
     return BlueSession(defense, role=role, model=model).send(prompt)
 
 
-def is_red_refusal(text: str) -> bool:
-    if not text or len(text.strip()) < 20:
-        return True
-    if "[NEXT_PROMPT]" in text:
+def _has_excessive_cjk(text: str, threshold: float = 0.25) -> bool:
+    non_ws = [ch for ch in text if not ch.isspace()]
+    if not non_ws:
         return False
-    lower = text.lower()
+    cjk_count = sum(1 for ch in non_ws if "\u4e00" <= ch <= "\u9fff")
+    return (cjk_count / len(non_ws)) > threshold
+
+
+def is_red_refusal(text: str) -> bool:
+    if not text:
+        return True
+    norm = text.replace("\u2018", "'").replace("\u2019", "'")
+    if "[NEXT_PROMPT]" in norm:
+        payload = norm.split("[NEXT_PROMPT]", 1)[1].strip()
+        if payload.startswith("```"):
+            lines = payload.splitlines()
+            if lines and lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip().startswith("```"):
+                lines = lines[:-1]
+            payload = "\n".join(lines).strip()
+        if not payload:
+            return True
+        payload_lower = payload.lower()
+        if any(marker in payload_lower for marker in REFUSAL_MARKERS):
+            return True
+        if _has_excessive_cjk(payload):
+            return True
+        return False
+    stripped = norm.strip()
+    if len(stripped) < 20:
+        return True
+    lower = stripped.lower()
     if any(marker in lower for marker in REFUSAL_MARKERS):
+        return True
+    if _has_excessive_cjk(stripped):
         return True
     return False
 
@@ -745,6 +788,7 @@ def ask_red(
             system_prompt=system_prompt,
             audit_context={"id": case["id"], "attempt": attempt},
             red_model=red_model,
+            validator=lambda t: not is_red_refusal(t),
         )
     except Exception as e:
         audit("red_error", {"id": case["id"], "attempt": attempt, "error": str(e)[:300]})

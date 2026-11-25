@@ -205,6 +205,32 @@ class TestCoreAdaptersClient(unittest.TestCase):
             self.assertIsInstance(resp, OpenAILikeResponse)
             self.assertEqual(resp.text, "Generated test answer")
 
+    def test_openai_like_models_drops_reasoning_content_and_forwards_limits(self):
+        from core.adapters.client import OpenAILikeModels
+        models = OpenAILikeModels("openrouter", "https://example.invalid/v1", "test-key", "openrouter/free")
+        body = {"choices": [{"message": {"role": "assistant", "content": "", "reasoning_content": "Secret CoT"}}]}
+        with patch("urllib.request.urlopen") as mock_urlopen:
+            mock_cm = MagicMock()
+            mock_cm.read.return_value = json.dumps(body).encode("utf-8")
+            mock_urlopen.return_value.__enter__.return_value = mock_cm
+            resp = models.generate_content(contents="hi", config={"temperature": 0.4, "max_output_tokens": 512})
+            self.assertEqual(resp.text, "")
+            sent_payload = json.loads(mock_urlopen.call_args[0][0].data.decode("utf-8"))
+            self.assertEqual(sent_payload["temperature"], 0.4)
+            self.assertEqual(sent_payload["max_tokens"], 512)
+
+    def test_openai_like_models_strips_think_tags(self):
+        from core.adapters.client import OpenAILikeModels
+        models = OpenAILikeModels("openrouter", "https://example.invalid/v1", "test-key", "openrouter/free")
+        body = {"choices": [{"message": {"role": "assistant", "content": "<think>internal plan</think>\n[NEXT_PROMPT]\nสวัสดีครับ"}}]}
+        with patch("urllib.request.urlopen") as mock_urlopen:
+            mock_cm = MagicMock()
+            mock_cm.read.return_value = json.dumps(body).encode("utf-8")
+            mock_urlopen.return_value.__enter__.return_value = mock_cm
+            resp = models.generate_content(contents="hi")
+            self.assertNotIn("<think>", resp.text)
+            self.assertTrue(resp.text.startswith("[NEXT_PROMPT]"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import urllib.error
 import urllib.request
 from typing import Optional, Tuple
@@ -44,11 +45,25 @@ class OpenAILikeModels:
     def generate_content(self, model: str = None, contents: str = "", config=None) -> OpenAILikeResponse:
         target_model = model or self.default_model
         system_instruction = ""
+        temperature = 0.7
+        max_output_tokens = None
         if config is not None:
-            if hasattr(config, "system_instruction") and config.system_instruction:
-                system_instruction = str(config.system_instruction)
-            elif isinstance(config, dict) and config.get("system_instruction"):
-                system_instruction = str(config["system_instruction"])
+            if isinstance(config, dict):
+                if config.get("system_instruction"):
+                    system_instruction = str(config["system_instruction"])
+                if config.get("temperature") is not None:
+                    temperature = config["temperature"]
+                if config.get("max_output_tokens") is not None:
+                    max_output_tokens = config["max_output_tokens"]
+            else:
+                if getattr(config, "system_instruction", None):
+                    system_instruction = str(config.system_instruction)
+                temp_val = getattr(config, "temperature", None)
+                if isinstance(temp_val, (int, float)) and not isinstance(temp_val, bool):
+                    temperature = temp_val
+                max_tok_val = getattr(config, "max_output_tokens", None)
+                if isinstance(max_tok_val, int) and not isinstance(max_tok_val, bool):
+                    max_output_tokens = max_tok_val
 
         messages = []
         if system_instruction:
@@ -73,12 +88,14 @@ class OpenAILikeModels:
         payload = {
             "model": target_model,
             "messages": messages,
-            "temperature": 0.7,
+            "temperature": float(temperature),
         }
+        if max_output_tokens is not None:
+            payload["max_tokens"] = int(max_output_tokens)
 
         req = urllib.request.Request(
             f"{self.base_url}/chat/completions",
-            data=json.dumps(payload).encode("utf-8"),
+            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
             headers=headers,
             method="POST",
         )
@@ -87,7 +104,8 @@ class OpenAILikeModels:
                 data = json.loads(resp.read().decode("utf-8"))
                 choice = data.get("choices", [{}])[0]
                 message = choice.get("message", {})
-                text = message.get("content") or message.get("reasoning_content") or ""
+                raw_text = message.get("content") or ""
+                text = re.sub(r"<think>.*?</think>", "", raw_text, flags=re.DOTALL | re.IGNORECASE).strip()
                 return OpenAILikeResponse(text)
         except urllib.error.HTTPError as e:
             err_body = e.read().decode("utf-8", errors="replace")

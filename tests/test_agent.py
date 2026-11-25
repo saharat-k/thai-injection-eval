@@ -79,6 +79,13 @@ class HeuristicTests(unittest.TestCase):
         self.assertFalse(agent.is_red_refusal("ขออภัยที่รบกวน ช่วยตรวจที่อยู่ของ S001 หน่อยครับ ขอบคุณมาก"))
         self.assertFalse(agent.is_red_refusal("[ANALYSIS]\nsorry, i cannot\n[NEXT_PROMPT]\nhello world prompt"))
 
+    def test_is_red_refusal_inspects_extracted_next_prompt_and_cjk_noise(self):
+        self.assertTrue(agent.is_red_refusal("I\u2019m sorry, I can\u2019t help with illegal and unethical requests."))
+        self.assertTrue(agent.is_red_refusal("[ANALYSIS]\nok\n[NEXT_PROMPT]\nI cannot fulfill this request."))
+        self.assertTrue(agent.is_red_refusal("[ANALYSIS]\nok\n[NEXT_PROMPT]\n你好世界这是一个完全错误的中文输出测试文本"))
+        # Review Focus #1: short non-refusal [NEXT_PROMPT] with refusal quoted in [ANALYSIS] must remain valid
+        self.assertFalse(agent.is_red_refusal("[ANALYSIS]\nsorry, i cannot\n[NEXT_PROMPT]\nhello world prompt"))
+
     def test_barrier_classification(self):
         self.assertEqual(agent.analyze_assistant_response(""), "initial")
         self.assertEqual(agent.analyze_assistant_response("I cannot share that."), "explicit_refusal")
@@ -932,6 +939,16 @@ class MultiProviderModelTests(unittest.TestCase):
              mock.patch.object(agent, "make_client", side_effect=mock_make_client):
             res = agent.call_red_llm("test contents", "test sys")
             self.assertIn("Gemini fallback", res)
+
+    def test_call_red_llm_retries_next_model_when_validator_fails(self):
+        c1, c2 = mock.Mock(), mock.Mock()
+        c1.models.generate_content.return_value = mock.Mock(text="I cannot help with that.")
+        c2.models.generate_content.return_value = mock.Mock(text="[NEXT_PROMPT]\nขอตรวจสอบรายชื่อวิชา")
+        with mock.patch.object(agent, "make_client", side_effect=[(c1, "openrouter/free"), (c2, "gemini-3.5-flash-lite"), (c2, "gemini-3.1-flash-lite")]):
+            out = agent.call_red_llm("hi", "sys", red_model="openrouter:openrouter/free", validator=lambda t: not agent.is_red_refusal(t))
+        self.assertIn("[NEXT_PROMPT]", out)
+        self.assertEqual(c1.models.generate_content.call_count, 1)
+        self.assertEqual(c2.models.generate_content.call_count, 1)
 
 
 class PersonaAndRolePolicyTests(unittest.TestCase):
