@@ -163,6 +163,42 @@ class TestOpenAILikeTargetAdapter(unittest.TestCase):
         export_props = next(s["function"]["parameters"]["properties"] for s in spec if s["function"]["name"] == "export_report")
         self.assertIn("destination", export_props)
 
+    def test_adapters_restore_history_resets_and_restores_pairs(self):
+        from core.adapters.base import BaseTargetAdapter, TargetResponse
+        from core.adapters.builtin import BuiltinTargetAdapter
+
+        class MinimalAdapter(BaseTargetAdapter):
+            def __init__(self):
+                super().__init__("min")
+                self.reset_calls = 0
+
+            def send(self, prompt, **kwargs):
+                return TargetResponse(text="ok")
+
+            def reset(self):
+                self.reset_calls += 1
+
+        minimal = MinimalAdapter()
+        minimal.restore_history([("u1", "a1")])
+        self.assertEqual(minimal.reset_calls, 1)
+
+        adapter = OpenAILikeTargetAdapter("test_restore", config={"model": "typhoon-2", "defense": "all"})
+        adapter.messages.append({"role": "user", "content": "bad_turn"})
+        adapter.messages.append({"role": "assistant", "content": "refused"})
+        adapter.restore_history([("u1", "a1")])
+        self.assertEqual(adapter.messages[0]["role"], "system")
+        self.assertEqual(adapter.messages[1:], [
+            {"role": "user", "content": "u1"},
+            {"role": "assistant", "content": "a1"},
+        ])
+
+        with patch("agent.BlueSession") as mock_session_cls:
+            mock_sess = MagicMock()
+            mock_session_cls.return_value = mock_sess
+            builtin = BuiltinTargetAdapter(config={"defense": "tools", "blue_role": "registrar_staff"})
+            builtin.restore_history([("สวัสดี", "ยินดีให้บริการ")])
+            mock_sess.restore_history.assert_called_once_with([("สวัสดี", "ยินดีให้บริการ")])
+
     def test_dispatch_tool_call_passes_destination_to_export_report(self):
         try:
             agent.configure_defense("tools", blue_role="registrar_staff")

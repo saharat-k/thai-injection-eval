@@ -77,3 +77,8 @@ class BuiltinTargetAdapter(BaseTargetAdapter):
             allow_fallback=self.allow_fallback,
             model=self.model,
         )
+
+    def restore_history(self, pairs: list[tuple[str, str]]) -> None:
+        """Reset the underlying BlueSession and restore prior (prompt, response) pairs."""
+        self.reset()
+        self.session.restore_history(pairs)
