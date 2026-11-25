@@ -950,6 +950,14 @@ class MultiProviderModelTests(unittest.TestCase):
         self.assertEqual(c1.models.generate_content.call_count, 1)
         self.assertEqual(c2.models.generate_content.call_count, 1)
 
+    def test_call_red_llm_clears_stale_error_when_fallback_rejected_by_validator(self):
+        c1, c2 = mock.Mock(), mock.Mock()
+        c1.models.generate_content.side_effect = RuntimeError("openrouter connection error")
+        c2.models.generate_content.return_value = mock.Mock(text="I cannot help with that.")
+        with mock.patch.object(agent, "make_client", side_effect=[(c1, "openrouter/free"), (c2, "gemini-3.5-flash-lite"), (c2, "gemini-3.1-flash-lite")]):
+            out = agent.call_red_llm("hi", "sys", red_model="openrouter:openrouter/free", validator=lambda t: not agent.is_red_refusal(t))
+        self.assertEqual(out, "")
+
 
 class PersonaAndRolePolicyTests(unittest.TestCase):
     def tearDown(self):

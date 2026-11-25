@@ -190,6 +190,7 @@ def call_red_llm(
                     max_output_tokens=effective_max_tokens,
                 ),
             )
+            last_err = None
             text = (resp.text or "").strip()
             if text:
                 if validator is not None and not validator(text):
