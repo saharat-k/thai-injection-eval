@@ -281,7 +281,9 @@
       attackTemplates.forEach((t, idx) => {
         const opt = document.createElement("option");
         opt.value = idx;
-        opt.textContent = `[${t.language}] ${t.strategy.toUpperCase()}: ${t.name || t.technique || t.payload.slice(0, 30)}`;
+        const stratLabel = (t.strategy || t.attack_type || "template").toUpperCase();
+        const preview = t.name || t.technique || (t.payload || t.prompt || "").slice(0, 30);
+        opt.textContent = `[${t.language}] ${stratLabel}: ${preview}`;
         sel.appendChild(opt);
       });
     }
@@ -290,7 +292,7 @@
       const sel = document.getElementById("manualTemplateSelect");
       const idx = sel.value;
       if (idx !== "" && attackTemplates[idx]) {
-        document.getElementById("manualPromptInput").value = attackTemplates[idx].payload || "";
+        document.getElementById("manualPromptInput").value = attackTemplates[idx].payload || attackTemplates[idx].prompt || "";
         updatePromptCharCount();
       }
     }
@@ -497,7 +499,7 @@
         });
         const data = await res.json();
         if (data.success) {
-          appendChatBubble("AI (Red)", data.prompt, "ai-red");
+          appendChatBubble("AI (Red)", data.attack || data.prompt || "", "ai-red");
           appendChatBubble("Blue Agent", data.response, "blue-agent", data.tool_calls);
           document.getElementById("activeTurnBadge").textContent = `Turn ${data.turn_no + 1}`;
           if (data.should_stop) {

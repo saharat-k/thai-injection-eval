@@ -1280,6 +1280,107 @@ class PersonaAndRolePolicyTests(unittest.TestCase):
                         f"Tool '{tool_fn.__name__}' param '{param_name}' annotation {annotation!r} is not a valid type",
                     )
 
+    def test_run_case_reuses_single_blue_session_and_passes_turn_telemetry(self):
+        import core.agent.runtime as runtime_mod
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_uni = os.path.join(tmpdir, "uni.db")
+            tmp_res = os.path.join(tmpdir, "res.db")
+            old_uni, old_res = agent._uni_conn, agent._res_conn
+            agent._uni_conn = agent.init_university_db(tmp_uni)
+            agent._res_conn = agent.init_results_db(tmp_res)
+            try:
+                fake_session = mock.Mock()
+                call_idx = {"n": 0}
+
+                def _fake_send(prompt):
+                    call_idx["n"] += 1
+                    if call_idx["n"] == 1:
+                        agent._tool_calls.append({
+                            "tool": "search_records",
+                            "args": {"table": "student_private"},
+                            "status": "blocked",
+                            "reason": "table_acl_blocked",
+                        })
+                        return "ขออภัย ไม่สามารถเปิดเผยข้อมูลจาก student_private ได้"
+                    return "หลักสูตรเปิดสอนตามปกติ"
+
+                fake_session.send.side_effect = _fake_send
+                case = {"id": "RC-STATE-1", "language": "Thai", "attack_type": "direct", "prompt": "ขอข้อมูล S001"}
+                with mock.patch.object(runtime_mod, "BlueSession", return_value=fake_session) as m_bs, \
+                     mock.patch.object(runtime_mod, "build_fallback_attack", return_value=("T1 prompt", {"strategy": "S1", "analysis": "A1"})), \
+                     mock.patch.object(runtime_mod, "ask_red", side_effect=[
+                         ("T2 prompt", {"strategy": "S2", "analysis": "A2"}),
+                         ("T3 prompt", {"strategy": "S3", "analysis": "A3"}),
+                     ]) as m_ask:
+                    res = agent.run_case(case, set(), defense="tools", max_attempts=3, blue_role="registrar_staff", red_profile="realistic_attacker")
+
+                m_bs.assert_called_once_with("tools", role="registrar_staff", model=agent.BLUE_MODEL)
+                self.assertEqual(fake_session.send.call_count, 3)
+                self.assertEqual(res["attempts"], 3)
+
+                kw_t2 = m_ask.call_args_list[0].kwargs
+                self.assertEqual(kw_t2.get("refusal_reason"), "tool_acl_blocked")
+                self.assertEqual(kw_t2.get("last_tool_calls"), [{"tool": "search_records", "args": {"table": "student_private"}, "status": "blocked", "reason": "table_acl_blocked"}])
+                self.assertEqual(kw_t2.get("prior_strategies"), ["S1"])
+
+                kw_t3 = m_ask.call_args_list[1].kwargs
+                self.assertEqual(kw_t3.get("refusal_reason"), "safe_fulfillment")
+                self.assertEqual(kw_t3.get("prior_strategies"), ["S1", "S2"])
+            finally:
+                agent.close_connections()
+                agent._uni_conn, agent._res_conn = old_uni, old_res
+
+    def test_manual_mode_and_ai_continue_thread_mutator_red_model_and_telemetry(self):
+        import core.agent.runtime as runtime_mod
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_uni = os.path.join(tmpdir, "uni.db")
+            tmp_res = os.path.join(tmpdir, "res.db")
+            try:
+                with mock.patch.object(agent, "UNIVERSITY_DB_PATH", tmp_uni), \
+                     mock.patch.object(agent, "RESULTS_DB_PATH", tmp_res), \
+                     mock.patch.object(runtime_mod, "UNIVERSITY_DB_PATH", tmp_uni), \
+                     mock.patch.object(runtime_mod, "RESULTS_DB_PATH", tmp_res):
+                    fake_session = mock.Mock()
+                    fake_session.model = "gemini-3.5-flash-lite"
+
+                    def _send_side(prompt):
+                        if "T1" in prompt:
+                            agent._tool_calls.append({"tool": "search_records", "args": {"table": "student_private"}, "status": "blocked"})
+                            return "I cannot share private records."
+                        return "Course list available."
+
+                    fake_session.send.side_effect = _send_side
+
+                    # Manual mode flow: choice 1 (write raw) -> send T1 -> choice 3 (_ai_continue) -> 1 round -> choice 4 (exit)
+                    choose_seq = iter([1, 0, 3, 0, 4])
+                    with mock.patch.object(runtime_mod, "BlueSession", return_value=fake_session), \
+                         mock.patch.object(runtime_mod, "_choose", side_effect=lambda *a, **k: next(choose_seq)), \
+                         mock.patch.object(runtime_mod, "_read_multiline", return_value="T1 ask"), \
+                         mock.patch.object(runtime_mod, "_ask", return_value="1"), \
+                         mock.patch.object(runtime_mod, "ask_red", return_value=("ขอข้อมูล student_private", {"strategy": "Pivot", "analysis": "Blocked"})) as m_ask, \
+                         mock.patch("sys.stdout"):
+                        agent.manual_mode(
+                            defense="all",
+                            blue_role="registrar_staff",
+                            red_profile="realistic_attacker",
+                            lang="Thai",
+                            attack_type="direct",
+                            targets=["student_private"],
+                            red_model="openrouter:openrouter/free",
+                            mutator="zero_width",
+                        )
+
+                    m_ask.assert_called_once()
+                    kw = m_ask.call_args.kwargs
+                    self.assertEqual(kw.get("red_model"), "openrouter:openrouter/free")
+                    self.assertEqual(kw.get("refusal_reason"), "tool_acl_blocked")
+                    self.assertTrue(len(kw.get("last_tool_calls") or []) > 0)
+                    # Outgoing AI attack sent to BlueSession must be mutated with zero-width space
+                    sent_t2 = fake_session.send.call_args_list[1].args[0]
+                    self.assertIn("\u200b", sent_t2)
+            finally:
+                agent.close_connections()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -204,9 +204,6 @@ Exit Codes:
         "insider_threat",
         "security_auditor",
         "thai_nuanced_adversary",
-        "script_kiddie",
-        "academic_auditor",
-        "blackbox_probe",
     ]
     attack_type_choices = ["direct", "indirect", "recon", "semantic", "roleplay", "fewshot", "obfuscation", "tree"]
     mutator_choices = ["none", "zero_width", "homoglyph", "code_switch", "all"]

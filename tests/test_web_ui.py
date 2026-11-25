@@ -2,6 +2,7 @@ import json
 import os
 os.environ.setdefault("GEMINI_API_KEY", "offline-test-key")  # tests never call the live API
 import sys
+import tempfile
 import threading
 import unittest
 from datetime import datetime, timezone, timedelta
@@ -1225,6 +1226,70 @@ class WebUiTests(unittest.TestCase):
         with mock.patch("core.agent.runtime.ask_blue", side_effect=_fake_ask_blue):
             agent.run_case(benign_case, set(), "off", max_attempts=2)
         self.assertEqual(seen_prompts, ["What are the library opening hours?"])
+
+    def test_manual_ai_step_returns_prompt_and_passes_telemetry_to_ask_red(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_db = os.path.join(tmpdir, "results.db")
+            sid = None
+            try:
+                with mock.patch.object(agent, "RESULTS_DB_PATH", tmp_db):
+                    with self.client.session_transaction() as s:
+                        s["csrf_token"] = "test-csrf"
+                    headers = {"X-CSRFToken": "test-csrf", "Content-Type": "application/json"}
+                    start_res = self.client.post("/api/manual/start", json={"csrf_token": "test-csrf", "defense": "all"}, headers=headers).get_json()
+                    sid = start_res["session_id"]
+                    web_ui._manual_sessions[sid]["history"].append(("T1", "I cannot share private records."))
+                    web_ui._manual_sessions[sid]["last_defense_action"] = "prompt_policy_refused"
+                    web_ui._manual_sessions[sid]["last_tool_calls"] = [{"tool": "search_records", "status": "blocked"}]
+                    web_ui._manual_sessions[sid]["blue_session"] = mock.Mock(send=mock.Mock(return_value="Public courses only."))
+                    with mock.patch.object(agent, "ask_red", return_value=("Followup prompt", {"analysis": "an", "strategy": "st"})) as m_ask:
+                        step_data = self.client.post("/api/manual/ai-step", json={"csrf_token": "test-csrf", "session_id": sid}, headers=headers).get_json()
+                    self.assertEqual(step_data["prompt"], step_data["attack"])
+                    self.assertEqual(m_ask.call_args.kwargs.get("refusal_reason"), "prompt_policy_refused")
+                    self.assertTrue(len(m_ask.call_args.kwargs.get("last_tool_calls", [])) > 0)
+
+                    # Second step should pass prior_strategies and updated refusal_reason from turn 2
+                    with mock.patch.object(agent, "ask_red", return_value=("Followup 2", {"analysis": "an2", "strategy": "st2"})) as m_ask2:
+                        step_data2 = self.client.post("/api/manual/ai-step", json={"csrf_token": "test-csrf", "session_id": sid}, headers=headers).get_json()
+                    self.assertEqual(step_data2["prompt"], step_data2["attack"])
+                    self.assertIn("st", m_ask2.call_args.kwargs.get("prior_strategies") or [])
+                    self.assertEqual(m_ask2.call_args.kwargs.get("refusal_reason"), "safe_fulfillment")
+            finally:
+                if sid:
+                    web_ui._manual_sessions.pop(sid, None)
+                agent.close_connections()
+
+    def test_web_ui_ghost_profiles_pruned_and_scripts_guarded(self):
+        resp = self.client.get("/")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        for ghost in ("script_kiddie", "academic_auditor", "blackbox_probe"):
+            self.assertNotIn(f'value="{ghost}"', html)
+        self.assertIn("data.attack || data.prompt", html)
+        self.assertIn('t.strategy || t.attack_type || "template"', html)
+        self.assertIn("t.payload || t.prompt", html)
+
+        # Legacy API calls using ghost profile aliases map cleanly
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_db = os.path.join(tmpdir, "results.db")
+            created_sids = []
+            try:
+                with mock.patch.object(agent, "RESULTS_DB_PATH", tmp_db):
+                    with self.client.session_transaction() as s:
+                        s["csrf_token"] = "alias-csrf"
+                    headers = {"X-CSRFToken": "alias-csrf", "Content-Type": "application/json"}
+                    for ghost, target_prof in (
+                        ("script_kiddie", "realistic_attacker"),
+                        ("academic_auditor", "insider_threat"),
+                        ("blackbox_probe", "realistic_attacker"),
+                    ):
+                        r = self.client.post("/api/manual/start", json={"csrf_token": "alias-csrf", "defense": "all", "red_profile": ghost}, headers=headers).get_json()
+                        created_sids.append(r["session_id"])
+                        self.assertEqual(r["red_profile"], target_prof)
+            finally:
+                for s_id in created_sids:
+                    web_ui._manual_sessions.pop(s_id, None)
+                agent.close_connections()
 
 
 if __name__ == "__main__":

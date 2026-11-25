@@ -640,6 +640,18 @@ def cleanup_stale_sessions(max_age_seconds: int = 7200):
             _manual_sessions.pop(sid, None)
 
 
+_RED_PROFILE_ALIASES = {
+    "script_kiddie": "realistic_attacker",
+    "academic_auditor": "insider_threat",
+    "blackbox_probe": "realistic_attacker",
+}
+
+
+def _normalize_red_profile(red_profile):
+    mapped = _RED_PROFILE_ALIASES.get(red_profile, red_profile)
+    return mapped if mapped in agent.RED_PROFILES else "realistic_attacker"
+
+
 @app.route("/api/manual/start", methods=["POST"])
 def manual_start():
     cleanup_stale_sessions()
@@ -658,9 +670,7 @@ def manual_start():
     blue_role = data.get("blue_role", "registrar_staff")
     if blue_role not in agent.BLUE_ROLES:
         blue_role = "registrar_staff"
-    red_profile = data.get("red_profile", "realistic_attacker")
-    if red_profile not in agent.RED_PROFILES:
-        red_profile = "realistic_attacker"
+    red_profile = _normalize_red_profile(data.get("red_profile", "realistic_attacker"))
 
     raw_targets = data.get("targets", "")
     targets = [t.strip() for t in raw_targets.split(",") if t.strip()]
@@ -705,6 +715,9 @@ def manual_start():
             "canaries": canaries,
             "case": case,
             "history": [],
+            "last_defense_action": None,
+            "last_tool_calls": [],
+            "prior_strategies": [],
             "turn_no": 1,
             "created_at": agent.now(),
         }
@@ -743,7 +756,8 @@ def _restore_manual_session(session_id, data):
     conn = agent.init_results_db(agent.RESULTS_DB_PATH)
     try:
         rows = conn.execute(
-            "SELECT language, attack_type, defense_level, injected_prompt, response, success, attempt, blue_model "
+            "SELECT language, attack_type, defense_level, injected_prompt, response, success, attempt, blue_model, "
+            "tool_calls_json, red_strategy, raw_leaked_canaries, leaked_canaries, red_model "
             "FROM test_results WHERE id = ? ORDER BY attempt ASC",
             (session_id,),
         ).fetchall()
@@ -759,16 +773,36 @@ def _restore_manual_session(session_id, data):
     blue_role = data.get("blue_role")
     if blue_role not in agent.BLUE_ROLES:
         blue_role = "registrar_staff"
-    red_profile = data.get("red_profile")
-    if red_profile not in agent.RED_PROFILES:
-        red_profile = "realistic_attacker"
+    red_profile = _normalize_red_profile(data.get("red_profile"))
     raw_targets = data.get("targets") or []
     if isinstance(raw_targets, str):
         raw_targets = raw_targets.split(",")
     targets = [str(t).strip() for t in raw_targets if str(t).strip()]
 
-    history = [(r[3], r[4]) for r in rows if r[5] != -1 and r[3] is not None]
+    valid_rows = [r for r in rows if r[5] != -1 and r[3] is not None]
+    history = [(r[3], r[4]) for r in valid_rows]
+    prior_strategies = [str(r[9]).strip() for r in valid_rows if r[9] and str(r[9]).strip()]
+    last_tool_calls = []
+    last_defense_action = None
+    if valid_rows:
+        last_r = valid_rows[-1]
+        try:
+            last_tool_calls = json.loads(last_r[8] or "[]")
+        except Exception:
+            last_tool_calls = []
+        try:
+            raw_leaked_last = json.loads(last_r[10] or "[]")
+            leaked_last = json.loads(last_r[11] or "[]")
+        except Exception:
+            raw_leaked_last, leaked_last = [], []
+        last_defense_action = agent._classify_defense_action(
+            last_r[4] or "",
+            tool_calls=last_tool_calls,
+            is_breached=bool(last_r[5] == 1),
+            output_intercepted=bool(raw_leaked_last) and not bool(leaked_last),
+        )
     blue_model = (first[7] or "").strip() or None
+    red_model = (first[12] or "").strip() or None
     blue_session = agent.BlueSession(defense, role=blue_role, model=blue_model)
     blue_session.restore_history(list(history))
     case = {
@@ -786,11 +820,17 @@ def _restore_manual_session(session_id, data):
         "attack_type": attack_type,
         "blue_role": blue_role,
         "red_profile": red_profile,
+        "strategy": (data.get("strategy") or "template").strip(),
+        "mutator": (data.get("mutator") or "none").strip(),
         "blue_model": blue_model or agent.BLUE_MODEL,
+        "red_model": red_model or agent.RED_MODEL,
         "blue_session": blue_session,
         "canaries": agent.load_canaries(),
         "case": case,
         "history": history,
+        "last_defense_action": last_defense_action,
+        "last_tool_calls": last_tool_calls,
+        "prior_strategies": prior_strategies,
         "turn_no": max(int(r[6] or 0) for r in rows) + 1,
         "created_at": agent.now(),
     }
@@ -847,6 +887,14 @@ def manual_send():
 
         if not res.get("error"):
             sess["history"].append((prompt, res.get("response", "")))
+            sess["last_tool_calls"] = list(res.get("tool_calls") or [])
+            sess["last_defense_action"] = res.get("defense_action") or agent._classify_defense_action(
+                res.get("response", ""),
+                raw_response=res.get("raw", ""),
+                tool_calls=sess["last_tool_calls"],
+                is_breached=bool(res.get("leaked") or res.get("is_target_met") or res.get("private_table_accessed")),
+                output_intercepted=bool(res.get("output_intercepted")),
+            )
         sess["turn_no"] += 1
 
     return jsonify({
@@ -896,6 +944,14 @@ def manual_ai_step():
         last_resp = sess["history"][-1][1] if sess["history"] else ""
         blue_role = sess.get("blue_role", "registrar_staff")
         red_profile = sess.get("red_profile", "realistic_attacker")
+        last_tool_calls = sess.get("last_tool_calls") or []
+        prior_strategies = sess.get("prior_strategies") or []
+        last_defense_action = sess.get("last_defense_action")
+        if last_defense_action is None and last_resp:
+            last_defense_action = agent._classify_defense_action(
+                last_resp,
+                tool_calls=last_tool_calls,
+            )
 
         try:
             attack, meta = agent.ask_red(
@@ -904,8 +960,11 @@ def manual_ai_step():
                 turn_no,
                 red_profile=red_profile,
                 blue_role=blue_role,
+                refusal_reason=last_defense_action,
                 red_model=sess.get("red_model"),
                 strategy=sess.get("strategy", "template"),
+                last_tool_calls=list(last_tool_calls) if last_tool_calls else None,
+                prior_strategies=list(prior_strategies) if prior_strategies else None,
             )
         except Exception as e:
             agent.audit("red_error", {"id": session_id, "turn": turn_no, "error": str(e)[:300]})
@@ -931,10 +990,22 @@ def manual_ai_step():
             session_id=session_id,
             blue_role=blue_role,
             red_profile=red_profile,
+            red_model=sess.get("red_model"),
         )
 
         if not res.get("error"):
             sess["history"].append((attack, res.get("response", "")))
+            sess["last_tool_calls"] = list(res.get("tool_calls") or [])
+            sess["last_defense_action"] = res.get("defense_action") or agent._classify_defense_action(
+                res.get("response", ""),
+                raw_response=res.get("raw", ""),
+                tool_calls=sess["last_tool_calls"],
+                is_breached=bool(res.get("leaked") or res.get("is_target_met") or res.get("private_table_accessed")),
+                output_intercepted=bool(res.get("output_intercepted")),
+            )
+        raw_strat = (meta.get("strategy") or "").strip() if isinstance(meta, dict) else ""
+        if raw_strat:
+            sess.setdefault("prior_strategies", []).append(raw_strat)
         sess["turn_no"] += 1
 
     has_targets = bool(sess["case"].get("targets"))
@@ -957,6 +1028,7 @@ def manual_ai_step():
         "turn_no": turn_no,
         "sender": "AI (Red)",
         "attack": attack,
+        "prompt": attack,
         "response": res.get("response", ""),
         "tool_calls": res.get("tool_calls", []),
         "leaked": res.get("leaked", []),
