@@ -258,6 +258,15 @@ class TestOracleAndAdapters(unittest.TestCase):
         resolved_mock = ev_mock._resolve_model_used(TargetResponse(text="ok"))
         self.assertIsInstance(resolved_mock, str)
 
+    def test_evaluator_resolve_model_used_annotations_resolve_eagerly(self):
+        import typing
+        from core.adapters.base import TargetResponse
+        from core.evaluator.engine import SecurityEvaluator
+
+        hints = typing.get_type_hints(SecurityEvaluator._resolve_model_used)
+        self.assertIs(hints.get("resp"), TargetResponse)
+        self.assertIs(hints.get("return"), str)
+
 
 if __name__ == "__main__":
     unittest.main()

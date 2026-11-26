@@ -7,7 +7,7 @@ from typing import Optional, Callable
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import agent
-from core.adapters.base import BaseTargetAdapter
+from core.adapters.base import BaseTargetAdapter, TargetResponse
 from core.adapters.factory import create_target_adapter
 from core.evaluator.metrics import calculate_benchmark_metrics
 from core.tools.context import SecurityContext, set_current_security_context
