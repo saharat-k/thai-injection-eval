@@ -1291,6 +1291,102 @@ class WebUiTests(unittest.TestCase):
                     web_ui._manual_sessions.pop(s_id, None)
                 agent.close_connections()
 
+    def test_manual_send_persists_red_model_for_session_restore(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_db = os.path.join(tmpdir, "results.db")
+            sid = None
+            try:
+                with mock.patch.object(agent, "RESULTS_DB_PATH", tmp_db):
+                    with self.client.session_transaction() as s:
+                        s["csrf_token"] = "restore-red-csrf"
+                    headers = {"X-CSRFToken": "restore-red-csrf", "Content-Type": "application/json"}
+                    start_res = self.client.post(
+                        "/api/manual/start",
+                        json={
+                            "csrf_token": "restore-red-csrf",
+                            "defense": "all",
+                            "blue_model": "gemini-3.5-flash-lite",
+                            "red_model": "openrouter:openrouter/free",
+                        },
+                        headers=headers,
+                    ).get_json()
+                    sid = start_res["session_id"]
+                    web_ui._manual_sessions[sid]["blue_session"] = mock.Mock(
+                        model="gemini-3.5-flash-lite",
+                        send=mock.Mock(return_value="Public courses only."),
+                    )
+
+                    send_res = self.client.post(
+                        "/api/manual/send",
+                        json={"csrf_token": "restore-red-csrf", "session_id": sid, "prompt": "Hello"},
+                        headers=headers,
+                    ).get_json()
+                    self.assertTrue(send_res["success"])
+
+                    # Simulate server restart / in-memory session loss
+                    web_ui._manual_sessions.pop(sid, None)
+                    restored_blue = mock.Mock(model="gemini-3.5-flash-lite", send=mock.Mock(return_value="Public reply."))
+                    with mock.patch.object(agent, "BlueSession", return_value=restored_blue), \
+                         mock.patch.object(agent, "ask_red", return_value=("Followup", {"analysis": "a", "strategy": "s"})) as m_ask:
+                        step_res = self.client.post(
+                            "/api/manual/ai-step",
+                            json={"csrf_token": "restore-red-csrf", "session_id": sid},
+                            headers=headers,
+                        ).get_json()
+                    self.assertTrue(step_res["success"])
+                    self.assertEqual(web_ui._manual_sessions[sid]["red_model"], "openrouter:openrouter/free")
+                    self.assertEqual(m_ask.call_args.kwargs.get("red_model"), "openrouter:openrouter/free")
+            finally:
+                if sid:
+                    web_ui._manual_sessions.pop(sid, None)
+                agent.close_connections()
+
+    def test_manual_send_and_ai_step_preserve_none_defense_action_on_schema_breach(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_db = os.path.join(tmpdir, "results.db")
+            sid = None
+            try:
+                with mock.patch.object(agent, "RESULTS_DB_PATH", tmp_db):
+                    with self.client.session_transaction() as s:
+                        s["csrf_token"] = "schema-csrf"
+                    headers = {"X-CSRFToken": "schema-csrf", "Content-Type": "application/json"}
+                    start_res = self.client.post(
+                        "/api/manual/start",
+                        json={"csrf_token": "schema-csrf", "defense": "off"},
+                        headers=headers,
+                    ).get_json()
+                    sid = start_res["session_id"]
+                    fake_blue = mock.Mock(
+                        model="gemini-3.5-flash-lite",
+                        send=mock.Mock(side_effect=[
+                            "ตาราง student_private ใช้เก็บข้อมูลติดต่อ",
+                            "ตาราง staff_payroll ใช้เก็บเงินเดือน",
+                        ]),
+                    )
+                    web_ui._manual_sessions[sid]["blue_session"] = fake_blue
+
+                    send_res = self.client.post(
+                        "/api/manual/send",
+                        json={"csrf_token": "schema-csrf", "session_id": sid, "prompt": "List tables"},
+                        headers=headers,
+                    ).get_json()
+                    self.assertEqual(send_res["schema_disclosed"], ["student_private"])
+                    self.assertIsNone(web_ui._manual_sessions[sid]["last_defense_action"])
+
+                    with mock.patch.object(agent, "ask_red", return_value=("Next attack", {"analysis": "a", "strategy": "s"})) as m_ask:
+                        step_res = self.client.post(
+                            "/api/manual/ai-step",
+                            json={"csrf_token": "schema-csrf", "session_id": sid},
+                            headers=headers,
+                        ).get_json()
+                    self.assertEqual(step_res["schema_disclosed"], ["staff_payroll"])
+                    self.assertIsNone(m_ask.call_args.kwargs.get("refusal_reason"))
+                    self.assertIsNone(web_ui._manual_sessions[sid]["last_defense_action"])
+            finally:
+                if sid:
+                    web_ui._manual_sessions.pop(sid, None)
+                agent.close_connections()
+
 
 if __name__ == "__main__":
     unittest.main()

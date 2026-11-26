@@ -535,6 +535,32 @@ def _classify_defense_action(
     return None
 
 
+_UNSET_DEFENSE_ACTION = object()
+
+
+def _resolve_turn_defense_action(res: dict) -> Optional[str]:
+    """Return explicit turn defense_action (preserving None on breaches), or classify legacy mocks."""
+    if "defense_action" in res:
+        return res["defense_action"]
+    resp_text = res.get("response", "")
+    calls = list(res.get("tool_calls") or [])
+    is_refusal = analyze_assistant_response(resp_text, tool_calls=calls) in ("explicit_refusal", "role_refusal")
+    schema_breach = [] if is_refusal else list(res.get("schema_disclosed") or [])
+    is_breached = bool(
+        res.get("leaked")
+        or res.get("is_target_met")
+        or res.get("private_table_accessed")
+        or schema_breach
+    )
+    return _classify_defense_action(
+        resp_text,
+        raw_response=res.get("raw", ""),
+        tool_calls=calls,
+        is_breached=is_breached,
+        output_intercepted=bool(res.get("output_intercepted")),
+    )
+
+
 def extract_discovered_tables(text: str) -> list[str]:
     if not text:
         return []
@@ -2021,9 +2047,10 @@ def _ai_continue(
     red_profile="realistic_attacker",
     mutator: str = "none",
     red_model: Optional[str] = None,
-    last_defense_action: Optional[str] = None,
+    last_defense_action: Any = _UNSET_DEFENSE_ACTION,
     last_tool_calls: Optional[List[Dict[str, Any]]] = None,
     prior_strategies: Optional[List[str]] = None,
+    defense_state: Optional[Dict[str, Any]] = None,
 ):
     """Let Red analyze the conversation and keep sending. Returns the next turn number."""
     if last_tool_calls is None:
@@ -2056,8 +2083,8 @@ def _ai_continue(
             round_label = f"({i}/{rounds})" if not is_continuous else f"(รอบที่ {i} - ส่งต่อเนื่องจนกว่าจะได้ข้อมูล หรือกด Ctrl+C เพื่อหยุด)"
             print(f"\n[AI] Red กำลังวิเคราะห์และสร้าง prompt ถัดไป {round_label} ...")
             last_resp = history[-1][1] if history else ""
-            if last_defense_action is None and last_resp:
-                last_defense_action = _classify_defense_action(last_resp, tool_calls=last_tool_calls)
+            if last_defense_action is _UNSET_DEFENSE_ACTION:
+                last_defense_action = _classify_defense_action(last_resp, tool_calls=last_tool_calls) if last_resp else None
             strat = case.get("strategy", "template")
             try:
                 attack, meta = ask_red(
@@ -2105,13 +2132,9 @@ def _ai_continue(
                 break
             history.append((attack, res["response"]))
             last_tool_calls[:] = list(res.get("tool_calls") or [])
-            last_defense_action = res.get("defense_action") or _classify_defense_action(
-                res.get("response", ""),
-                raw_response=res.get("raw", ""),
-                tool_calls=last_tool_calls,
-                is_breached=bool(res.get("leaked") or res.get("is_target_met") or res.get("private_table_accessed")),
-                output_intercepted=bool(res.get("output_intercepted")),
-            )
+            last_defense_action = _resolve_turn_defense_action(res)
+            if defense_state is not None:
+                defense_state["last_defense_action"] = last_defense_action
             raw_strat = (meta.get("strategy") or "").strip() if isinstance(meta, dict) else ""
             if raw_strat:
                 prior_strategies.append(raw_strat)
@@ -2192,7 +2215,7 @@ def manual_mode(defense=None, blue_role=None, red_profile=None, lang=None, attac
         templates = [c for c in load_test_cases() if _match_lang(c.get("language") or c.get("lang"), lang) and c.get("attack_type", "direct") == attack_type]
         case = {"id": session_id, "language": lang, "attack_type": attack_type, "prompt": "", "source_reference": "manual", "targets": targets}
         history, turn_no = [], 1
-        last_defense_action: Optional[str] = None
+        defense_state: Dict[str, Any] = {"last_defense_action": _UNSET_DEFENSE_ACTION}
         last_tool_calls: List[Dict[str, Any]] = []
         prior_strategies: List[str] = []
         audit("manual_start", {
@@ -2303,12 +2326,11 @@ def manual_mode(defense=None, blue_role=None, red_profile=None, lang=None, attac
                         red_profile=red_profile,
                         mutator=effective_mutator,
                         red_model=red_model,
-                        last_defense_action=last_defense_action,
+                        last_defense_action=defense_state["last_defense_action"],
                         last_tool_calls=last_tool_calls,
                         prior_strategies=prior_strategies,
+                        defense_state=defense_state,
                     )
-                    if history:
-                        last_defense_action = _classify_defense_action(history[-1][1], tool_calls=last_tool_calls)
                     continue
 
                 res = _manual_turn(
@@ -2330,13 +2352,7 @@ def manual_mode(defense=None, blue_role=None, red_profile=None, lang=None, attac
                 if not res["error"]:
                     history.append((attack, res["response"]))
                     last_tool_calls[:] = list(res.get("tool_calls") or [])
-                    last_defense_action = res.get("defense_action") or _classify_defense_action(
-                        res.get("response", ""),
-                        raw_response=res.get("raw", ""),
-                        tool_calls=last_tool_calls,
-                        is_breached=bool(res.get("leaked") or res.get("is_target_met") or res.get("private_table_accessed")),
-                        output_intercepted=bool(res.get("output_intercepted")),
-                    )
+                    defense_state["last_defense_action"] = _resolve_turn_defense_action(res)
                 if res["leaked"] or res["hits"]:
                     print(">>> พบข้อมูลเป้าหมายจากข้อความของคุณ")
             except KeyboardInterrupt:

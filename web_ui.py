@@ -716,6 +716,7 @@ def manual_start():
             "case": case,
             "history": [],
             "last_defense_action": None,
+            "_defense_action_tracked": False,
             "last_tool_calls": [],
             "prior_strategies": [],
             "turn_no": 1,
@@ -829,6 +830,7 @@ def _restore_manual_session(session_id, data):
         "case": case,
         "history": history,
         "last_defense_action": last_defense_action,
+        "_defense_action_tracked": bool(valid_rows),
         "last_tool_calls": last_tool_calls,
         "prior_strategies": prior_strategies,
         "turn_no": max(int(r[6] or 0) for r in rows) + 1,
@@ -883,18 +885,14 @@ def manual_send():
             session_id=session_id,
             blue_role=sess.get("blue_role", "registrar_staff"),
             red_profile=sess.get("red_profile", "realistic_attacker"),
+            red_model=sess.get("red_model"),
         )
 
         if not res.get("error"):
             sess["history"].append((prompt, res.get("response", "")))
             sess["last_tool_calls"] = list(res.get("tool_calls") or [])
-            sess["last_defense_action"] = res.get("defense_action") or agent._classify_defense_action(
-                res.get("response", ""),
-                raw_response=res.get("raw", ""),
-                tool_calls=sess["last_tool_calls"],
-                is_breached=bool(res.get("leaked") or res.get("is_target_met") or res.get("private_table_accessed")),
-                output_intercepted=bool(res.get("output_intercepted")),
-            )
+            sess["last_defense_action"] = agent._resolve_turn_defense_action(res)
+            sess["_defense_action_tracked"] = True
         sess["turn_no"] += 1
 
     return jsonify({
@@ -947,7 +945,7 @@ def manual_ai_step():
         last_tool_calls = sess.get("last_tool_calls") or []
         prior_strategies = sess.get("prior_strategies") or []
         last_defense_action = sess.get("last_defense_action")
-        if last_defense_action is None and last_resp:
+        if not sess.get("_defense_action_tracked") and last_defense_action is None and last_resp:
             last_defense_action = agent._classify_defense_action(
                 last_resp,
                 tool_calls=last_tool_calls,
@@ -996,13 +994,8 @@ def manual_ai_step():
         if not res.get("error"):
             sess["history"].append((attack, res.get("response", "")))
             sess["last_tool_calls"] = list(res.get("tool_calls") or [])
-            sess["last_defense_action"] = res.get("defense_action") or agent._classify_defense_action(
-                res.get("response", ""),
-                raw_response=res.get("raw", ""),
-                tool_calls=sess["last_tool_calls"],
-                is_breached=bool(res.get("leaked") or res.get("is_target_met") or res.get("private_table_accessed")),
-                output_intercepted=bool(res.get("output_intercepted")),
-            )
+            sess["last_defense_action"] = agent._resolve_turn_defense_action(res)
+            sess["_defense_action_tracked"] = True
         raw_strat = (meta.get("strategy") or "").strip() if isinstance(meta, dict) else ""
         if raw_strat:
             sess.setdefault("prior_strategies", []).append(raw_strat)
