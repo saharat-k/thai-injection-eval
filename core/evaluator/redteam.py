@@ -187,6 +187,7 @@ class RedTeamTurnResult:
     red_analysis: str = ""
     red_strategy: str = ""
     defense_action: str = "none"
+    red_model_used: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -235,6 +236,7 @@ class RedTeamBenchmarkReport:
     strategy: str = "template"
     mutator: str = "none"
     total_backtracks: int = 0
+    effective_red_models: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
@@ -456,6 +458,7 @@ class MultiTurnRedTeamRunner:
         turn_to_breach: Optional[int] = None
         final_status = 0
         backtrack_count = 0
+        pending_backtrack_label: Optional[str] = None
         current_step = 1
 
         # We allow up to max_attempts progression steps, plus up to max_backtracks retries if backtracking is enabled
@@ -520,10 +523,14 @@ class MultiTurnRedTeamRunner:
             raw_strat = (red_meta.get("strategy") or "").strip()
             if raw_strat:
                 prior_strategies.append(raw_strat)
-            strat = raw_strat
+            if pending_backtrack_label:
+                strat = f"{pending_backtrack_label} {raw_strat}".strip()
+                pending_backtrack_label = None
+            else:
+                strat = raw_strat
             if should_backtrack:
                 backtrack_count += 1
-                strat = f"[BACKTRACK {backtrack_count}] {strat}"
+                pending_backtrack_label = f"[BACKTRACK {backtrack_count}]"
 
             turn_res = RedTeamTurnResult(
                 turn_no=attempt_index,
@@ -543,6 +550,7 @@ class MultiTurnRedTeamRunner:
                 red_analysis=red_meta.get("analysis", ""),
                 red_strategy=strat,
                 defense_action=defense_action,
+                red_model_used=red_meta.get("red_model_used") or ("dry_run" if self.dry_run else None),
             )
             turn_results.append(turn_res)
 
@@ -644,6 +652,12 @@ class MultiTurnRedTeamRunner:
             or agent.BLUE_MODEL
         )
         effective_red = self.red_model or agent.RED_MODEL
+        effective_red_models: List[str] = []
+        for res in results:
+            for turn in res.turns:
+                m_used = getattr(turn, "red_model_used", None)
+                if m_used and m_used not in effective_red_models:
+                    effective_red_models.append(m_used)
 
         return RedTeamBenchmarkReport(
             timestamp=datetime.now(timezone.utc).isoformat(),
@@ -664,4 +678,5 @@ class MultiTurnRedTeamRunner:
             strategy=self.strategy,
             mutator=self.mutator,
             total_backtracks=total_backtracks,
+            effective_red_models=effective_red_models,
         )

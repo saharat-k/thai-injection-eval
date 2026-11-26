@@ -1068,6 +1068,43 @@ class MultiProviderModelTests(unittest.TestCase):
         self.assertEqual(c1.models.generate_content.call_count, 2)
         self.assertEqual(c2.models.generate_content.call_count, 0)
 
+    def test_call_red_llm_auth_circuit_breaker_trips_only_on_401_403_and_resets(self):
+        agent.reset_auth_failed_specs()
+        self.addCleanup(agent.reset_auth_failed_specs)
+        c1, c2 = mock.Mock(), mock.Mock()
+        c1.models.generate_content.side_effect = RuntimeError('openrouter API error (401): {"error":{"message":"API key expired."}}')
+        c2.models.generate_content.return_value = mock.Mock(text="[NEXT_PROMPT]\nHello")
+        with mock.patch.object(agent, "make_client") as m_mc:
+            def route_client(spec):
+                if spec == "openrouter:openrouter/free":
+                    return c1, "openrouter/free"
+                return c2, "gemini-3.5-flash-lite"
+            m_mc.side_effect = route_client
+            out1 = agent.call_red_llm("hi", "sys", red_model="openrouter:openrouter/free")
+            self.assertEqual(agent.get_last_red_model_used(), "gemini-3.5-flash-lite")
+            out2 = agent.call_red_llm("hi2", "sys", red_model="openrouter:openrouter/free")
+            self.assertIn("Hello", out1)
+            self.assertIn("Hello", out2)
+            self.assertEqual(c1.models.generate_content.call_count, 1)
+            agent.reset_auth_failed_specs()
+            agent.call_red_llm("hi3", "sys", red_model="openrouter:openrouter/free")
+            self.assertEqual(c1.models.generate_content.call_count, 2)
+
+    def test_call_red_llm_does_not_trip_circuit_on_transient_429_or_503(self):
+        agent.reset_auth_failed_specs()
+        self.addCleanup(agent.reset_auth_failed_specs)
+        c1, c2 = mock.Mock(), mock.Mock()
+        c1.models.generate_content.side_effect = [
+            RuntimeError("429 RESOURCE_EXHAUSTED"),
+            mock.Mock(text="[NEXT_PROMPT]\nRecovered"),
+        ]
+        c2.models.generate_content.return_value = mock.Mock(text="[NEXT_PROMPT]\nFallback")
+        with mock.patch.object(agent, "make_client", side_effect=[(c1, "m1"), (c2, "m2"), (c2, "m3"), (c1, "m1"), (c2, "m2"), (c2, "m3")]):
+            out1 = agent.call_red_llm("hi", "sys", red_model="openrouter:openrouter/free")
+            out2 = agent.call_red_llm("hi2", "sys", red_model="openrouter:openrouter/free")
+        self.assertIn("Fallback", out1)
+        self.assertIn("Recovered", out2)
+
 
 class PersonaAndRolePolicyTests(unittest.TestCase):
     def tearDown(self):

@@ -142,6 +142,42 @@ BLUE_TEMPERATURE = float(os.getenv("BLUE_TEMPERATURE", "0.7"))
 BLUE_MAX_OUTPUT_TOKENS = int(os.getenv("BLUE_MAX_OUTPUT_TOKENS", "1024"))
 DEFENSE_LEVELS = ("off", "prompt", "tools", "all", "spotlight")
 
+_AUTH_CIRCUIT_LOCK = threading.RLock()
+_AUTH_FAILED_SPECS: set[str] = set()
+_red_model_tl = threading.local()
+
+
+def reset_auth_failed_specs() -> None:
+    """Reset cached permanent auth failure specs for Red LLM routing."""
+    with _AUTH_CIRCUIT_LOCK:
+        _AUTH_FAILED_SPECS.clear()
+
+
+def get_last_red_model_used() -> Optional[str]:
+    """Return the model spec that generated the last call_red_llm response on this thread."""
+    return getattr(_red_model_tl, "last_spec", None)
+
+
+def _is_permanent_auth_error(exc: Exception) -> bool:
+    """Return True only for non-transient credential/permission errors (HTTP 401/403)."""
+    msg = str(exc).lower()
+    if any(t in msg for t in ("429", "503", "resource_exhausted", "unavailable", "timed out", "timeout")):
+        if "(401)" not in msg and "(403)" not in msg and "api key expired" not in msg and "invalid_token" not in msg:
+            return False
+    return any(
+        tok in msg
+        for tok in (
+            "(401)",
+            "(403)",
+            "http error 401",
+            "http error 403",
+            "api key expired",
+            "invalid_token",
+            "invalid api key",
+            "authentication failed",
+        )
+    )
+
 
 def call_red_llm(
     contents: str,
@@ -153,6 +189,7 @@ def call_red_llm(
     max_output_tokens: Optional[int] = None,
     retry_hint: Optional[str] = None,
 ) -> str:
+    _red_model_tl.last_spec = None
     candidates = []
     seen_specs = set()
     primary = red_model or RED_MODEL
@@ -162,6 +199,9 @@ def call_red_llm(
         if not spec or spec in seen_specs:
             continue
         seen_specs.add(spec)
+        with _AUTH_CIRCUIT_LOCK:
+            if spec in _AUTH_FAILED_SPECS:
+                continue
         try:
             c, m = make_client(spec)
             candidates.append((c, m, spec))
@@ -212,6 +252,7 @@ def call_red_llm(
                         last_err = None
                         retry_text = (retry_resp.text or "").strip()
                         if retry_text and validator(retry_text):
+                            _red_model_tl.last_spec = spec
                             return retry_text
                         text_for_log = retry_text or text
                     else:
@@ -220,9 +261,16 @@ def call_red_llm(
                     ctx.update({"failed_model": spec, "reason": "validator_rejected", "raw_red": text_for_log[:200]})
                     audit("red_validation_retry", ctx)
                     continue
+                _red_model_tl.last_spec = spec
                 return text
         except Exception as e:
             last_err = e
+            if _is_permanent_auth_error(e):
+                with _AUTH_CIRCUIT_LOCK:
+                    _AUTH_FAILED_SPECS.add(spec)
+                ctx_open = dict(audit_context or {})
+                ctx_open.update({"failed_model": spec, "error": str(e)[:200]})
+                audit("red_auth_circuit_open", ctx_open)
             ctx = dict(audit_context or {})
             ctx.update({"failed_model": spec, "error": str(e)[:200]})
             audit("red_model_fallback", ctx)
@@ -1305,14 +1353,20 @@ def ask_red(
     except Exception as e:
         audit("red_error", {"id": case["id"], "attempt": attempt, "error": str(e)[:300]})
         last_resp = history[-1][1] if history else ""
-        return build_fallback_attack(case, attempt, last_resp, strategy=strategy, max_attempts=max_attempts)
+        fb_prompt, fb_meta = build_fallback_attack(case, attempt, last_resp, strategy=strategy, max_attempts=max_attempts)
+        fb_meta["red_model_used"] = "fallback_static"
+        return fb_prompt, fb_meta
 
     if is_red_refusal(generated) or not generated:
         audit("red_refusal", {"id": case["id"], "attempt": attempt, "raw_red": generated[:300]})
         last_resp = history[-1][1] if history else ""
-        return build_fallback_attack(case, attempt, last_resp, strategy=strategy, max_attempts=max_attempts)
+        fb_prompt, fb_meta = build_fallback_attack(case, attempt, last_resp, strategy=strategy, max_attempts=max_attempts)
+        fb_meta["red_model_used"] = "fallback_static"
+        return fb_prompt, fb_meta
 
-    return parse_red_response(generated, objective_prompt, is_multiturn=(attempt > 1), strategy=strategy)
+    parsed_prompt, parsed_meta = parse_red_response(generated, objective_prompt, is_multiturn=(attempt > 1), strategy=strategy)
+    parsed_meta["red_model_used"] = get_last_red_model_used()
+    return parsed_prompt, parsed_meta
 
 
 def parse_architect_response(text: str, default_desc: str) -> dict:
