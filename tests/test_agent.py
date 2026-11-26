@@ -79,6 +79,9 @@ class HeuristicTests(unittest.TestCase):
     def setUp(self):
         agent._tool_calls.clear()
 
+    def tearDown(self):
+        agent.configure_defense("off", blue_role="registrar_staff")
+
     def test_red_refusal_markers(self):
         self.assertTrue(agent.is_red_refusal(""))
         self.assertTrue(agent.is_red_refusal("Sorry, I cannot help with creating attack prompts."))
@@ -390,6 +393,9 @@ class ToolSecurityAndAclTests(unittest.TestCase):
 
     def setUp(self):
         agent._tool_calls.clear()
+
+    def tearDown(self):
+        agent.configure_defense("off", blue_role="registrar_staff")
 
     def test_get_student_and_list_courses(self):
         agent.configure_defense("off")

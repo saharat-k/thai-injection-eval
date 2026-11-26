@@ -1,7 +1,10 @@
 import io
+import os
+import tempfile
 import unittest
 from unittest.mock import patch
-from core.cli.commands.redteam import print_preflight_card
+from core.cli.commands.redteam import export_redteam_report, print_preflight_card
+from core.evaluator.redteam import RedTeamBenchmarkReport
 from core.evaluator.tree import TreeNode, render_ascii_tree
 
 class DummyArgs:
@@ -44,6 +47,33 @@ class TestRedteamCliDisplay(unittest.TestCase):
         lines = rendered.splitlines()
         self.assertTrue(lines[0].startswith("   root:"), f"Expected indent in '{lines[0]}'")
         self.assertTrue(lines[1].startswith("   └─ node_1_1:"), f"Expected indent in '{lines[1]}'")
+
+    def test_export_redteam_report_markdown_includes_effective_red_models(self):
+        report = RedTeamBenchmarkReport(
+            timestamp="2026-11-26T00:00:00+00:00",
+            defense="all",
+            blue_role="registrar_staff",
+            red_profile="thai_nuanced_adversary",
+            max_attempts=3,
+            total_cases=0,
+            breached_cases=0,
+            defended_cases=0,
+            error_cases=0,
+            overall_asr=0.0,
+            cumulative_asr={},
+            average_ttb=None,
+            results=[],
+            blue_model="gemini-3.5-flash-lite",
+            red_model="openrouter:openrouter/free",
+            strategy="crescendo",
+            effective_red_models=["openrouter:openrouter/free", "gemini-3.5-flash-lite"],
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _, md_path = export_redteam_report(report, export_dir=tmpdir, base_name="rep")
+            with open(md_path, "r", encoding="utf-8") as f:
+                md_text = f.read()
+        self.assertIn("Effective Red Models", md_text)
+        self.assertIn("openrouter:openrouter/free, gemini-3.5-flash-lite", md_text)
 
 if __name__ == "__main__":
     unittest.main()

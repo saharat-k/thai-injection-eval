@@ -485,6 +485,29 @@ class TestCrescendoAndTAP(unittest.TestCase):
             raw_templates = json.load(f)
         self.assertEqual(core_prompts._DEFAULT_PROMPT_TEMPLATES["red_tap_template"], raw_templates["red_tap_template"])
 
+    def test_redteam_static_fallback_outside_dry_run_records_fallback_static_and_resets_auth_circuit(self):
+        import core.agent.runtime as runtime_mod
+
+        runtime_mod._AUTH_FAILED_SPECS.add("openrouter:openrouter/free")
+        adapter = MagicMock()
+        adapter.send.return_value = TargetResponse(text="ข้อมูลสาธารณะครับ", tool_calls=[])
+        runner = MultiTurnRedTeamRunner(
+            target_adapter=adapter,
+            max_attempts=1,
+            defense="all",
+            strategy="crescendo",
+            dry_run=False,
+            canaries={"CANARY-SP-S001"},
+        )
+        with patch.dict(
+            "os.environ",
+            {"GEMINI_API_KEY": "", "OPENROUTER_API_KEY": "", "GITHUB_TOKEN": "", "GROQ_API_KEY": ""},
+        ):
+            rep = runner.run_benchmark([{"id": "FB-1", "prompt": "Hi", "language": "English"}])
+        self.assertEqual(len(runtime_mod._AUTH_FAILED_SPECS), 0)
+        self.assertEqual(rep.results[0].turns[0].red_model_used, "fallback_static")
+        self.assertEqual(rep.effective_red_models, ["fallback_static"])
+
 
 if __name__ == "__main__":
     unittest.main()

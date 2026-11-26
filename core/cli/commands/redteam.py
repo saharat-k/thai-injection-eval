@@ -173,6 +173,8 @@ def export_redteam_report(report: RedTeamBenchmarkReport, export_dir: str = "res
         f.write(f"- **Defense Level**: `{report.defense}`\n")
         f.write(f"- **Target Blue Model**: `{report.blue_model}`\n")
         f.write(f"- **Red Adversary Model**: `{report.red_model}`\n")
+        if report.effective_red_models:
+            f.write(f"- **Effective Red Models**: `{', '.join(report.effective_red_models)}`\n")
         f.write(f"- **Blue Role**: `{report.blue_role}`\n")
         f.write(f"- **Red Adversary Profile**: `{report.red_profile}`\n")
         f.write(f"- **Attack Strategy**: `{report.strategy}`\n")

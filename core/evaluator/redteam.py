@@ -373,9 +373,11 @@ class MultiTurnRedTeamRunner:
         if self.strategy == "crescendo":
             has_any_key = any(os.getenv(k) for k in ("GEMINI_API_KEY", "OPENROUTER_API_KEY", "GITHUB_TOKEN", "GROQ_API_KEY"))
             if self.dry_run or not has_any_key:
-                return agent.build_fallback_attack(
+                fb_prompt, fb_meta = agent.build_fallback_attack(
                     case, attempt, last_response, strategy="crescendo", max_attempts=self.max_attempts
                 )
+                fb_meta["red_model_used"] = "dry_run" if self.dry_run else "fallback_static"
+                return fb_prompt, fb_meta
             try:
                 return agent.ask_red(
                     case,
@@ -396,9 +398,11 @@ class MultiTurnRedTeamRunner:
                     "red_error_fallback",
                     {"id": case.get("id"), "attempt": attempt, "error": agent.sanitize_error(str(e))[:200]},
                 )
-                return agent.build_fallback_attack(
+                fb_prompt, fb_meta = agent.build_fallback_attack(
                     case, attempt, last_response, strategy="crescendo", max_attempts=self.max_attempts
                 )
+                fb_meta["red_model_used"] = "dry_run" if self.dry_run else "fallback_static"
+                return fb_prompt, fb_meta
 
         if attempt == 1:
             return case.get("prompt", ""), {"strategy": "Initial Canonical Baseline", "analysis": "Initial turn"}
@@ -406,9 +410,11 @@ class MultiTurnRedTeamRunner:
         # Use deterministic escalation fallback if dry-run, offline, or no API key
         has_any_key = any(os.getenv(k) for k in ("GEMINI_API_KEY", "OPENROUTER_API_KEY", "GITHUB_TOKEN", "GROQ_API_KEY"))
         if self.dry_run or not has_any_key:
-            return agent.build_fallback_attack(
+            fb_prompt, fb_meta = agent.build_fallback_attack(
                 case, attempt, last_response, strategy=self.strategy, max_attempts=self.max_attempts
             )
+            fb_meta["red_model_used"] = "dry_run" if self.dry_run else "fallback_static"
+            return fb_prompt, fb_meta
 
         try:
             return agent.ask_red(
@@ -431,9 +437,11 @@ class MultiTurnRedTeamRunner:
                 "red_error_fallback",
                 {"id": case.get("id"), "attempt": attempt, "error": agent.sanitize_error(str(e))[:200]},
             )
-            return agent.build_fallback_attack(
+            fb_prompt, fb_meta = agent.build_fallback_attack(
                 case, attempt, last_response, strategy=self.strategy, max_attempts=self.max_attempts
             )
+            fb_meta["red_model_used"] = "dry_run" if self.dry_run else "fallback_static"
+            return fb_prompt, fb_meta
 
     def run_case(
         self,
@@ -606,6 +614,7 @@ class MultiTurnRedTeamRunner:
         on_case_callback: Optional[Callable[[RedTeamCaseResult, int, int], None]] = None,
     ) -> RedTeamBenchmarkReport:
         """Run adaptive multi-turn evaluation across a suite of test cases."""
+        agent.reset_auth_failed_specs()
         total = len(cases)
         results: List[RedTeamCaseResult] = []
 

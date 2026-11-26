@@ -225,6 +225,27 @@ class TestTreeBeamSearch(unittest.TestCase):
         self.assertEqual(rep.results[0].turns[0].red_model_used, "gemini-3.5-flash-lite")
         self.assertEqual(rep.effective_red_models, ["gemini-3.5-flash-lite"])
 
+    def test_tree_static_fallback_outside_dry_run_records_fallback_static(self):
+        adapter = MagicMock()
+        adapter.send.return_value = TargetResponse(text="Public course schedule", tool_calls=[])
+        runner = TreeBeamRedTeamRunner(
+            target_adapter=adapter,
+            beam_width=1,
+            branch_factor=1,
+            max_depth=1,
+            defense="all",
+            dry_run=False,
+            canaries={"CANARY-SP-S001"},
+            pacing_delay=0.0,
+        )
+        with patch.dict(
+            "os.environ",
+            {"GEMINI_API_KEY": "", "OPENROUTER_API_KEY": "", "GITHUB_TOKEN": "", "GROQ_API_KEY": ""},
+        ):
+            rep = runner.run_benchmark([{"id": "T-FB", "prompt": "p", "language": "English"}])
+        self.assertEqual(rep.results[0].turns[0].red_model_used, "fallback_static")
+        self.assertEqual(rep.effective_red_models, ["fallback_static"])
+
 
 if __name__ == "__main__":
     unittest.main()

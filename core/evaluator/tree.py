@@ -358,7 +358,12 @@ class TreeBeamRedTeamRunner(MultiTurnRedTeamRunner):
                     case, depth, parent.response, strategy="template", max_attempts=self.max_depth
                 )
                 strat = fb_meta.get("strategy", "Standard Template Escalation")
-            meta = {"strategy": strat, "branch_idx": str(branch_idx), "analysis": f"Tree Depth {depth} Branch {branch_idx}"}
+            meta = {
+                "strategy": strat,
+                "branch_idx": str(branch_idx),
+                "analysis": f"Tree Depth {depth} Branch {branch_idx}",
+                "red_model_used": "dry_run" if self.dry_run else "fallback_static",
+            }
 
         # Apply mutator if requested
         if self.mutator and self.mutator.lower() not in ("none", "off"):
