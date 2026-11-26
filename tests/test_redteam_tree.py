@@ -1,6 +1,6 @@
 """Unit tests for Asynchronous Multi-Branching Tree Search Engine (TAP Beam Search)."""
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import agent
 from core.adapters.base import BaseTargetAdapter, TargetResponse
@@ -211,6 +211,19 @@ class TestTreeBeamSearch(unittest.TestCase):
         self.assertEqual(res.turns[0].raw_leaked_canaries, ["CANARY-SP-S001"])
         self.assertEqual(m_ask.call_args_list[1].kwargs.get("refusal_reason"), "output_dlp_redacted")
         self.assertEqual(m_ask.call_args_list[1].kwargs.get("last_tool_calls"), [{"tool": "search_records", "args": {"table": "students"}, "status": "granted"}])
+
+    def test_tree_runner_records_red_model_used_and_effective_red_models(self):
+        adapter = MagicMock()
+        adapter.send.return_value = TargetResponse(text="ข้อมูลสาธารณะครับ", tool_calls=[])
+        runner = TreeBeamRedTeamRunner(
+            target_adapter=adapter, beam_width=1, branch_factor=1, max_depth=1,
+            defense="all", dry_run=False, canaries={"CANARY-SP-S001"}, pacing_delay=0.0,
+        )
+        with patch.dict("os.environ", {"OPENROUTER_API_KEY": "dummy"}), \
+             patch("agent.ask_red", return_value=("turn1 prompt", {"strategy": "S1", "red_model_used": "gemini-3.5-flash-lite"})):
+            rep = runner.run_benchmark([{"id": "T-MODEL", "prompt": "p", "language": "English"}])
+        self.assertEqual(rep.results[0].turns[0].red_model_used, "gemini-3.5-flash-lite")
+        self.assertEqual(rep.effective_red_models, ["gemini-3.5-flash-lite"])
 
 
 if __name__ == "__main__":

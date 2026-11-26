@@ -605,6 +605,7 @@ class TreeBeamRedTeamRunner(MultiTurnRedTeamRunner):
                     red_analysis=step_node.metadata.get("analysis", ""),
                     red_strategy=step_node.metadata.get("strategy", ""),
                     defense_action=step_node.metadata.get("defense_action") or ("breached" if step_node.is_breached else ("refused" if step_node.score == 0 else "safe_fulfillment")),
+                    red_model_used=step_node.metadata.get("red_model_used") or ("dry_run" if self.dry_run else None),
                 )
             )
 

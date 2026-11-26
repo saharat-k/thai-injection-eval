@@ -1105,6 +1105,31 @@ class MultiProviderModelTests(unittest.TestCase):
         self.assertIn("Fallback", out1)
         self.assertIn("Recovered", out2)
 
+    def test_call_red_llm_circuit_breaker_handles_genai_401_403_invalid_key_and_raises_when_all_tripped(self):
+        agent.reset_auth_failed_specs()
+        self.addCleanup(agent.reset_auth_failed_specs)
+        c1, c2 = mock.Mock(), mock.Mock()
+        c1.models.generate_content.side_effect = RuntimeError(
+            "403 PERMISSION_DENIED. {'error': {'code': 403, 'message': 'Permission denied'}}"
+        )
+        c2.models.generate_content.side_effect = RuntimeError(
+            "400 INVALID_ARGUMENT. {'error': {'code': 400, 'message': 'API key not valid. Please pass a valid API key.'}}"
+        )
+        with mock.patch.object(agent, "make_client") as m_mc:
+            def route(spec):
+                if spec == "gemini-3.5-flash-lite":
+                    return c1, spec
+                return c2, spec
+            m_mc.side_effect = route
+            with self.assertRaises(RuntimeError):
+                agent.call_red_llm("hi", "sys", red_model="gemini-3.5-flash-lite")
+            # Now all specs are tripped: next call must raise cleanly (not return "") so ask_red audits red_error
+            with self.assertRaises(RuntimeError) as ctx_err:
+                agent.call_red_llm("hi2", "sys", red_model="gemini-3.5-flash-lite")
+            self.assertIn("circuit", str(ctx_err.exception).lower())
+            self.assertEqual(c1.models.generate_content.call_count, 1)
+            self.assertEqual(c2.models.generate_content.call_count, 1)
+
 
 class PersonaAndRolePolicyTests(unittest.TestCase):
     def tearDown(self):

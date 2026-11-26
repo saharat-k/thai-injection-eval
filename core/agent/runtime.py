@@ -169,9 +169,14 @@ def _is_permanent_auth_error(exc: Exception) -> bool:
         for tok in (
             "(401)",
             "(403)",
+            "401 ",
+            "403 ",
             "http error 401",
             "http error 403",
+            "permission_denied",
+            "unauthenticated",
             "api key expired",
+            "api key not valid",
             "invalid_token",
             "invalid api key",
             "authentication failed",
@@ -191,6 +196,7 @@ def call_red_llm(
 ) -> str:
     _red_model_tl.last_spec = None
     candidates = []
+    skipped_auth_specs: list[str] = []
     seen_specs = set()
     primary = red_model or RED_MODEL
     specs = [primary, FALLBACK_RED_MODEL, FALLBACK_MODEL]
@@ -201,6 +207,7 @@ def call_red_llm(
         seen_specs.add(spec)
         with _AUTH_CIRCUIT_LOCK:
             if spec in _AUTH_FAILED_SPECS:
+                skipped_auth_specs.append(spec)
                 continue
         try:
             c, m = make_client(spec)
@@ -210,6 +217,14 @@ def call_red_llm(
             ctx.update({"failed_model": spec, "error": f"Client initialization failed: {e}"[:200]})
             audit("red_model_fallback", ctx)
             continue
+
+    if not candidates and skipped_auth_specs:
+        ctx_skip = dict(audit_context or {})
+        ctx_skip.update({"skipped_models": list(skipped_auth_specs)})
+        audit("red_auth_circuit_skip", ctx_skip)
+        raise RuntimeError(
+            f"All Red LLM candidates skipped due to open auth circuit breaker: {', '.join(skipped_auth_specs)}"
+        )
 
     last_err = None
     tried_clients = set()
