@@ -1,111 +1,66 @@
 # Contributing to Thai Injection Eval
 
-Thank you for your interest in contributing to **Thai Injection Eval**! We welcome contributions from researchers, security practitioners, and developers working to advance LLM application security.
+Thank you for contributing to Thai Injection Eval. This guide covers codebase structure, offline testing requirements, model rules, dataset format, and commit style.
 
-This guide outlines our development workflow, engineering standards, and submission guidelines.
+## 1. Codebase architecture
 
----
+- `core/cli/`: Unified CLI (`thai-eval` or `python -m core.cli.app`) with commands (`eval.py`, `redteam.py`, `probe.py`, `chat.py`, `dlp.py`, `serve.py` / `view` alias, `test.py`, `doctor.py`, `config.py`, `version.py`), ANSI terminal rendering, and table/JSON/CSV exporters.
+- `core/agent/`: Multi-turn Red/Blue session runtime, retry logic, and auth circuit breaker (`runtime.py`).
+- `core/tools/`: Session-isolated `SecurityContext` (`context.py`), `RoleBasedPolicy` and `AllowAllPolicy` (`policy.py`), and seven instrumented DB/action tools (`legacy.py`).
+- `core/evaluator/`: Single-turn evaluator (`engine.py`), adaptive `crescendo` / `tap` red-team runner (`redteam.py`), beam-search tree runner (`tree.py`), `IndependentSecurityOracle` (`oracle.py`), statistical tests (`stats.py`), probing (`probing.py`), indirect judge (`indirect.py`), benchmark lock checks (`lock.py`), and parallel batching (`parallel.py`).
+- `core/adapters/`: Target connection adapters (`builtin.py`, `openai_like.py`, `openrouter.py`, `callable.py`, `factory.py`).
+- `core/defenses/`: Output DLP (`dlp.py`), context spotlighting (`spotlight.py`), and dynamic Thai NLP mutators (`converters.py`).
+- `data/normalized/`: Canonical benchmark datasets (`test_cases_parallel_v2.json`, `test_cases_linguistic.json`, `test_cases.json`, and related suites).
+- `web_ui.py` & `templates/`: Local Flask dashboard and interactive playground.
+- `tests/`: Offline unit and integration suite (515 tests, 2 expected failures).
 
-## 1. Codebase Architecture
+## 2. Development setup
 
-The repository is structured into modular layers designed for high auditability and zero external runtime friction:
-
-- **`core/cli/`**: The unified command-line interface (`thai-eval` or `python -m core.cli.app`).
-  - `commands/`: Subcommand handlers (`eval.py`, `redteam.py`, `probe.py`, `serve.py`, `test.py`, `doctor.py`).
-  - `terminal/`: ANSI rendering, banner display, and Linux-standard status stream formatting.
-  - `output/`: Clean table, JSON, and CSV exporters.
-- **`core/evaluator/`**: Security evaluation engines:
-  - `engine.py`: Single-turn evaluator and baseline assessment.
-  - `redteam.py`: Multi-turn adaptive Crescendo red-teaming runner.
-  - `probing.py`: Systematic vulnerability probing across defenses.
-  - `parallel.py`: Concurrency-controlled batch evaluation.
-- **`core/adapters/`**: Target connection abstractions (`builtin.py`, `openai_like.py`, `factory.py`).
-- **`core/defenses/`**: Layered defense mechanisms:
-  - `dlp.py`: Stateless Data Loss Prevention & multi-format canary redaction.
-  - `spotlight.py`: Delimiting and prompt hardening.
-  - `converters.py`: Dynamic linguistic obfuscation transformers.
-- **`data/normalized/`**: The single source of truth for benchmark datasets (`test_cases.json`, `test_cases_linguistic.json`, etc.).
-- **`web_ui.py` & `templates/`**: Zero-dependency Flask dashboard and interactive playground.
-- **`tests/`**: Comprehensive offline unit and integration test suite.
-
----
-
-## 2. Development Setup
-
-We strongly recommend using an isolated Python virtual environment.
+Use an isolated virtual environment:
 
 ```bash
-# Clone the repository
 git clone https://github.com/saharat-k/thai-injection-eval.git
 cd thai-injection-eval
 
-# Create and activate virtual environment
 python -m venv .venv
 
-# On Linux / macOS:
+# Linux / macOS:
 source .venv/bin/activate
-# On Windows (PowerShell):
+# Windows (PowerShell):
 .venv\Scripts\Activate.ps1
 
-# Install dependencies
 pip install -r requirements.txt
+pip install -e .
 ```
 
----
+## 3. Verification and testing standards
 
-## 3. Verification & Testing Standards
-
-To protect CI stability and prevent unintentional API quota expenditure, we enforce an **offline-first verification policy**:
+Unit tests run offline without external API calls:
 
 ```bash
-# 1. Run all unit and integration tests (zero API cost, takes ~10 seconds)
 python -m unittest discover tests/
-
-# 2. Run repository hygiene and secret scanner
 python scripts/check_secrets.py --history
 ```
 
-Every PR must pass the complete unit test suite and secret scan before merging.
+Every pull request must pass the full unit test suite and secret scan before merging.
 
----
+## 4. Model selection and zero-cost constraints
 
-## 4. Model Selection & Zero-Cost Constraints
+- Default Blue target: `gemini-3.5-flash-lite` (fallback: `gemini-3.1-flash-lite`).
+- Default Red adversary: `openrouter:openrouter/free` (with `gemini-3.5-flash-lite` fallback).
+- Heavy or paid models (such as `gemini-3.8-flash` or unapproved paid OpenAI/Anthropic endpoints) must not be configured as defaults or invoked in automated runs. Always honor user-supplied `--blue` and `--red` flags within approved free-tier policies.
 
-To ensure reproducible benchmarks accessible to all researchers without commercial API barriers:
-- **Default Blue Target**: `gemini-3.5-flash-lite` (free-tier on Google AI Studio, with automatic retry and `gemini-3.1-flash-lite` fallback).
-- **Default Red Adversary**: `openrouter:openrouter/free` (or `gemini-3.5-flash-lite`).
-- **Paid Models**: Never hardcode or default to paid/quota-spike models (e.g. `gemini-3.8-flash`, `llama-3.3-70b-instruct`). Always respect user-supplied `--blue` and `--red` flags.
+## 5. Dataset contribution guidelines
 
----
+Dataset A (`data/normalized/test_cases_parallel_v2.json`) and its SHA-256 checksums are frozen under `docs/benchmark/PRE_REGISTRATION.md`. New test cases in normalized suites must validate against the canonical Draft-07 schema (`data/schema/test_case.schema.json`), which checks `id`, `category`, `technique`, `language` (`th`, `en`, `mix` or suite-specific values), `is_benign`, `prompt`, `expected_behavior`, and `evaluation`. Legacy entries in `data/normalized/test_cases.json` additionally retain `attack_type` and `source_reference`.
 
-## 5. Dataset Contribution Guidelines
+All records, citizen IDs, salaries, and canary tokens (`CANARY-*`) must be synthetic mock values. Never add real personal data or credentials.
 
-When adding or modifying adversarial test cases in `data/normalized/test_cases.json`:
-1. **Schema Compliance**: Every record must adhere to the schema:
-   - `id`: Unique identifier (e.g., `TH-01`, `EN-05`, `MIX-02`).
-   - `language`: `Thai`, `English`, or `Mixed`.
-   - `attack_type`: `direct`, `indirect`, `recon`, `semantic`, `roleplay`, `fewshot`, or `obfuscation`.
-   - `source_reference`: Origin or publication reference (e.g., `OWASP-LLM01`, `Crescendo`, `academic`).
-   - `technique`: Descriptive attack technique name.
-   - `prompt`: Injected payload text.
-2. **Synthetic Data Only**: All sensitive targets must reference mock records and canary tokens (`CANARY-*`). Never include real personal data, national IDs, or credentials.
+## 6. Git and commit conventions
 
----
+Commits follow [Conventional Commits](https://www.conventionalcommits.org/):
 
-## 6. Git & Commit Conventions
-
-We adhere to the [Conventional Commits](https://www.conventionalcommits.org/) standard followed by top open-source projects:
-
-- **Format**: `<type>(<scope>): <concise imperative subject>` (50-72 chars max, lowercase, no trailing period).
-- **Core Types**:
-  - `feat`: New capability or user-facing feature.
-  - `fix`: Bug fix or security patch.
-  - `refactor`: Code restructuring without external behavioral changes.
-  - `test`: Adding or updating test cases.
-  - `docs`: Documentation updates.
-  - `chore`: Maintenance, tooling, dependency updates.
-- **Top-Star Conciseness Rule**:
-  - Keep commits **atomic and concise**.
-  - A single-line commit message is standard for 90% of routine changes.
-  - Avoid multi-paragraph essays or repeating what `git diff` shows. If context is needed, provide 1-3 bullet points focused strictly on the *Why*.
-- **Secret & Junk Hygiene**: Never commit `.env`, `*.db`, `results.md`, `.flask_secret`, or agent scratchpad files. Always verify with `python scripts/check_secrets.py --history` before submitting a PR.
+- Format: `<type>(<scope>): <concise imperative subject>` (max 72 chars, lowercase, no trailing period).
+- Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`.
+- Keep commits atomic and concise. Use a single-line message when the change is clear; add at most two or three bullet points on why the change was needed if context matters.
+- Never stage or commit `.env`, `*.db`, `results.md`, `.flask_secret`, or scratchpads (`scratch/`, `.superpowers/`). Run `python scripts/check_secrets.py --history` before pushing.

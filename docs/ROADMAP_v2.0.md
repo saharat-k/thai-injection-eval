@@ -1,62 +1,54 @@
-# Thai Injection Eval: v2.0 Roadmap & Benchmark Security Audit
+# Thai Injection Eval: v2.0 Implementation Status & v2.1+ Roadmap
 
-**Document Status:** Stored for Future Implementation  
-**Created Date:** 2026-11-14  
-**Current Baseline:** v1.2.0 (376 passing tests, 423 benchmark cases)  
-**Target Milestone:** v2.0.0 (Multi-Tool Agentic Chaining, Pluggable Environments, Event-Sourced Ledger, 7-Tier Defense Matrix)
+- **Document Updated**: 2026-11-26
+- **Current Codebase Baseline**: `v2.0.0` (515 offline unit tests, `expected failures=2`)
+- **Next Target**: v2.1+ (Pluggable Workspaces, Event-Sourced Ledger, Tier 6 `guardrail` & Tier 7 `hitl`)
 
----
+## 1. สถานะปัจจุบันและสิ่งที่ส่งมอบแล้วใน v2.0.0 / `main`
 
-## 1. Executive Summary & Benchmark Audit
+โปรเจกต์มุ่งทดสอบช่องโหว่ด้าน Tokenizer ภาษาไทย (Zero-width, สระ/วรรณยุกต์ซ้อน, Homoglyph, เลขไทย และ Code-switching) ควบคู่กับตัวชี้วัด Attempt Rate, Leak Rate, FRR และช่วงความเชื่อมั่น 95% Wilson Score CI แบบออฟไลน์ ส่วนประกอบที่พัฒนาเสร็จและรวมเข้า `main` แล้วได้แก่:
 
-โปรเจกต์ `thai-injection-eval` ปัจจุบันอยู่ในสถานะ **"Niche Leader ด้าน Thai Linguistic Safety & Defense-in-Depth"** โดยมีจุดแข็งระดับ World-First ในการประเมินช่องโหว่ Tokenizer ภาษาไทย (Zero-width, สระ/วรรณยุกต์ซ้อน, Homoglyphs, Thai Digits, และ Code-Switching) พร้อมระบบประเมินแบบ Dual-Metric (ASR vs. Utility) และช่วงความเชื่อมั่น 95% Wilson Score CI ที่รันแบบออฟไลน์ได้ 100%
+- แยก `core/agent/` และ `core/tools/` พร้อม `SecurityContext`, `RoleBasedPolicy`, Row-Level Security (RLS) และเครื่องมือ 7 ตัว (รวม `send_campus_notification` และ `export_report`)
+- เพิ่ม `IndependentSecurityOracle` (`core/evaluator/oracle.py`) รองรับเลขคำพูดภาษาไทยและการตรวจสอบ PIN แบบตรงตัว
+- ยกระดับ Dataset A v2.0 (36 สถานการณ์ x 3 ภาษา = 108 เคส) พร้อมระบบสถิติ Paired Bootstrap และ Benjamini-Hochberg FDR
+- เพิ่มระบบ Red Teaming หลายรอบ (`crescendo`, `tap`, `tree` beam search) พร้อม `--backtrack`, Circuit Breaker และตัวแปลงภาษาไทย (`--mutator`)
 
-### ข้อจำกัดหลักที่ต้องยกระดับใน v2.0:
-1. **Single-Tool Limitation**: ปัจจุบันเคสทดสอบผูกติดกับ SQLite (`search_records`) เพียงเครื่องมือเดียว
-2. **Lack of Tool Chaining**: ยังขาดการจำลองการโจมตีแบบต่อเนื่องข้ามเครื่องมือ (เช่น Email $\to$ Drive $\to$ Notification) ซึ่งเป็น SOTA ของ AgentDojo และ InjecAgent
-3. **Canary Blindness**: ตัวตัดสินผลยังอิง Regex Canary โทเค็น ทำให้ตรวจจับการหลบเลี่ยงแบบ Paraphrase หรือ Semantic Leaks ได้จำกัด
+## 2. ข้อจำกัดที่ยังต้องพัฒนาต่อสำหรับ v2.1+
 
----
+1. **Simulated Campus Tools**: ปัจจุบันเครื่องมือทั้งหมดรันบน `data/university.db` (SQLite) ยังไม่มีสภาพแวดล้อมแยกหลายโดเมน (เช่น Workspace อีเมล/Slack/ไดรฟ์)
+2. **State-Delta Ledger & Rollback**: ยังไม่มี Event-Sourced Ledger แยกตรวจสอบ State Diff และ Rollback ข้ามหลายบริการ
+3. **Extended Defenses (Tier 6 & 7)**: ยังไม่มี Tier 6 `guardrail` (ตัวตรวจเจตนาและพารามิเตอร์ก่อนเรียกเครื่องมือด้วยโมเดลแยก) และ Tier 7 `hitl` (จำลองการขออนุมัติจากผู้ใช้ก่อนทำ Action เสี่ยงสูง)
 
-## 2. นวัตกรรมที่นำมาปรับใช้จาก Top Global Repos
+## 3. แนวคิดจากงานวิจัยอ้างอิงสำหรับเฟสถัดไป
 
-| นวัตกรรมที่นำมาปรับใช้ | แหล่งอ้างอิงต้นแบบ | ประโยชน์และผลลัพธ์ในระบบของเรา |
-| :--- | :--- | :--- |
-| **Pluggable Micro-Environments** | **InjecAgent & AgentDojo** | แยกสภาพแวดล้อมออกจากโค้ดหลัก รองรับทั้ง **Smart Campus (PDPA)** และ **Enterprise Workspace** |
-| **Event-Sourced Execution Ledger** | **AgentDojo** | บันทึกประวัติการเรียก Tool Call ทุกคำสั่ง ตรวจสอบ State-Delta และมีระบบ **Auto-Rollback** รีเซ็ตสถานะทุกเคส ป้องกัน Test Flakiness |
-| **Expanded 7-Tier Defense Matrix** | **OWASP & Guardrails AI** | เพิ่ม **Tier 6 (`guardrail`)** ตรวจสอบพารามิเตอร์ก่อนรัน และ **Tier 7 (`hitl`)** จำลองระบบขออนุมัติเมื่อพบ High-Risk Action |
-| **Chained Indirect Attack Flows** | **InjecAgent (EIPI)** | ยกระดับ `data/normalized/test_cases_indirect.json` สู่ **Version 2.0** รองรับเคสเจาะระบบข้ามเครื่องมือแบบหลาย Step |
-
----
-
-## 3. สถาปัตยกรรมระบบเป้าหมาย (Target System Architecture)
+| แนวคิดที่จะเพิ่ม | แหล่งอ้างอิงต้นแบบ | เป้าหมายในระบบ |
+|---|---|---|
+| Pluggable Micro-Environments | InjecAgent & AgentDojo | แยกสภาพแวดล้อมเป็น `SmartCampusEnvironment` และ `EnterpriseWorkspaceEnvironment` |
+| Event-Sourced Execution Ledger | AgentDojo | บันทึกประวัติและตรวจสอบ State-Delta พร้อม Rollback อัตโนมัติหลังจบเคส |
+| Tier 6 (`guardrail`) และ Tier 7 (`hitl`) | OWASP & Guardrails AI | ตรวจพารามิเตอร์ก่อนรันและจำลองขั้นตอนขออนุมัติสำหรับ High-Risk Action |
+| Chained Indirect Attack Flows | InjecAgent (EIPI) | ขยายเคสการโจมตีแบบ Multi-hop ข้ามเครื่องมือหลายขั้นตอน |
 
 ```mermaid
 graph TD
     subgraph TestRunner["Benchmark Orchestrator (thai-eval)"]
-        TC["test_cases_indirect.json (v2.0)"] --> Runner["Benchmark Engine"]
-        Runner --> Ledger["Event-Sourced ToolExecutionLedger"]
+        TC["Chained Indirect & Red Team Cases"] --> Runner["Benchmark Engine"]
+        Runner --> Ledger["Event-Sourced ToolExecutionLedger (Planned)"]
     end
 
     subgraph DefenseStack["7-Tier Defense Matrix"]
-        D1["Tier 1: off"]
-        D2["Tier 2: prompt"]
-        D3["Tier 3: tools (ACL & Sanitize)"]
-        D4["Tier 4: spotlight (Dynamic Delimiters)"]
-        D5["Tier 5: all (Defense-in-Depth)"]
-        D6["Tier 6: guardrail (Dual-LLM / Safety Pre-Check)"]
-        D7["Tier 7: hitl (High-Consequence Approval Gate)"]
+        D1["Tier 1: off (Implemented)"]
+        D2["Tier 2: prompt (Implemented)"]
+        D3["Tier 3: tools / RoleBasedPolicy / RLS (Implemented)"]
+        D4["Tier 4: spotlight (Implemented)"]
+        D5["Tier 5: all / Output DLP (Implemented)"]
+        D6["Tier 6: guardrail / Preflight Check (Planned v2.1)"]
+        D7["Tier 7: hitl / Approval Gate (Planned v2.1)"]
     end
 
     subgraph Environments["Pluggable Micro-Environments"]
-        BaseEnv["BaseEnvironment (Abstract)"]
-        BaseEnv --> CampusEnv["SmartCampusEnvironment (University/PDPA)"]
-        BaseEnv --> WorkEnv["EnterpriseWorkspaceEnvironment (Office/Email/Files)"]
-    end
-
-    subgraph EvaluationEngine["Dual Verification Engine"]
-        Ledger --> StateDiff["State-Delta Verifier (Rollback & Diff)"]
-        Ledger --> SemanticJudge["Hybrid Judge (Canary + Action Trace)"]
+        BaseEnv["BaseEnvironment (Planned)"]
+        BaseEnv --> CampusEnv["SmartCampusEnvironment (Current SQLite Sandbox)"]
+        BaseEnv --> WorkEnv["EnterpriseWorkspaceEnvironment (Planned v2.1)"]
     end
 
     Runner --> DefenseStack
@@ -64,19 +56,9 @@ graph TD
     Environments --> Ledger
 ```
 
----
+## 4. แผนงานที่เหลือสำหรับ v2.1+
 
-## 4. แผนการดำเนินงาน 4 เฟสเมื่อพร้อมพัฒนาต่อ
-
-1. **Phase 1: Core Framework & Execution Ledger**
-   - สร้างคลาส `BaseEnvironment` ใน `core/environments/base.py`
-   - สร้าง `ToolExecutionLedger` และระบบ `Auto-Rollback` ใน `core/ledger/execution_ledger.py`
-2. **Phase 2: Pluggable Environments**
-   - พัฒนา `SmartCampusEnvironment` (ขยาย Email, Google Drive, SIS)
-   - พัฒนา `EnterpriseWorkspaceEnvironment` (Slack, File Storage)
-3. **Phase 3: Expanded Defenses (Tier 6 & 7)**
-   - พัฒนา Tier 6: `guardrail` (Preflight parameter & intent inspection)
-   - พัฒนา Tier 7: `hitl` (Simulation of Human-in-the-Loop approval for destructive/exfiltration tools)
-4. **Phase 4: Dataset v2.0 & Verification**
-   - ปรับปรุง `test_cases_indirect.json` สู่ Version 2.0 เพิ่มเคส Multi-hop Chained Scenarios
-   - รันการประเมินผล Leaderboard ใหม่ พร้อมรักษาชุดทดสอบออฟไลน์ 100%
+1. แยกอินเทอร์เฟซ `BaseEnvironment` (`core/environments/base.py`) และสร้าง `ToolExecutionLedger` พร้อม State-Delta Rollback (`core/ledger/execution_ledger.py`)
+2. ขยายสภาพแวดล้อม `EnterpriseWorkspaceEnvironment` (จำลอง Email / File Storage / Messaging) เพื่อวัดการโจมตีข้ามบริการ
+3. เพิ่ม Tier 6 `guardrail` และ Tier 7 `hitl` ต่อจาก 5 Tiers ปัจจุบัน
+4. เพิ่มชุดเคส Multi-hop Tool Chaining และประเมิน Leaderboard รอบใหม่พร้อมรักษาชุดทดสอบออฟไลน์ 100%

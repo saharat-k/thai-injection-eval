@@ -1,50 +1,44 @@
-# Security Policy & Limitations Disclosure
+# Security policy and limitations disclosure
 
-## Supported Versions
+## Supported versions
 
-Security updates and vulnerability remediation are actively maintained for the following versions:
+Security updates are maintained for the following versions:
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 2.0.x   | :white_check_mark: |
-| < 2.0.0 | :x:                |
+| Version | Supported |
+| ------- | --------- |
+| 2.0.x | Yes |
+| < 2.0.0 | No |
 
----
+## Reporting a vulnerability
 
-## Reporting a Vulnerability
+If you discover a vulnerability in the harness itself (such as arbitrary code execution, SQL injection in SQLite drivers, secret leakage from local environments, or harness state bypasses):
 
-We take the security of this evaluation harness seriously. If you discover a vulnerability in the harness itself (e.g. arbitrary code execution, SQL injection in SQLite drivers, secret leakage from local environments, or harness state bypasses):
-
-1. **Do not open a public issue.**
-2. Report the vulnerability privately via **[GitHub Private Vulnerability Reporting](https://github.com/saharat-k/thai-injection-eval/security/advisories/new)** or by contacting the maintainer via repository security channels.
-3. Provide a minimal reproducible test case (PoC) and environment details (Python version, OS, relevant dependencies).
+1. Do not open a public issue.
+2. Report it privately through [GitHub Private Vulnerability Reporting](https://github.com/saharat-k/thai-injection-eval/security/advisories/new) or the repository security contact.
+3. Include a minimal reproducible proof of concept and environment details (Python version, OS, and installed dependencies).
 4. Maintainers will acknowledge receipt within 48 hours and coordinate remediation before public disclosure.
 
----
+## Threat Model Boundaries and research scope
 
-## Threat Model Boundaries & Research Scope
+`thai-injection-eval` studies prompt injection behavior in Thai-language LLM applications under explicit threat model boundaries.
 
-`thai-injection-eval` is designed specifically for studying and benchmarking prompt injection robustness in Thai-language LLM interactions. Users and researchers must understand the formal boundaries of this threat model:
+### 1. Synthetic Sandboxed Environment vs. real-world systems
 
-### 1. Synthetic Sandboxed Environment vs. Real-World Systems
-- **Synthetic Data**: All records, student profiles, citizen IDs, faculty salaries, and system tokens contained in `data/university.db` and benchmark cases are 100% synthetic mock data. No real human PII or production credentials exist in this repository.
-- **Single-Host Sandbox**: The evaluation environment executes against an in-memory or local SQLite mock database. It does not interface with live university enterprise resource planning (ERP) systems, remote webhooks, or cloud services.
+Records, student profiles, citizen IDs, faculty salaries, and canary tokens in `data/university.db` and the benchmark datasets are 100% synthetic mock data with no real human PII or production credentials. The harness executes against an in-memory or local SQLite mock database and does not connect to live university ERP systems, remote webhooks, or external mail services.
 
-### 2. Explicitly Excluded Threat Vectors
-The following threat dimensions are explicitly out-of-scope for the current release:
-- **Long-Horizon Multi-Turn Attacks**: While the harness supports up to 3 adaptive turns, long-horizon conversational manipulation (e.g. multi-session memory poisoning, extended persona grooming over tens of turns) is outside the primary evaluation scope.
-- **Multimodal Prompt Injection**: The framework evaluates textual inputs (Thai, English, and Thai-English code-switching). Multimodal vectors (injected images, adversarial audio, document OCR payloads, or vision-language inputs) are not evaluated.
-- **Production Tool Side-Effects**: Tools like `send_campus_notification` and `export_report` are instrumented stubs for monitoring action hijacking and outbound side-channel exfiltration. They do not execute external OS commands or send real network traffic.
-- **General Uncensored Jailbreaking**: The benchmark focuses strictly on OWASP LLM01 (Prompt Injection) and LLM06 (Excessive Agency / Tool Authorization Violations), not general safety alignment (such as toxicity, hate speech, or bio-weapon generation).
+### 2. Explicitly excluded threat vectors
 
-### 3. Detector & DLP Boundaries
-- **Lexical and Regex Constraints**: The output Data Loss Prevention (DLP) layer and automated evaluation judges use deterministic pattern matching, Unicode normalization (NFKC), and decoded canary candidates (Base64, Hex, Thai numerals, and Thai verbal digits).
-- **Semantic Paraphrasing**: Complex semantic paraphrasing (e.g. stating approximate ranges or metaphorical descriptions without disclosing underlying tokens or values) cannot be fully eliminated by lexical filters.
+- **Cross-session memory poisoning**: Multi-turn red teaming supports configurable adaptive turns (`--attempts` with `crescendo`, `tap`, and `tree` beam search plus refusal backtracking), but persistent cross-session memory poisoning across independent user sessions is outside scope.
+- **Multimodal vectors**: The framework tests textual inputs (Thai, English, and Thai-English code-switching). Injected images, audio, OCR documents, and vision-language payloads are not evaluated.
+- **Production tool side effects**: `send_campus_notification` and `export_report` are instrumented stubs gated by `SecurityContext` and `RoleBasedPolicy` (`core/tools/policy.py`). They do not run OS commands or send external network requests.
+- **General safety alignment**: The benchmark focuses on OWASP LLM01 (Prompt Injection), LLM02 (Sensitive Information Disclosure), and LLM06 (Excessive Agency / BOLA), rather than toxicity, hate speech, or other non-injection harms.
 
-For detailed methodological limitations, consult [**`LIMITATIONS.md`**](LIMITATIONS.md).
+### 3. Detector and DLP boundaries
 
----
+Output Data Loss Prevention (DLP) and evaluation judges use deterministic pattern matching, Unicode normalization (NFKC), and decoded canary checks (Base64, Hex, Thai numerals, and Thai verbal digits). Semantic paraphrasing that conveys approximate values without revealing underlying tokens cannot be blocked solely by lexical filters.
 
-## Responsible Research & Safe Harbor
+For detailed methodological bounds, read [`LIMITATIONS.md`](LIMITATIONS.md).
 
-This framework is created strictly for defensive security research, academic evaluation, and hardening Thai LLM applications against prompt injection. Security practitioners must ensure they have explicit authorization before applying test payloads against third-party production infrastructure.
+## Responsible research and Safe Harbor
+
+This framework exists strictly for defensive security research, academic evaluation, and hardening Thai-language LLM applications. Practitioners must obtain explicit authorization before testing payloads against third-party systems.

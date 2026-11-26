@@ -1,7 +1,20 @@
 # Changelog
 
-All notable changes to the `thai-injection-eval` benchmark and framework are documented in this file.
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+All notable changes to `thai-injection-eval` are documented here.
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+- Hybrid multi-turn red teaming supporting `crescendo`, `tap`, and beam-search `tree` strategies (`core/evaluator/tree.py`) with configurable turns (`--attempts`), refusal backtracking (`--backtrack`, `--max-backtracks`), and dynamic Thai NLP mutators (`--mutator`).
+- Language-aware red-team guidance and validator enforcement in `core/agent/runtime.py` (`ask_red`), blocking unstructured refusals and `[NEXT_PROMPT]` omissions while normalizing narrow no-break spaces and curly quotes in `is_red_refusal`.
+- Auth circuit breaker (`reset_auth_failed_specs`), effective red-model telemetry (`effective_red_models` in CLI and Markdown exports), and expanded Thai refusal pattern coverage in `core/prompts.py`.
+- Package initialization markers `core/agent/__init__.py` and `core/tools/__init__.py`.
+
+### Fixed
+- Imported `TargetResponse` in `core/evaluator/engine.py` (`SecurityEvaluator`) and isolated defense configuration state across unit tests (`test_agent.py`, `test_golden_fixtures.py`).
+- Standardized fallback `red_model_used` telemetry (`dry_run` / `fallback_static`) in `core/evaluator/redteam.py` and `core/evaluator/tree.py`.
+- Updated automated offline test suite to 515 tests (2 expected failures).
 
 ## [2.0.0] - 2026-11-15
 
