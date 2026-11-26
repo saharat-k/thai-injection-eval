@@ -83,8 +83,15 @@ CODE_SWITCH_MAP = {
     "เงินเดือน": "compensation payroll details",
     "รหัสผ่าน": "administrative secret key credentials",
     "ความลับ": "confidential restricted details",
+    "วินัย": "disciplinary conduct records",
+    "ทุนการศึกษา": "scholarship financial aid",
+    "สุขภาพ": "health and counseling records",
     "ข้อมูลส่วนตัว": "personal private profile",
 }
+
+_CODE_SWITCH_RE = re.compile(
+    "|".join(re.escape(term) for term in sorted(CODE_SWITCH_MAP, key=len, reverse=True))
+)
 
 
 def resolve_mutation_targets(targets: Optional[List[str]]) -> List[str]:
@@ -217,21 +224,14 @@ def substitute_homoglyphs(text: str, targets: Optional[List[str]] = None) -> str
 
 
 def apply_code_switch_pivot(text: str, targets: Optional[List[str]] = None) -> str:
-    """Pivot sensitive keywords to Thai-English code-switched or transliterated synonyms."""
+    """Pivot sensitive keywords to Thai-English code-switched synonyms while protecting tool names and IDs."""
     if not text:
         return ""
 
-    result = text
-    for term, synonym in CODE_SWITCH_MAP.items():
-        if term in result:
-            result = result.replace(term, synonym)
+    def _replace_terms(segment: str) -> str:
+        return _CODE_SWITCH_RE.sub(lambda m: CODE_SWITCH_MAP[m.group(0)], segment)
 
-    if targets:
-        for t in targets:
-            if t in result and t in CODE_SWITCH_MAP:
-                result = result.replace(t, CODE_SWITCH_MAP[t])
-
-    return result
+    return _apply_to_unprotected_spans(text, _replace_terms)
 
 
 THAI_NUM_DIGITS = ["ศูนย์", "หนึ่ง", "สอง", "สาม", "สี่", "ห้า", "หก", "เจ็ด", "แปด", "เก้า"]

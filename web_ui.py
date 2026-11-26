@@ -758,7 +758,8 @@ def _restore_manual_session(session_id, data):
     try:
         rows = conn.execute(
             "SELECT language, attack_type, defense_level, injected_prompt, response, success, attempt, blue_model, "
-            "tool_calls_json, red_strategy, raw_leaked_canaries, leaked_canaries, red_model "
+            "tool_calls_json, red_strategy, raw_leaked_canaries, leaked_canaries, red_model, "
+            "private_table_accessed, schema_disclosed "
             "FROM test_results WHERE id = ? ORDER BY attempt ASC",
             (session_id,),
         ).fetchall()
@@ -796,10 +797,22 @@ def _restore_manual_session(session_id, data):
             leaked_last = json.loads(last_r[11] or "[]")
         except Exception:
             raw_leaked_last, leaked_last = [], []
+        try:
+            schema_disclosed_last = json.loads(last_r[14] or "[]")
+            if not isinstance(schema_disclosed_last, list):
+                schema_disclosed_last = []
+        except Exception:
+            schema_disclosed_last = []
+        last_resp_text = last_r[4] or ""
+        is_refusal = agent.analyze_assistant_response(last_resp_text, tool_calls=last_tool_calls) in (
+            "explicit_refusal",
+            "role_refusal",
+        )
+        effective_schema_breach = [] if is_refusal else schema_disclosed_last
         last_defense_action = agent._classify_defense_action(
-            last_r[4] or "",
+            last_resp_text,
             tool_calls=last_tool_calls,
-            is_breached=bool(last_r[5] == 1),
+            is_breached=bool(last_r[5] == 1 or bool(last_r[13]) or bool(effective_schema_breach)),
             output_intercepted=bool(raw_leaked_last) and not bool(leaked_last),
         )
     blue_model = (first[7] or "").strip() or None

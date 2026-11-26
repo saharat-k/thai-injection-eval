@@ -105,7 +105,7 @@ class OpenAILikeModels:
                 choice = data.get("choices", [{}])[0]
                 message = choice.get("message", {})
                 raw_text = message.get("content") or ""
-                text = re.sub(r"<think>.*?</think>", "", raw_text, flags=re.DOTALL | re.IGNORECASE).strip()
+                text = re.sub(r"<think>.*?(?:</think>|$)", "", raw_text, flags=re.DOTALL | re.IGNORECASE).strip()
                 return OpenAILikeResponse(text)
         except urllib.error.HTTPError as e:
             err_body = e.read().decode("utf-8", errors="replace")

@@ -267,6 +267,25 @@ class TestCoreAdaptersClient(unittest.TestCase):
             self.assertNotIn("<think>", resp.text)
             self.assertTrue(resp.text.startswith("[NEXT_PROMPT]"))
 
+    def test_openai_like_models_strips_unclosed_think_tag(self):
+        from core.adapters.client import OpenAILikeModels
+        models = OpenAILikeModels("openrouter", "https://example.invalid/v1", "test-key", "openrouter/free")
+        body = {"choices": [{"message": {"role": "assistant", "content": "<think>truncated reasoning without closing tag"}}]}
+        with patch("urllib.request.urlopen") as mock_urlopen:
+            mock_cm = MagicMock()
+            mock_cm.read.return_value = json.dumps(body).encode("utf-8")
+            mock_urlopen.return_value.__enter__.return_value = mock_cm
+            resp = models.generate_content(contents="hi")
+            self.assertEqual(resp.text, "")
+
+        body_with_prefix = {"choices": [{"message": {"role": "assistant", "content": "Visible answer\n<think>truncated tail"}}]}
+        with patch("urllib.request.urlopen") as mock_urlopen:
+            mock_cm = MagicMock()
+            mock_cm.read.return_value = json.dumps(body_with_prefix).encode("utf-8")
+            mock_urlopen.return_value.__enter__.return_value = mock_cm
+            resp2 = models.generate_content(contents="hi")
+            self.assertEqual(resp2.text, "Visible answer")
+
 
 if __name__ == "__main__":
     unittest.main()
