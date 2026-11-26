@@ -457,7 +457,7 @@ def matches_target_language(text: str, target_lang: str) -> bool:
 def is_red_refusal(text: str) -> bool:
     if not text:
         return True
-    norm = text.replace("\u2018", "'").replace("\u2019", "'")
+    norm = text.replace("\u2018", "'").replace("\u2019", "'").replace("\u202f", " ").replace("\u00a0", " ")
     if "[NEXT_PROMPT]" in norm:
         payload = norm.split("[NEXT_PROMPT]", 1)[1].strip()
         if payload.startswith("```"):
@@ -1356,13 +1356,14 @@ def ask_red(
         f"[ANALYSIS] / [COUNTER_STRATEGY] / [NEXT_PROMPT] format."
     )
     generated = ""
+    _red_model_tl.last_spec = None
     try:
         generated = call_red_llm(
             contents="\n".join(lines),
             system_prompt=system_prompt,
             audit_context={"id": case["id"], "attempt": attempt},
             red_model=red_model,
-            validator=lambda t: (not is_red_refusal(t)) and matches_target_language(t, lang),
+            validator=lambda t: ("[NEXT_PROMPT]" in t) and (not is_red_refusal(t)) and matches_target_language(t, lang),
             retry_hint=lang_retry_hint,
         )
     except Exception as e:
