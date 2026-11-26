@@ -173,6 +173,8 @@ def export_redteam_report(report: RedTeamBenchmarkReport, export_dir: str = "res
         f.write(f"- **Defense Level**: `{report.defense}`\n")
         f.write(f"- **Target Blue Model**: `{report.blue_model}`\n")
         f.write(f"- **Red Adversary Model**: `{report.red_model}`\n")
+        if report.effective_red_models:
+            f.write(f"- **Effective Red Models**: `{', '.join(report.effective_red_models)}`\n")
         f.write(f"- **Blue Role**: `{report.blue_role}`\n")
         f.write(f"- **Red Adversary Profile**: `{report.red_profile}`\n")
         f.write(f"- **Attack Strategy**: `{report.strategy}`\n")
@@ -217,18 +219,27 @@ def run_redteam_run(args) -> int:
     try:
         with open(cases_file, "r", encoding="utf-8") as f:
             raw_data = json.load(f)
-            cases = raw_data.get("cases", raw_data) if isinstance(raw_data, dict) else raw_data
+            if isinstance(raw_data, dict):
+                if "scenarios" in raw_data and "cases" not in raw_data:
+                    from core.evaluator.parallel import expand_scenarios_to_cases
+                    cases = expand_scenarios_to_cases(raw_data)
+                else:
+                    cases = raw_data.get("cases", raw_data)
+            else:
+                cases = raw_data
     except Exception as e:
         print(red(f"[-] Failed to load test cases from {cases_file}: {e}", enabled=not no_color), file=sys.stderr)
         return 2
 
-    # Filter specific case if provided
+    # Filter specific case if provided; otherwise exclude benign controls from adversarial runs
     if case_filter and case_filter.upper() != "ALL":
         filtered = [c for c in cases if c.get("id") == case_filter]
         if not filtered:
             print(red(f"[-] Case ID '{case_filter}' not found in {cases_file}", enabled=not no_color), file=sys.stderr)
             return 2
         cases = filtered
+    else:
+        cases = [c for c in cases if not (c.get("is_benign") or c.get("attack_type") == "benign")]
 
     limit = getattr(args, "limit", None)
     if limit and limit > 0:

@@ -9,6 +9,9 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FIXTURES_DIR = os.path.join(BASE_DIR, "tests", "fixtures")
 
 class TestGoldenFixtures(unittest.TestCase):
+    def setUp(self):
+        agent.configure_defense("off", blue_role="registrar_staff")
+
     def test_tool_outputs_match_golden_snapshots(self):
         with open(os.path.join(FIXTURES_DIR, "golden_tool_outputs.json"), "r", encoding="utf-8") as f:
             golden = json.load(f)

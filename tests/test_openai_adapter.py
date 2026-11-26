@@ -163,6 +163,42 @@ class TestOpenAILikeTargetAdapter(unittest.TestCase):
         export_props = next(s["function"]["parameters"]["properties"] for s in spec if s["function"]["name"] == "export_report")
         self.assertIn("destination", export_props)
 
+    def test_adapters_restore_history_resets_and_restores_pairs(self):
+        from core.adapters.base import BaseTargetAdapter, TargetResponse
+        from core.adapters.builtin import BuiltinTargetAdapter
+
+        class MinimalAdapter(BaseTargetAdapter):
+            def __init__(self):
+                super().__init__("min")
+                self.reset_calls = 0
+
+            def send(self, prompt, **kwargs):
+                return TargetResponse(text="ok")
+
+            def reset(self):
+                self.reset_calls += 1
+
+        minimal = MinimalAdapter()
+        minimal.restore_history([("u1", "a1")])
+        self.assertEqual(minimal.reset_calls, 1)
+
+        adapter = OpenAILikeTargetAdapter("test_restore", config={"model": "typhoon-2", "defense": "all"})
+        adapter.messages.append({"role": "user", "content": "bad_turn"})
+        adapter.messages.append({"role": "assistant", "content": "refused"})
+        adapter.restore_history([("u1", "a1")])
+        self.assertEqual(adapter.messages[0]["role"], "system")
+        self.assertEqual(adapter.messages[1:], [
+            {"role": "user", "content": "u1"},
+            {"role": "assistant", "content": "a1"},
+        ])
+
+        with patch("agent.BlueSession") as mock_session_cls:
+            mock_sess = MagicMock()
+            mock_session_cls.return_value = mock_sess
+            builtin = BuiltinTargetAdapter(config={"defense": "tools", "blue_role": "registrar_staff"})
+            builtin.restore_history([("สวัสดี", "ยินดีให้บริการ")])
+            mock_sess.restore_history.assert_called_once_with([("สวัสดี", "ยินดีให้บริการ")])
+
     def test_dispatch_tool_call_passes_destination_to_export_report(self):
         try:
             agent.configure_defense("tools", blue_role="registrar_staff")
@@ -204,6 +240,51 @@ class TestCoreAdaptersClient(unittest.TestCase):
             resp = client.models.generate_content(contents="test prompt")
             self.assertIsInstance(resp, OpenAILikeResponse)
             self.assertEqual(resp.text, "Generated test answer")
+
+    def test_openai_like_models_drops_reasoning_content_and_forwards_limits(self):
+        from core.adapters.client import OpenAILikeModels
+        models = OpenAILikeModels("openrouter", "https://example.invalid/v1", "test-key", "openrouter/free")
+        body = {"choices": [{"message": {"role": "assistant", "content": "", "reasoning_content": "Secret CoT"}}]}
+        with patch("urllib.request.urlopen") as mock_urlopen:
+            mock_cm = MagicMock()
+            mock_cm.read.return_value = json.dumps(body).encode("utf-8")
+            mock_urlopen.return_value.__enter__.return_value = mock_cm
+            resp = models.generate_content(contents="hi", config={"temperature": 0.4, "max_output_tokens": 512})
+            self.assertEqual(resp.text, "")
+            sent_payload = json.loads(mock_urlopen.call_args[0][0].data.decode("utf-8"))
+            self.assertEqual(sent_payload["temperature"], 0.4)
+            self.assertEqual(sent_payload["max_tokens"], 512)
+
+    def test_openai_like_models_strips_think_tags(self):
+        from core.adapters.client import OpenAILikeModels
+        models = OpenAILikeModels("openrouter", "https://example.invalid/v1", "test-key", "openrouter/free")
+        body = {"choices": [{"message": {"role": "assistant", "content": "<think>internal plan</think>\n[NEXT_PROMPT]\nสวัสดีครับ"}}]}
+        with patch("urllib.request.urlopen") as mock_urlopen:
+            mock_cm = MagicMock()
+            mock_cm.read.return_value = json.dumps(body).encode("utf-8")
+            mock_urlopen.return_value.__enter__.return_value = mock_cm
+            resp = models.generate_content(contents="hi")
+            self.assertNotIn("<think>", resp.text)
+            self.assertTrue(resp.text.startswith("[NEXT_PROMPT]"))
+
+    def test_openai_like_models_strips_unclosed_think_tag(self):
+        from core.adapters.client import OpenAILikeModels
+        models = OpenAILikeModels("openrouter", "https://example.invalid/v1", "test-key", "openrouter/free")
+        body = {"choices": [{"message": {"role": "assistant", "content": "<think>truncated reasoning without closing tag"}}]}
+        with patch("urllib.request.urlopen") as mock_urlopen:
+            mock_cm = MagicMock()
+            mock_cm.read.return_value = json.dumps(body).encode("utf-8")
+            mock_urlopen.return_value.__enter__.return_value = mock_cm
+            resp = models.generate_content(contents="hi")
+            self.assertEqual(resp.text, "")
+
+        body_with_prefix = {"choices": [{"message": {"role": "assistant", "content": "Visible answer\n<think>truncated tail"}}]}
+        with patch("urllib.request.urlopen") as mock_urlopen:
+            mock_cm = MagicMock()
+            mock_cm.read.return_value = json.dumps(body_with_prefix).encode("utf-8")
+            mock_urlopen.return_value.__enter__.return_value = mock_cm
+            resp2 = models.generate_content(contents="hi")
+            self.assertEqual(resp2.text, "Visible answer")
 
 
 if __name__ == "__main__":

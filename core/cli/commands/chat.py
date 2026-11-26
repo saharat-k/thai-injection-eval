@@ -290,6 +290,7 @@ def run_chat(args) -> int:
         targets = [t.strip() for t in targets_arg.split(",") if t.strip()] if targets_arg else None
         blue_model = getattr(args, "blue", None) or getattr(args, "model", None)
         red_model = getattr(args, "red", None)
+        mutator = getattr(args, "mutator", "none") or "none"
         manual_kwargs = {
             "defense": defense,
             "blue_role": role,
@@ -297,6 +298,7 @@ def run_chat(args) -> int:
             "lang": lang,
             "attack_type": attack_type,
             "targets": targets,
+            "mutator": mutator,
         }
         if blue_model:
             manual_kwargs["blue_model"] = blue_model

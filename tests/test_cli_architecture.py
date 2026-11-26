@@ -446,6 +446,86 @@ class CliArchitectureTests(unittest.TestCase):
         self.assertEqual(code, 0)
         mock_ld.assert_called_once()
 
+    def test_redteam_run_loads_v2_scenarios_file_without_crashing(self):
+        from core.cli.commands.redteam import run_redteam_run
+        parser = build_parser()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            args = parser.parse_args([
+                "redteam", "run", "--cases", "data/normalized/test_cases_parallel_v2.json",
+                "--case", "SCN-DIR-01-TH", "--attempts", "1", "--dry-run", "--quiet",
+                "--export-dir", tmpdir,
+            ])
+            with patch("sys.stdout"):
+                rc = run_redteam_run(args)
+            self.assertIn(rc, (0, 1))
+
+    def test_redteam_run_excludes_benign_controls_unless_explicitly_targeted(self):
+        from core.cli.commands.redteam import run_redteam_run
+        from core.evaluator.redteam import RedTeamBenchmarkReport
+        parser = build_parser()
+        captured = []
+
+        def _fake_bench(cases, on_turn_callback=None, on_case_callback=None):
+            captured.append(list(cases))
+            return RedTeamBenchmarkReport(
+                timestamp="2026-11-25T00:00:00Z",
+                defense="all",
+                blue_role="registrar_staff",
+                red_profile="thai_nuanced_adversary",
+                max_attempts=1,
+                total_cases=len(cases),
+                breached_cases=0,
+                defended_cases=len(cases),
+                error_cases=0,
+                overall_asr=0.0,
+                cumulative_asr={1: 0.0},
+                average_ttb=None,
+                results=[],
+            )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            args_all = parser.parse_args([
+                "redteam", "run", "--cases", "data/normalized/test_cases_parallel_v2.json",
+                "--attempts", "1", "--dry-run", "--quiet", "--export-dir", tmpdir,
+            ])
+            with patch("core.cli.commands.redteam.MultiTurnRedTeamRunner") as m_runner, patch("sys.stdout"):
+                m_runner.return_value.run_benchmark.side_effect = _fake_bench
+                rc = run_redteam_run(args_all)
+            self.assertEqual(rc, 0)
+            self.assertTrue(len(captured[0]) > 0)
+            self.assertFalse(any(c.get("is_benign") or c.get("attack_type") == "benign" for c in captured[0]))
+
+            captured.clear()
+            args_benign = parser.parse_args([
+                "redteam", "run", "--cases", "data/normalized/test_cases_parallel_v2.json",
+                "--case", "SCN-BENIGN-01-TH", "--attempts", "1", "--dry-run", "--quiet", "--export-dir", tmpdir,
+            ])
+            with patch("core.cli.commands.redteam.MultiTurnRedTeamRunner") as m_runner, patch("sys.stdout"):
+                m_runner.return_value.run_benchmark.side_effect = _fake_bench
+                rc_b = run_redteam_run(args_benign)
+            self.assertEqual(rc_b, 0)
+            self.assertEqual([c["id"] for c in captured[0]], ["SCN-BENIGN-01-TH"])
+
+    def test_chat_command_forwards_mutator_to_manual_mode(self):
+        parser = build_parser()
+        args = parser.parse_args(["chat", "--defense", "all", "--lang", "Thai", "--mutator", "zero_width"])
+        with patch("agent.manual_mode") as m_manual, patch("sys.stdout"):
+            from core.cli.commands.chat import run_chat
+            run_chat(args)
+        self.assertEqual(m_manual.call_args.kwargs.get("mutator"), "zero_width")
+
+    def test_chat_cli_red_profile_choices_match_personas_json(self):
+        with open(os.path.join("data", "personas.json"), "r", encoding="utf-8") as f:
+            expected_profiles = set(json.load(f)["red_profiles"].keys())
+        parser = build_parser()
+        for cmd in ("chat", "manual"):
+            sub_action = next(a for a in parser._actions if getattr(a, "dest", None) == "command")
+            sub_parser = sub_action.choices[cmd]
+            profile_action = next(a for a in sub_parser._actions if getattr(a, "dest", None) == "red_profile")
+            self.assertEqual(set(profile_action.choices), expected_profiles)
+            for ghost in ("script_kiddie", "academic_auditor", "blackbox_probe"):
+                self.assertNotIn(ghost, profile_action.choices)
+
 
 if __name__ == "__main__":
     unittest.main()

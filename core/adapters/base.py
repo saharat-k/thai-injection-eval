@@ -30,6 +30,10 @@ class BaseTargetAdapter(ABC):
         """Reset conversation memory/session context for stateless evaluation."""
         pass
 
+    def restore_history(self, pairs: list[tuple[str, str]]) -> None:
+        """Restore conversation history to a prior checkpoint (default: reset)."""
+        self.reset()
+
     def get_info(self) -> dict:
         """Return metadata describing the target adapter."""
         return {

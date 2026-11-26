@@ -291,3 +291,10 @@ class OpenAILikeTargetAdapter(BaseTargetAdapter):
 
     def reset(self):
         self._init_messages(self.defense, self.role)
+
+    def restore_history(self, pairs: list[tuple[str, str]]) -> None:
+        """Reset conversation messages and restore prior (prompt, response) pairs."""
+        self.reset()
+        for prompt, reply in pairs:
+            self.messages.append({"role": "user", "content": str(prompt)})
+            self.messages.append({"role": "assistant", "content": str(reply)})
