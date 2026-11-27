@@ -7,8 +7,10 @@ import unittest
 from core.defenses.converters import THAI_COMBINING_MARKS
 from core.evaluator.mutators import PROTECTED_TOOL_NAMES, VARIATION_SELECTORS
 from core.evaluator.techniques import (
+    BarrierSelector,
     TechniqueContext,
     TechniqueRegistry,
+    TechniqueSessionState,
     apply_technique_pipeline,
     parse_technique_spec,
 )
@@ -181,6 +183,84 @@ class TestTechniqueRegistryAndPipeline(unittest.TestCase):
         if src_path.exists():
             content = src_path.read_text(encoding="utf-8")
             self.assertNotIn("\\u0e", content.lower())
+
+
+class TestBarrierSelectorReflexion(unittest.TestCase):
+    def test_select_next_never_repeats_failed_technique_for_same_barrier(self):
+        state = TechniqueSessionState()
+        ctx = TechniqueContext(language="Thai", defense="all", last_defense_action="prompt_policy_refused")
+        seen = []
+        for _ in range(5):
+            spec = BarrierSelector.select_next(ctx, state, pool="core")
+            self.assertEqual(spec.tier, "core")
+            self.assertNotIn(spec.id, seen)
+            seen.append(spec.id)
+            state.record_outcome("prompt_policy_refused", spec.id, breached=False)
+
+    def test_role_refusal_aliases_to_prompt_policy_refused_and_dlp_selects_evasion(self):
+        state = TechniqueSessionState()
+        ctx_role = TechniqueContext(language="Thai", defense="prompt", last_defense_action="role_refusal")
+        first_role = BarrierSelector.select_next(ctx_role, state)
+        state.record_outcome("role_refusal", first_role.id, breached=False)
+        second_role = BarrierSelector.select_next(
+            TechniqueContext(language="Thai", defense="prompt", last_defense_action="prompt_policy_refused"),
+            state,
+        )
+        self.assertNotEqual(first_role.id, second_role.id)
+
+        dlp_spec = BarrierSelector.select_next(
+            TechniqueContext(language="Thai", defense="all", last_defense_action="output_dlp_redacted"),
+            TechniqueSessionState(),
+        )
+        self.assertIn("output_dlp_redacted", dlp_spec.target_barriers)
+
+    def test_spotlight_context_prioritizes_spotlight_capable_techniques(self):
+        ctx = TechniqueContext(language="Thai", defense="spotlight", last_defense_action="prompt_policy_refused")
+        spec = BarrierSelector.select_next(ctx, TechniqueSessionState(), pool="all")
+        self.assertIn("spotlight", spec.target_barriers)
+
+        ctx_indirect = TechniqueContext(language="Thai", defense="all", last_defense_action="safe_fulfillment")
+        spec_indirect = BarrierSelector.select_next(ctx_indirect, TechniqueSessionState(), pool="core", attack_type="indirect")
+        self.assertIn("spotlight", spec_indirect.target_barriers)
+        self.assertEqual(spec_indirect.tier, "core")
+
+    def test_pool_core_restricts_advanced_and_exhaustion_uses_least_recently_tried(self):
+        state = TechniqueSessionState()
+        ctx = TechniqueContext(language="Thai", defense="prompt", last_defense_action="prompt_policy_refused")
+        first_cycle = []
+        for _ in range(8):
+            spec = BarrierSelector.select_next(ctx, state, pool="core")
+            self.assertEqual(spec.tier, "core")
+            self.assertNotIn(spec.id, first_cycle)
+            first_cycle.append(spec.id)
+            state.record_outcome("prompt_policy_refused", spec.id, breached=False)
+
+        self.assertEqual(set(first_cycle), CORE_IDS)
+        # Exhausted: falls back to least-recently-tried (first_cycle[0], then first_cycle[1])
+        replay_1 = BarrierSelector.select_next(ctx, state, pool="core")
+        self.assertEqual(replay_1.id, first_cycle[0])
+        state.record_outcome("prompt_policy_refused", replay_1.id, breached=False)
+        replay_2 = BarrierSelector.select_next(ctx, state, pool="core")
+        self.assertEqual(replay_2.id, first_cycle[1])
+
+    def test_tool_acl_and_safe_fulfillment_and_breached_outcome_semantics(self):
+        acl_spec = BarrierSelector.select_next(
+            TechniqueContext(language="Thai", defense="all", last_defense_action="tool_acl_blocked"),
+            TechniqueSessionState(),
+            pool="core",
+        )
+        self.assertEqual(acl_spec.id, "tool_schema_pivot")
+
+        for action in ("safe_fulfillment", "ignored_injection_answered_primary", "none", None):
+            ctx = TechniqueContext(language="Thai", defense="prompt", last_defense_action=action)
+            spec = BarrierSelector.select_next(ctx, TechniqueSessionState(), pool="core")
+            self.assertEqual(spec.id, "drattack_split")
+
+        state = TechniqueSessionState()
+        state.record_outcome("prompt_policy_refused", "many_shot_priming", breached=True)
+        self.assertEqual(state.active_technique, "many_shot_priming")
+        self.assertIn("many_shot_priming", state.tried_techniques)
+        self.assertNotIn("many_shot_priming", state.failed_by_barrier.get("prompt_policy_refused", set()))
 
 
 if __name__ == "__main__":

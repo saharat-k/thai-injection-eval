@@ -712,11 +712,164 @@ def apply_technique_pipeline(
     return out
 
 
+_BARRIER_ALIASES: dict[str, str] = {
+    "role_refusal": "prompt_policy_refused",
+    "explicit_refusal": "prompt_policy_refused",
+    "refused": "prompt_policy_refused",
+    "ignored_injection_answered_primary": "safe_fulfillment",
+    "none": "safe_fulfillment",
+    "initial": "safe_fulfillment",
+    "general": "safe_fulfillment",
+    "": "safe_fulfillment",
+}
+
+_BARRIER_PREFERENCES: dict[str, tuple[str, ...]] = {
+    "prompt_policy_refused": (
+        "many_shot_priming",
+        "policy_puppetry",
+        "bad_likert_judge",
+        "skeleton_key",
+        "flip_attack",
+        "variation_selector",
+        "bon_perturbation",
+        "thai_register_karaoke",
+        "drattack_split",
+        "structured_coercion",
+    ),
+    "output_dlp_redacted": (
+        "cipher_encoding",
+        "structured_coercion",
+        "variation_selector",
+        "bon_perturbation",
+    ),
+    "tool_acl_blocked": (
+        "tool_schema_pivot",
+        "spotlight_breakout",
+        "echo_chamber",
+        "policy_puppetry",
+    ),
+    "safe_fulfillment": (
+        "drattack_split",
+        "structured_coercion",
+        "echo_chamber",
+        "policy_puppetry",
+        "thai_register_karaoke",
+    ),
+    "spotlight": (
+        "spotlight_breakout",
+        "policy_puppetry",
+        "bad_likert_judge",
+        "thai_register_karaoke",
+    ),
+}
+
+
+@dataclass
+class TechniqueSessionState:
+    """Tracks per-case technique attempts and barrier-specific failures for reflexion."""
+
+    tried_techniques: list[str] = field(default_factory=list)
+    failed_by_barrier: dict[str, set[str]] = field(default_factory=dict)
+    active_technique: Optional[str] = None
+
+    def record_outcome(self, barrier: str, technique_id: str, breached: bool) -> None:
+        """Record a turn outcome, normalizing barrier aliases for reflexion memory."""
+        norm_barrier = BarrierSelector.normalize_barrier(barrier)
+        self.active_technique = technique_id
+        self.tried_techniques.append(technique_id)
+        if not breached:
+            self.failed_by_barrier.setdefault(norm_barrier, set()).add(technique_id)
+
+
+class BarrierSelector:
+    """Barrier-aware technique selector with reflexion memory and Spotlighting boost."""
+
+    @staticmethod
+    def _is_spotlight_context(
+        ctx: Optional[TechniqueContext],
+        attack_type: str = "direct",
+    ) -> bool:
+        if ctx is None:
+            return False
+        defense = (ctx.defense or "").strip().lower()
+        atype = (attack_type or "direct").strip().lower()
+        return defense == "spotlight" or (defense == "all" and atype == "indirect")
+
+    @classmethod
+    def normalize_barrier(
+        cls,
+        defense_action: Optional[str],
+        ctx: Optional[TechniqueContext] = None,
+        attack_type: str = "direct",
+    ) -> str:
+        """Normalize raw defense action aliases and infer Spotlighting context."""
+        raw = (defense_action or "").strip().lower()
+        barrier = _BARRIER_ALIASES.get(raw, raw)
+        if barrier not in _BARRIER_PREFERENCES:
+            barrier = "prompt_policy_refused"
+        if cls._is_spotlight_context(ctx, attack_type) and barrier == "safe_fulfillment":
+            return "spotlight"
+        return barrier
+
+    @classmethod
+    def select_next(
+        cls,
+        ctx: TechniqueContext,
+        state: TechniqueSessionState,
+        pool: str = "core",
+        attack_type: str = "direct",
+    ) -> TechniqueSpec:
+        """Select the next non-failed technique for the active barrier and pool."""
+        pool_norm = (pool or "core").strip().lower()
+        if pool_norm == "core":
+            allowed_specs = TechniqueRegistry.list_all(tier="core")
+        elif pool_norm == "all":
+            allowed_specs = TechniqueRegistry.list_all()
+        else:
+            raise ValueError(f"Invalid technique pool: {pool!r}")
+
+        allowed_by_id = {spec.id: spec for spec in allowed_specs}
+        barrier = cls.normalize_barrier(ctx.last_defense_action, ctx, attack_type=attack_type)
+
+        preferred_ids = _BARRIER_PREFERENCES.get(barrier, _BARRIER_PREFERENCES["prompt_policy_refused"])
+        ordered: list[TechniqueSpec] = []
+        seen_ids: set[str] = set()
+        for tid in preferred_ids:
+            if tid in allowed_by_id and tid not in seen_ids:
+                ordered.append(allowed_by_id[tid])
+                seen_ids.add(tid)
+        for spec in allowed_specs:
+            if spec.id not in seen_ids:
+                ordered.append(spec)
+                seen_ids.add(spec.id)
+
+        if cls._is_spotlight_context(ctx, attack_type):
+            spotlight_order = {tid: idx for idx, tid in enumerate(_BARRIER_PREFERENCES["spotlight"])}
+            spotlight_specs = sorted(
+                [s for s in ordered if "spotlight" in s.target_barriers],
+                key=lambda s: spotlight_order.get(s.id, len(spotlight_order)),
+            )
+            other_specs = [s for s in ordered if "spotlight" not in s.target_barriers]
+            ordered = spotlight_specs + other_specs
+
+        failed = state.failed_by_barrier.get(barrier, set())
+        candidates = [spec for spec in ordered if spec.id not in failed]
+        if candidates:
+            return candidates[0]
+
+        last_tried_idx: dict[str, int] = {}
+        for idx, tid in enumerate(state.tried_techniques):
+            last_tried_idx[tid] = idx
+        return min(ordered, key=lambda spec: last_tried_idx.get(spec.id, -1))
+
+
 __all__ = [
     "PROTECTED_TOOL_NAMES",
     "TechniqueContext",
     "TechniqueSpec",
     "TechniqueRegistry",
+    "TechniqueSessionState",
+    "BarrierSelector",
     "parse_technique_spec",
     "apply_technique_pipeline",
 ]
