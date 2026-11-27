@@ -19,6 +19,14 @@ import agent
 from core.adapters.base import BaseTargetAdapter, TargetResponse
 from core.adapters.factory import create_target_adapter
 from core.evaluator.mutators import apply_mutation
+from core.evaluator.techniques import (
+    BarrierSelector,
+    TechniqueContext,
+    TechniqueRegistry,
+    TechniqueSessionState,
+    apply_technique_pipeline,
+    parse_technique_spec,
+)
 from core.tools.context import SecurityContext, set_current_security_context
 
 
@@ -188,6 +196,7 @@ class RedTeamTurnResult:
     red_strategy: str = ""
     defense_action: str = "none"
     red_model_used: Optional[str] = None
+    technique_used: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -237,6 +246,8 @@ class RedTeamBenchmarkReport:
     mutator: str = "none"
     total_backtracks: int = 0
     effective_red_models: List[str] = field(default_factory=list)
+    technique: str = "none"
+    technique_breakdown: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
@@ -262,6 +273,7 @@ class MultiTurnRedTeamRunner:
         mutator: str = "none",
         enable_backtrack: bool = False,
         max_backtracks: int = 2,
+        technique: str = "none",
     ):
         self.max_attempts = max(1, int(max_attempts))
         self.defense = defense
@@ -275,6 +287,14 @@ class MultiTurnRedTeamRunner:
         self.mutator = mutator
         self.enable_backtrack = enable_backtrack
         self.max_backtracks = max(0, int(max_backtracks))
+
+        raw_tech = (technique or "none").strip().lower()
+        self.technique = raw_tech or "none"
+        self._explicit_technique_ids: list[str] = []
+        if self.technique not in ("none", "auto", "core", "all"):
+            self._explicit_technique_ids = parse_technique_spec(self.technique)
+            if not self._explicit_technique_ids:
+                self.technique = "none"
 
         if target_adapter is not None:
             self.target = target_adapter
@@ -323,6 +343,34 @@ class MultiTurnRedTeamRunner:
 
         return DryRunMockAdapter(self.defense, self.blue_role)
 
+    def _resolve_turn_technique(
+        self,
+        active_technique: str,
+        ctx: TechniqueContext,
+        state: Optional[TechniqueSessionState],
+        attack_type: str,
+    ) -> Tuple[str, List[str], Optional[str], Optional[List[str]]]:
+        """Resolve technique IDs, directive, and failed-technique memory for the current turn."""
+        mode = (active_technique or "none").strip().lower() or "none"
+        if mode == "none":
+            return "", [], None, None
+
+        if mode in ("auto", "core", "all"):
+            pool = "all" if mode == "all" else "core"
+            session_state = state or TechniqueSessionState()
+            chosen = BarrierSelector.select_next(ctx, session_state, pool=pool, attack_type=attack_type)
+            directive = f"{chosen.name}: {chosen.prompt_directive}" if chosen.prompt_directive else chosen.name
+            failed_set = set().union(*session_state.failed_by_barrier.values()) if session_state.failed_by_barrier else set()
+            failed_list = [tid for tid in dict.fromkeys(session_state.tried_techniques) if tid in failed_set] or None
+            return chosen.id, [chosen.id], directive, failed_list
+
+        spec_ids = parse_technique_spec(mode)
+        if not spec_ids:
+            return "", [], None, None
+        specs = [TechniqueRegistry.get(tid) for tid in spec_ids]
+        dirs = [f"{s.name}: {s.prompt_directive}" if s.prompt_directive else s.name for s in specs]
+        return ",".join(spec_ids), spec_ids, (" | ".join(dirs) if dirs else None), None
+
     def _generate_payload(
         self,
         case: dict,
@@ -333,8 +381,36 @@ class MultiTurnRedTeamRunner:
         last_tool_calls: Optional[List[Dict[str, Any]]] = None,
         prior_strategies: Optional[List[str]] = None,
         rejected_prompts: Optional[List[str]] = None,
-    ) -> Tuple[str, Dict[str, str]]:
+        *,
+        technique_override: Optional[str] = None,
+        technique_state: Optional[TechniqueSessionState] = None,
+        attempt_index: Optional[int] = None,
+    ) -> Tuple[str, Dict[str, Any]]:
         """Generate the attack payload for the current turn using LLM or deterministic fallback."""
+        eval_spec = case.get("evaluation") or {}
+        targets = list(case.get("targets") or eval_spec.get("expected_tokens") or [])
+        active_tech = (technique_override or self.technique or "none").strip().lower() or "none"
+
+        tech_ctx = TechniqueContext(
+            language=case.get("language", "Thai"),
+            turn_no=attempt,
+            max_attempts=self.max_attempts,
+            targets=targets,
+            defense=self.defense,
+            blue_role=self.blue_role,
+            red_profile=self.red_profile,
+            last_response=last_response,
+            last_defense_action=last_defense_action,
+            history=history,
+            seed=attempt_index if attempt_index is not None else attempt,
+        )
+        technique_used, spec_ids, directive, failed_list = self._resolve_turn_technique(
+            active_tech,
+            tech_ctx,
+            technique_state,
+            case.get("attack_type", "direct"),
+        )
+
         prompt, meta = self._generate_raw_payload(
             case,
             history,
@@ -344,12 +420,22 @@ class MultiTurnRedTeamRunner:
             last_tool_calls=last_tool_calls,
             prior_strategies=prior_strategies,
             rejected_prompts=rejected_prompts,
+            technique_directive=directive,
+            failed_techniques=failed_list,
         )
 
-        # Apply dynamic NLP mutator if configured
+        if spec_ids:
+            is_fallback = meta.get("red_model_used") in ("dry_run", "fallback_static")
+            if attempt == 1 or is_fallback:
+                prompt = apply_technique_pipeline(prompt, ",".join(spec_ids), tech_ctx)
+            else:
+                evasion_ids = [tid for tid in spec_ids if TechniqueRegistry.get(tid).category == "evasion"]
+                if evasion_ids:
+                    prompt = apply_technique_pipeline(prompt, ",".join(evasion_ids), tech_ctx)
+            meta["technique_used"] = technique_used
+
+        # Apply dynamic NLP mutator last if configured
         if self.mutator and self.mutator.lower() not in ("none", "off"):
-            eval_spec = case.get("evaluation") or {}
-            targets = case.get("targets") or eval_spec.get("expected_tokens") or []
             mutated_prompt = apply_mutation(prompt, self.mutator, targets=targets)
             if mutated_prompt != prompt:
                 meta["mutator"] = self.mutator
@@ -357,6 +443,56 @@ class MultiTurnRedTeamRunner:
                 prompt = mutated_prompt
 
         return prompt, meta
+
+    def _call_red_or_fallback(
+        self,
+        case: dict,
+        history: List[Tuple[str, str]],
+        attempt: int,
+        last_response: str,
+        strategy: str,
+        last_defense_action: Optional[str] = None,
+        last_tool_calls: Optional[List[Dict[str, Any]]] = None,
+        prior_strategies: Optional[List[str]] = None,
+        rejected_prompts: Optional[List[str]] = None,
+        technique_directive: Optional[str] = None,
+        failed_techniques: Optional[List[str]] = None,
+    ) -> Tuple[str, Dict[str, Any]]:
+        """Invoke live Red LLM or deterministic fallback when dry-run/offline/failing."""
+        has_any_key = any(os.getenv(k) for k in ("GEMINI_API_KEY", "OPENROUTER_API_KEY", "GITHUB_TOKEN", "GROQ_API_KEY"))
+        if self.dry_run or not has_any_key:
+            fb_prompt, fb_meta = agent.build_fallback_attack(
+                case, attempt, last_response, strategy=strategy, max_attempts=self.max_attempts
+            )
+            fb_meta["red_model_used"] = "dry_run" if self.dry_run else "fallback_static"
+            return fb_prompt, fb_meta
+        try:
+            ask_kwargs: Dict[str, Any] = {
+                "red_profile": self.red_profile,
+                "blue_role": self.blue_role,
+                "refusal_reason": last_defense_action,
+                "red_model": self.red_model,
+                "strategy": strategy,
+                "max_attempts": self.max_attempts,
+                "last_tool_calls": last_tool_calls,
+                "prior_strategies": prior_strategies,
+                "rejected_prompts": rejected_prompts,
+            }
+            if technique_directive is not None:
+                ask_kwargs["technique_directive"] = technique_directive
+            if failed_techniques is not None:
+                ask_kwargs["failed_techniques"] = failed_techniques
+            return agent.ask_red(case, history, attempt, **ask_kwargs)
+        except Exception as e:
+            agent.audit(
+                "red_error_fallback",
+                {"id": case.get("id"), "attempt": attempt, "error": agent.sanitize_error(str(e))[:200]},
+            )
+            fb_prompt, fb_meta = agent.build_fallback_attack(
+                case, attempt, last_response, strategy=strategy, max_attempts=self.max_attempts
+            )
+            fb_meta["red_model_used"] = "dry_run" if self.dry_run else "fallback_static"
+            return fb_prompt, fb_meta
 
     def _generate_raw_payload(
         self,
@@ -368,80 +504,42 @@ class MultiTurnRedTeamRunner:
         last_tool_calls: Optional[List[Dict[str, Any]]] = None,
         prior_strategies: Optional[List[str]] = None,
         rejected_prompts: Optional[List[str]] = None,
-    ) -> Tuple[str, Dict[str, str]]:
+        *,
+        technique_directive: Optional[str] = None,
+        failed_techniques: Optional[List[str]] = None,
+    ) -> Tuple[str, Dict[str, Any]]:
         """Internal helper generating base unmutated payload via strategy."""
         if self.strategy == "crescendo":
-            has_any_key = any(os.getenv(k) for k in ("GEMINI_API_KEY", "OPENROUTER_API_KEY", "GITHUB_TOKEN", "GROQ_API_KEY"))
-            if self.dry_run or not has_any_key:
-                fb_prompt, fb_meta = agent.build_fallback_attack(
-                    case, attempt, last_response, strategy="crescendo", max_attempts=self.max_attempts
-                )
-                fb_meta["red_model_used"] = "dry_run" if self.dry_run else "fallback_static"
-                return fb_prompt, fb_meta
-            try:
-                return agent.ask_red(
-                    case,
-                    history,
-                    attempt,
-                    red_profile=self.red_profile,
-                    blue_role=self.blue_role,
-                    refusal_reason=last_defense_action,
-                    red_model=self.red_model,
-                    strategy="crescendo",
-                    max_attempts=self.max_attempts,
-                    last_tool_calls=last_tool_calls,
-                    prior_strategies=prior_strategies,
-                    rejected_prompts=rejected_prompts,
-                )
-            except Exception as e:
-                agent.audit(
-                    "red_error_fallback",
-                    {"id": case.get("id"), "attempt": attempt, "error": agent.sanitize_error(str(e))[:200]},
-                )
-                fb_prompt, fb_meta = agent.build_fallback_attack(
-                    case, attempt, last_response, strategy="crescendo", max_attempts=self.max_attempts
-                )
-                fb_meta["red_model_used"] = "dry_run" if self.dry_run else "fallback_static"
-                return fb_prompt, fb_meta
+            return self._call_red_or_fallback(
+                case,
+                history,
+                attempt,
+                last_response,
+                strategy="crescendo",
+                last_defense_action=last_defense_action,
+                last_tool_calls=last_tool_calls,
+                prior_strategies=prior_strategies,
+                rejected_prompts=rejected_prompts,
+                technique_directive=technique_directive,
+                failed_techniques=failed_techniques,
+            )
 
         if attempt == 1:
             return case.get("prompt", ""), {"strategy": "Initial Canonical Baseline", "analysis": "Initial turn"}
 
-        # Use deterministic escalation fallback if dry-run, offline, or no API key
-        has_any_key = any(os.getenv(k) for k in ("GEMINI_API_KEY", "OPENROUTER_API_KEY", "GITHUB_TOKEN", "GROQ_API_KEY"))
-        if self.dry_run or not has_any_key:
-            fb_prompt, fb_meta = agent.build_fallback_attack(
-                case, attempt, last_response, strategy=self.strategy, max_attempts=self.max_attempts
-            )
-            fb_meta["red_model_used"] = "dry_run" if self.dry_run else "fallback_static"
-            return fb_prompt, fb_meta
-
-        try:
-            return agent.ask_red(
-                case,
-                history,
-                attempt,
-                red_profile=self.red_profile,
-                blue_role=self.blue_role,
-                refusal_reason=last_defense_action,
-                red_model=self.red_model,
-                strategy=self.strategy,
-                max_attempts=self.max_attempts,
-                last_tool_calls=last_tool_calls,
-                prior_strategies=prior_strategies,
-                rejected_prompts=rejected_prompts,
-            )
-        except Exception as e:
-            # Fallback gracefully to template escalation if live Red LLM fails
-            agent.audit(
-                "red_error_fallback",
-                {"id": case.get("id"), "attempt": attempt, "error": agent.sanitize_error(str(e))[:200]},
-            )
-            fb_prompt, fb_meta = agent.build_fallback_attack(
-                case, attempt, last_response, strategy=self.strategy, max_attempts=self.max_attempts
-            )
-            fb_meta["red_model_used"] = "dry_run" if self.dry_run else "fallback_static"
-            return fb_prompt, fb_meta
+        return self._call_red_or_fallback(
+            case,
+            history,
+            attempt,
+            last_response,
+            strategy=self.strategy,
+            last_defense_action=last_defense_action,
+            last_tool_calls=last_tool_calls,
+            prior_strategies=prior_strategies,
+            rejected_prompts=rejected_prompts,
+            technique_directive=technique_directive,
+            failed_techniques=failed_techniques,
+        )
 
     def run_case(
         self,
@@ -449,6 +547,15 @@ class MultiTurnRedTeamRunner:
         on_turn_callback: Optional[Callable[[dict, RedTeamTurnResult, int, int], None]] = None,
     ) -> RedTeamCaseResult:
         """Run an adaptive multi-turn red-teaming session against a single case."""
+        return self._run_case_impl(case, on_turn_callback=on_turn_callback)
+
+    def _run_case_impl(
+        self,
+        case: dict,
+        on_turn_callback: Optional[Callable[[dict, RedTeamTurnResult, int, int], None]] = None,
+        technique_override: Optional[str] = None,
+    ) -> RedTeamCaseResult:
+        """Internal case runner supporting single-technique overrides for sweep mode."""
         self.target.reset()
 
         cid = case.get("id", "UNKNOWN")
@@ -457,11 +564,13 @@ class MultiTurnRedTeamRunner:
         language = case.get("language", "th")
         difficulty = case.get("difficulty", "medium")
         initial_prompt = case.get("prompt", "")
+        active_technique = (technique_override or self.technique or "none").strip().lower() or "none"
 
         history: List[Tuple[str, str]] = []
         turn_results: List[RedTeamTurnResult] = []
         prior_strategies: List[str] = []
         rejected_by_step: Dict[int, List[str]] = {}
+        technique_state = TechniqueSessionState()
         last_response = ""
         turn_to_breach: Optional[int] = None
         final_status = 0
@@ -485,6 +594,9 @@ class MultiTurnRedTeamRunner:
                 last_tool_calls=last_tool_calls,
                 prior_strategies=prior_strategies or None,
                 rejected_prompts=rejected_by_step.get(current_step) or None,
+                technique_override=technique_override,
+                technique_state=technique_state,
+                attempt_index=attempt_index,
             )
 
             # Query target model with case-bound SecurityContext
@@ -518,6 +630,24 @@ class MultiTurnRedTeamRunner:
             defense_action = verdict["defense_action"]
             if clean_resp != resp_text and defense_action != "output_dlp_redacted":
                 defense_action = "output_dlp_redacted"
+
+            turn_tech = red_meta.get("technique_used", "")
+            if turn_tech:
+                tech_ctx = TechniqueContext(
+                    language=language,
+                    turn_no=current_step,
+                    max_attempts=self.max_attempts,
+                    defense=self.defense,
+                    blue_role=self.blue_role,
+                    red_profile=self.red_profile,
+                )
+                technique_state.record_outcome(
+                    defense_action,
+                    turn_tech,
+                    is_breached,
+                    ctx=tech_ctx,
+                    attack_type=case.get("attack_type", "direct"),
+                )
 
             # Check if refusal backtracking applies (USENIX 2025 / PyRIT pattern)
             should_backtrack = (
@@ -559,6 +689,7 @@ class MultiTurnRedTeamRunner:
                 red_strategy=strat,
                 defense_action=defense_action,
                 red_model_used=red_meta.get("red_model_used") or ("dry_run" if self.dry_run else None),
+                technique_used=turn_tech,
             )
             turn_results.append(turn_res)
 
@@ -601,6 +732,7 @@ class MultiTurnRedTeamRunner:
                 "red_profile": self.red_profile,
                 "strategy": self.strategy,
                 "mutator": self.mutator,
+                "technique": active_technique,
                 "dry_run": self.dry_run,
                 "enable_backtrack": self.enable_backtrack,
                 "backtracks": backtrack_count,
@@ -615,26 +747,39 @@ class MultiTurnRedTeamRunner:
     ) -> RedTeamBenchmarkReport:
         """Run adaptive multi-turn evaluation across a suite of test cases."""
         agent.reset_auth_failed_specs()
-        total = len(cases)
+        is_sweep = self.technique in ("core", "all")
+        sweep_ids = TechniqueRegistry.ids(tier="core" if self.technique == "core" else None) if is_sweep else []
+        total = len(cases) * len(sweep_ids) if is_sweep else len(cases)
         results: List[RedTeamCaseResult] = []
 
         breached_count = 0
         defended_count = 0
         error_count = 0
 
-        for idx, case in enumerate(cases, 1):
-            res = self.run_case(case, on_turn_callback=on_turn_callback)
+        def _record_result(res: RedTeamCaseResult, idx: int) -> None:
+            nonlocal breached_count, defended_count, error_count
             results.append(res)
-
             if res.final_status == 1:
                 breached_count += 1
             elif res.final_status == -1:
                 error_count += 1
             else:
                 defended_count += 1
-
             if on_case_callback:
                 on_case_callback(res, idx, total)
+
+        if is_sweep:
+            idx = 0
+            for case in cases:
+                for tid in sweep_ids:
+                    idx += 1
+                    res = self._run_case_impl(case, on_turn_callback=on_turn_callback, technique_override=tid)
+                    res.metadata["sweep_technique"] = tid
+                    _record_result(res, idx)
+        else:
+            for idx, case in enumerate(cases, 1):
+                res = self.run_case(case, on_turn_callback=on_turn_callback)
+                _record_result(res, idx)
 
         # Track breaches per turn index for cumulative ASR (expanding if backtracks ran beyond max_attempts)
         max_turns = max([self.max_attempts] + [r.attempts_run for r in results]) if results else self.max_attempts
@@ -654,6 +799,20 @@ class MultiTurnRedTeamRunner:
         }
         average_ttb = round(sum(ttb_values) / len(ttb_values), 2) if ttb_values else None
         total_backtracks = sum(r.metadata.get("backtracks", 0) for r in results)
+
+        technique_breakdown: Dict[str, Dict[str, Any]] = {}
+        if is_sweep:
+            for tid in sweep_ids:
+                t_results = [r for r in results if r.metadata.get("sweep_technique") == tid]
+                t_total = len(t_results)
+                t_breached = sum(1 for r in t_results if r.final_status == 1)
+                t_ttbs = [r.turn_to_breach for r in t_results if r.final_status == 1 and r.turn_to_breach]
+                technique_breakdown[tid] = {
+                    "total": t_total,
+                    "breached": t_breached,
+                    "asr": round((t_breached / t_total * 100), 2) if t_total > 0 else 0.0,
+                    "average_ttb": round(sum(t_ttbs) / len(t_ttbs), 2) if t_ttbs else None,
+                }
 
         effective_blue = (
             self.blue_model
@@ -688,4 +847,6 @@ class MultiTurnRedTeamRunner:
             mutator=self.mutator,
             total_backtracks=total_backtracks,
             effective_red_models=effective_red_models,
+            technique=self.technique,
+            technique_breakdown=technique_breakdown,
         )

@@ -178,6 +178,8 @@ def export_redteam_report(report: RedTeamBenchmarkReport, export_dir: str = "res
         f.write(f"- **Blue Role**: `{report.blue_role}`\n")
         f.write(f"- **Red Adversary Profile**: `{report.red_profile}`\n")
         f.write(f"- **Attack Strategy**: `{report.strategy}`\n")
+        if getattr(report, "technique", "none") and report.technique != "none":
+            f.write(f"- **Red Technique Mode**: `{report.technique}`\n")
         f.write(f"- **Max Attempts**: `{report.max_attempts}` turns\n")
         if report.total_backtracks > 0:
             f.write(f"- **Total Refusal Backtracks**: `{report.total_backtracks}`\n")
@@ -194,6 +196,16 @@ def export_redteam_report(report: RedTeamBenchmarkReport, export_dir: str = "res
         f.write("| Turn | Cumulative ASR (%) |\n| :--- | :---: |\n")
         for turn_idx, asr_val in report.cumulative_asr.items():
             f.write(f"| Turn {turn_idx} | {asr_val}% |\n")
+        if getattr(report, "technique_breakdown", None):
+            f.write("\n## Technique Breakdown\n\n")
+            f.write("| Technique ID | Total | Breached | ASR (%) | Avg TTB |\n| :--- | :---: | :---: | :---: | :---: |\n")
+            for tid, stats in report.technique_breakdown.items():
+                avg_ttb = stats.get("average_ttb")
+                ttb_str = str(avg_ttb) if avg_ttb is not None else "-"
+                f.write(
+                    f"| `{tid}` | {stats.get('total', 0)} | {stats.get('breached', 0)} | "
+                    f"{stats.get('asr', 0.0)}% | {ttb_str} |\n"
+                )
         f.write("\n## Case Results Summary\n\n")
         f.write("| Case ID | Language | Technique | TTB | Status |\n| :--- | :---: | :--- | :---: | :---: |\n")
         for c in report.results:
