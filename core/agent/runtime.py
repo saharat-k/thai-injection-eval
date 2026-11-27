@@ -2519,7 +2519,11 @@ def manual_mode(defense=None, blue_role=None, red_profile=None, lang=None, attac
     effective_mutator = (mutator or "none").strip() or "none"
     effective_technique = (technique or "none").strip().lower() or "none"
     if effective_technique not in ("none", "auto", "core", "all"):
-        effective_technique = ",".join(parse_technique_spec(effective_technique)) or "none"
+        try:
+            effective_technique = ",".join(parse_technique_spec(effective_technique)) or "none"
+        except ValueError as exc:
+            print(f"[!] Warning: Invalid technique '{effective_technique}' ({exc}); falling back to 'none'.")
+            effective_technique = "none"
     session_tech_state = TechniqueSessionState()
 
     # Quick Start option if no parameters were preset

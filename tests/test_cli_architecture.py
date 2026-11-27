@@ -617,6 +617,116 @@ class CliArchitectureTests(unittest.TestCase):
             finally:
                 agent.close_connections()
 
+    def test_invalid_technique_inputs_handled_gracefully(self):
+        import agent
+        import core.agent.runtime as runtime_mod
+        from io import StringIO
+        from core.cli.commands.chat import review_payload_card
+
+        # 1. review_payload_card handles unknown ID and pool alias 'auto' without crashing
+        for bad_spec in ("unknown_id", "auto"):
+            buf = StringIO()
+            with patch("agent._choose", side_effect=[3, 0, 0]), \
+                 patch("agent._ask", return_value=bad_spec), \
+                 patch("sys.stdout", buf):
+                out = review_payload_card("ขอข้อมูล S001", source="Manual", no_color=True)
+            self.assertEqual(out, "ขอข้อมูล S001")
+            self.assertIn("Invalid technique specification", buf.getvalue())
+
+        # 2. manual_mode handles invalid --technique and mixed pool alias without crashing
+        for bad_cli_tech in ("invalid_id", "auto,policy_puppetry"):
+            buf = StringIO()
+            with tempfile.TemporaryDirectory() as tmpdir:
+                tmp_uni = os.path.join(tmpdir, "uni.db")
+                tmp_res = os.path.join(tmpdir, "res.db")
+                try:
+                    with patch.object(agent, "UNIVERSITY_DB_PATH", tmp_uni), \
+                         patch.object(agent, "RESULTS_DB_PATH", tmp_res), \
+                         patch.object(runtime_mod, "UNIVERSITY_DB_PATH", tmp_uni), \
+                         patch.object(runtime_mod, "RESULTS_DB_PATH", tmp_res), \
+                         patch.object(runtime_mod, "BlueSession", return_value=MagicMock()), \
+                         patch.object(runtime_mod, "_print_preflight") as m_pre, \
+                         patch.object(runtime_mod, "_choose", return_value=5), \
+                         patch("sys.stdout", buf):
+                        agent.manual_mode(
+                            defense="all",
+                            blue_role="registrar_staff",
+                            red_profile="realistic_attacker",
+                            lang="Thai",
+                            attack_type="direct",
+                            targets=[],
+                            technique=bad_cli_tech,
+                        )
+                    self.assertEqual(m_pre.call_args.kwargs.get("technique"), "none")
+                    self.assertIn("falling back to 'none'", buf.getvalue())
+                finally:
+                    agent.close_connections()
+
+    def test_ai_continue_non_double_wrapping_vs_fallback(self):
+        import agent
+        import core.agent.runtime as runtime_mod
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_uni = os.path.join(tmpdir, "uni.db")
+            tmp_res = os.path.join(tmpdir, "res.db")
+            try:
+                with patch.object(agent, "UNIVERSITY_DB_PATH", tmp_uni), \
+                     patch.object(agent, "RESULTS_DB_PATH", tmp_res), \
+                     patch.object(runtime_mod, "UNIVERSITY_DB_PATH", tmp_uni), \
+                     patch.object(runtime_mod, "RESULTS_DB_PATH", tmp_res):
+                    # Case A: Live ask_red with framing + evasion stack -> no framing double-wrap, evasion applied
+                    live_session = MagicMock()
+                    live_session.model = "gemini-3.5-flash-lite"
+                    live_session.send.return_value = "Refused."
+                    choose_a = iter([1, 0, 3, 0, 5])
+                    with patch.object(runtime_mod, "BlueSession", return_value=live_session), \
+                         patch.object(runtime_mod, "_choose", side_effect=lambda *a, **k: next(choose_a)), \
+                         patch.object(runtime_mod, "_read_multiline", return_value="T1 ask"), \
+                         patch.object(runtime_mod, "_ask", return_value="1"), \
+                         patch.object(runtime_mod, "ask_red", return_value=(
+                             "Live prompt ขอข้อมูล student_private",
+                             {"strategy": "S1", "red_model_used": "openrouter/free"},
+                         )) as m_ask, \
+                         patch("sys.stdout"):
+                        agent.manual_mode(
+                            defense="all",
+                            blue_role="registrar_staff",
+                            red_profile="realistic_attacker",
+                            lang="Thai",
+                            attack_type="direct",
+                            targets=["student_private"],
+                            technique="policy_puppetry,variation_selector",
+                        )
+                    self.assertIn("Policy Puppetry", m_ask.call_args.kwargs.get("technique_directive", ""))
+                    sent_live = live_session.send.call_args_list[1].args[0]
+                    self.assertNotIn("<interaction-config", sent_live)
+                    self.assertTrue(any("\ufe00" <= ch <= "\ufe0f" for ch in sent_live))
+
+                    # Case B: Fallback (ask_red exception) with framing technique -> full pipeline applied
+                    fb_session = MagicMock()
+                    fb_session.model = "gemini-3.5-flash-lite"
+                    fb_session.send.return_value = "Refused."
+                    choose_b = iter([1, 0, 3, 0, 5])
+                    with patch.object(runtime_mod, "BlueSession", return_value=fb_session), \
+                         patch.object(runtime_mod, "_choose", side_effect=lambda *a, **k: next(choose_b)), \
+                         patch.object(runtime_mod, "_read_multiline", return_value="T1 ask"), \
+                         patch.object(runtime_mod, "_ask", return_value="1"), \
+                         patch.object(runtime_mod, "ask_red", side_effect=RuntimeError("offline")), \
+                         patch("sys.stdout"):
+                        agent.manual_mode(
+                            defense="all",
+                            blue_role="registrar_staff",
+                            red_profile="realistic_attacker",
+                            lang="Thai",
+                            attack_type="direct",
+                            targets=["student_private"],
+                            technique="policy_puppetry",
+                        )
+                    sent_fb = fb_session.send.call_args_list[1].args[0]
+                    self.assertIn("<interaction-config", sent_fb)
+            finally:
+                agent.close_connections()
+
 
 if __name__ == "__main__":
     unittest.main()
