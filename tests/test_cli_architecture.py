@@ -50,6 +50,9 @@ class CliArchitectureTests(unittest.TestCase):
             ["version", "--help"],
             ["chat", "--help"],
             ["manual", "--help"],
+            ["attack", "--help"],
+            ["redteam", "--help"],
+            ["redteam", "techniques", "--help"],
         ]
         for cmd in subcommands:
             with patch("sys.stdout"), patch("sys.stderr"):
@@ -726,6 +729,69 @@ class CliArchitectureTests(unittest.TestCase):
                     self.assertIn("<interaction-config", sent_fb)
             finally:
                 agent.close_connections()
+
+    def test_attack_list_techniques_and_legacy_redteam_techniques_json(self):
+        from io import StringIO
+        for argv in (["attack", "--list", "techniques", "--format", "json"], ["redteam", "techniques", "--format", "json"]):
+            buf = StringIO()
+            with patch("sys.stdout", buf):
+                code = main(argv)
+            self.assertEqual(code, 0)
+            items = json.loads(buf.getvalue())
+            self.assertEqual(len(items), 14)
+
+        buf_core = StringIO()
+        with patch("sys.stdout", buf_core):
+            code_core = main(["attack", "--list", "techniques", "--tier", "core", "--format", "json"])
+        self.assertEqual(code_core, 0)
+        self.assertEqual(len(json.loads(buf_core.getvalue())), 8)
+
+        for list_target in ("profiles", "cases"):
+            buf_other = StringIO()
+            with patch("sys.stdout", buf_other):
+                code_other = main(["attack", "--list", list_target, "--format", "json"])
+            self.assertEqual(code_other, 0)
+            self.assertTrue(isinstance(json.loads(buf_other.getvalue()), list))
+
+    def test_attack_dispatch_forwards_technique_to_runners(self):
+        from core.evaluator.redteam import RedTeamBenchmarkReport
+        fake_report = RedTeamBenchmarkReport(
+            timestamp="2026-11-27T00:00:00Z",
+            defense="all",
+            blue_role="registrar_staff",
+            red_profile="thai_nuanced_adversary",
+            max_attempts=2,
+            total_cases=1,
+            breached_cases=0,
+            defended_cases=1,
+            error_cases=0,
+            overall_asr=0.0,
+            cumulative_asr={1: 0.0},
+            average_ttb=None,
+            results=[],
+            technique="policy_puppetry",
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch("core.cli.commands.redteam.MultiTurnRedTeamRunner") as m_runner, patch("sys.stdout"):
+                m_runner.return_value.run_benchmark.return_value = fake_report
+                code = main([
+                    "attack", "SCN-DIR-01-TH",
+                    "-f", "data/normalized/test_cases_parallel_v2.json",
+                    "-t", "policy_puppetry", "-n", "2", "--dry-run", "-q", "-o", tmpdir,
+                ])
+            self.assertEqual(code, 0)
+            self.assertEqual(m_runner.call_args.kwargs.get("technique"), "policy_puppetry")
+
+            with patch("core.evaluator.tree.TreeBeamRedTeamRunner") as m_tree, patch("sys.stdout"):
+                m_tree.return_value.run_benchmark.return_value = fake_report
+                code_tree = main([
+                    "attack", "SCN-DIR-01-TH",
+                    "-f", "data/normalized/test_cases_parallel_v2.json",
+                    "-P", "aggressive", "--dry-run", "-q", "-o", tmpdir,
+                ])
+            self.assertEqual(code_tree, 0)
+            self.assertEqual(m_tree.call_args.kwargs.get("technique"), "auto")
+            self.assertEqual(m_tree.call_args.kwargs.get("strategy"), "tree")
 
 
 if __name__ == "__main__":

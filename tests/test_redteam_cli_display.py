@@ -38,6 +38,21 @@ class TestRedteamCliDisplay(unittest.TestCase):
         self.assertIn("NLP Mutator", out)
         self.assertIn("ZERO_WIDTH", out)
 
+    def test_preflight_card_displays_active_technique(self):
+        args_active = DummyArgs(technique="policy_puppetry")
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            print_preflight_card(args_active, total_cases=2, cases_path="data/normalized/test_cases.json", no_color=True)
+        out = buf.getvalue()
+        self.assertIn("Red Technique", out)
+        self.assertIn("POLICY_PUPPETRY [Active]", out)
+
+        args_std = DummyArgs(technique="none")
+        buf_std = io.StringIO()
+        with patch("sys.stdout", buf_std):
+            print_preflight_card(args_std, total_cases=2, cases_path="data/normalized/test_cases.json", no_color=True)
+        self.assertIn("NONE [Standard]", buf_std.getvalue())
+
     def test_tree_topology_indentation(self):
         root = TreeNode(node_id="root", parent_id=None, turn_no=0, prompt="Root Prompt", is_beam_selected=True)
         child = TreeNode(node_id="node_1_1", parent_id="root", turn_no=1, prompt="Child 1", score=10)

@@ -18,7 +18,58 @@ from core.cli.commands.doctor import run_doctor
 from core.cli.commands.config import run_config
 from core.cli.commands.version import run_version, get_version_info
 from core.cli.commands.chat import run_chat
-from core.cli.commands.redteam import run_redteam_run, run_redteam_list
+from core.cli.commands.redteam import (
+    _apply_positional_attack_target,
+    _resolve_attack_presets,
+    run_attack_dispatch,
+    run_redteam_list,
+    run_redteam_run,
+    run_redteam_techniques,
+)
+
+MUTATOR_CHOICES = (
+    "none",
+    "zero_width",
+    "homoglyph",
+    "code_switch",
+    "thai_number_words",
+    "thai_digits",
+    "arithmetic_split",
+    "caesar_shift",
+    "base64",
+    "hex",
+    "syllable_spacing",
+    "variation_selector",
+    "thai_phonetic",
+    "json_unicode_escape",
+    "all",
+)
+
+
+def _add_attack_execution_flags(parser: argparse.ArgumentParser) -> None:
+    """Register shared attack/redteam execution flags with None defaults for preset resolution."""
+    parser.add_argument("-c", "--case", default=None, help="Target specific Case ID (default: all cases in dataset)")
+    parser.add_argument("-f", "--cases", default=None, help="Custom test cases JSON file (default: data/normalized/test_cases.json)")
+    parser.add_argument("--parallel", action="store_true", help="Use parallel 3-language dataset (test_cases_parallel.json)")
+    parser.add_argument("-d", "--defense", choices=list(ALL_DEFENSES), default=None, help="Defense configuration tier (default: all)")
+    parser.add_argument("-r", "--role", "--blue-role", dest="role", choices=["student_guest", "registrar_staff", "system_admin"], default=None, help="Target Blue Assistant role persona (default: registrar_staff)")
+    parser.add_argument("--model", default=None, help="Target Blue model identifier")
+    parser.add_argument("-b", "--blue", "--blue-model", dest="blue", default=None, help="Target Blue model (alias for --model)")
+    parser.add_argument("-R", "--red", "--red-model", dest="red", default=None, help="Red adversary model (e.g. openrouter:openrouter/free)")
+    parser.add_argument("-p", "--profile", "--red-profile", dest="profile", choices=["thai_nuanced_adversary", "realistic_attacker", "insider_threat", "security_auditor"], default=None, help="Red adversary profile (default: thai_nuanced_adversary)")
+    parser.add_argument("-s", "--strategy", choices=["crescendo", "tap", "template", "tree"], default=None, help="Multi-turn attack strategy: template, crescendo, tap, or tree (default: template)")
+    parser.add_argument("-t", "--technique", default=None, help="Red-team technique mode: none, auto, core (sweep 8), all (sweep 14), or comma-separated IDs")
+    parser.add_argument("--beam-width", type=int, default=None, help="Beam search width for tree strategy (default: 2)")
+    parser.add_argument("--branch-factor", type=int, default=None, help="Number of concurrent attack mutations per beam branch (default: 3)")
+    parser.add_argument("-n", "--attempts", "--turns", dest="attempts", type=int, default=None, help="Maximum multi-turn attack rounds per case (default: 3)")
+    parser.add_argument("-m", "--mutator", choices=MUTATOR_CHOICES, default=None, help="Dynamic Thai NLP mutator (default: none)")
+    parser.add_argument("--backtrack", action="store_true", default=None, help="Enable Crescendo refusal backtracking (USENIX 2025 / PyRIT)")
+    parser.add_argument("--max-backtracks", type=int, default=None, help="Maximum refusal backtracks per case (default: 2)")
+    parser.add_argument("-P", "--preset", choices=["quick", "stealth", "aggressive", "sweep"], default=None, help="Attack preset: quick, stealth, aggressive, or sweep")
+    parser.add_argument("-l", "--limit", type=int, default=None, help="Limit total cases to evaluate")
+    parser.add_argument("--dry-run", action="store_true", help="Run simulation using rule-based mock runner without consuming API quota")
+    parser.add_argument("-o", "--export-dir", default="results", help="Directory for exported reports")
+    parser.add_argument("--export-name", default="redteam_evaluation_report", help="Report filename prefix")
 
 
 class SecurityCLIParser(argparse.ArgumentParser):
@@ -34,6 +85,12 @@ class SecurityCLIParser(argparse.ArgumentParser):
             ns.model = blue_val
         elif model_val and not blue_val:
             ns.blue = model_val
+        cmd = getattr(ns, "command", None)
+        if cmd == "attack":
+            _apply_positional_attack_target(ns)
+            _resolve_attack_presets(ns)
+        elif cmd == "redteam" and getattr(ns, "subcommand", None) in ("run", None):
+            _resolve_attack_presets(ns)
         return ns
 
     def format_help(self) -> str:
@@ -206,7 +263,14 @@ Exit Codes:
         "thai_nuanced_adversary",
     ]
     attack_type_choices = ["direct", "indirect", "recon", "semantic", "roleplay", "fewshot", "obfuscation", "tree"]
-    mutator_choices = ["none", "zero_width", "homoglyph", "code_switch", "all"]
+
+    # Primary flat ATTACK command (Nmap/Hydra-style)
+    attack_parser = subparsers.add_parser("attack", parents=[common_parser], help="Run adaptive multi-turn red-teaming attacks or list techniques/profiles/cases")
+    attack_parser.add_argument("target", nargs="?", default=None, help="Optional target Case ID (e.g., TH-1, ALL) or cases .json path")
+    _add_attack_execution_flags(attack_parser)
+    attack_parser.add_argument("--list", choices=["techniques", "profiles", "cases"], default=None, help="List registered techniques, adversary profiles, or test cases and exit")
+    attack_parser.add_argument("--category", choices=["framing", "structural", "agentic_adaptive", "evasion"], default=None, help="Filter --list techniques by category")
+    attack_parser.add_argument("--tier", choices=["core", "advanced"], default=None, help="Filter --list techniques by tier")
 
     chat_parser = subparsers.add_parser("chat", parents=[common_parser], help="Interactive Red-Teaming playground & manual chat session")
     chat_parser.add_argument("--defense", choices=list(ALL_DEFENSES), default=None, help="Preset defense configuration tier (skips prompt)")
@@ -217,7 +281,7 @@ Exit Codes:
     chat_parser.add_argument("--red-profile", choices=red_profile_choices, default=None, help="Preset Red Attacker profile")
     chat_parser.add_argument("--lang", choices=["Thai", "English", "Mixed"], default=None, help="Preset target language")
     chat_parser.add_argument("--attack-type", choices=attack_type_choices, default=None, help="Preset attack category (includes 'tree')")
-    chat_parser.add_argument("--mutator", choices=mutator_choices, default="none", help="Dynamic Thai NLP mutator: zero_width, homoglyph, code_switch, all, or none (default: none)")
+    chat_parser.add_argument("--mutator", choices=MUTATOR_CHOICES, default="none", help="Dynamic Thai NLP mutator (default: none)")
     chat_parser.add_argument("--technique", default="none", help="Red-team technique mode: none, auto, core, all, technique ID, or comma-separated stack (default: none)")
     chat_parser.add_argument("--targets", default=None, help="Target tables/keywords to monitor (comma-separated)")
 
@@ -230,7 +294,7 @@ Exit Codes:
     manual_parser.add_argument("--red-profile", choices=red_profile_choices, default=None, help="Preset Red Attacker profile")
     manual_parser.add_argument("--lang", choices=["Thai", "English", "Mixed"], default=None, help="Preset target language")
     manual_parser.add_argument("--attack-type", choices=attack_type_choices, default=None, help="Preset attack category (includes 'tree')")
-    manual_parser.add_argument("--mutator", choices=mutator_choices, default="none", help="Dynamic Thai NLP mutator: zero_width, homoglyph, code_switch, all, or none (default: none)")
+    manual_parser.add_argument("--mutator", choices=MUTATOR_CHOICES, default="none", help="Dynamic Thai NLP mutator (default: none)")
     manual_parser.add_argument("--technique", default="none", help="Red-team technique mode: none, auto, core, all, technique ID, or comma-separated stack (default: none)")
     manual_parser.add_argument("--targets", default=None, help="Target tables/keywords to monitor (comma-separated)")
 
@@ -240,29 +304,15 @@ Exit Codes:
 
     # redteam run
     redteam_run = redteam_subs.add_parser("run", parents=[common_parser], help="Run multi-turn adversarial red-teaming evaluation")
-    redteam_run.add_argument("--case", default=None, help="Target specific Case ID (default: all cases in dataset)")
-    redteam_run.add_argument("--cases", default=None, help="Custom test cases JSON file (default: data/normalized/test_cases.json)")
-    redteam_run.add_argument("--parallel", action="store_true", help="Use parallel 3-language dataset (test_cases_parallel.json)")
-    redteam_run.add_argument("--defense", choices=list(ALL_DEFENSES), default="all", help="Defense configuration tier (default: all)")
-    redteam_run.add_argument("--role", "--blue-role", dest="role", choices=["student_guest", "registrar_staff", "system_admin"], default="registrar_staff", help="Target Blue Assistant role persona")
-    redteam_run.add_argument("--model", default=None, help="Target Blue model identifier")
-    redteam_run.add_argument("--blue", "--blue-model", dest="blue", default=None, help="Target Blue model (alias for --model)")
-    redteam_run.add_argument("--red", "--red-model", dest="red", default=None, help="Red adversary model (e.g. openrouter:openrouter/free)")
-    redteam_run.add_argument("--profile", "--red-profile", dest="profile", choices=["thai_nuanced_adversary", "realistic_attacker", "insider_threat", "security_auditor"], default="thai_nuanced_adversary", help="Red adversary profile")
-    redteam_run.add_argument("--strategy", choices=["crescendo", "tap", "template", "tree"], default="template", help="Multi-turn attack strategy: crescendo, tap, template, or tree (default: template)")
-    redteam_run.add_argument("--beam-width", type=int, default=2, help="Beam search width for tree strategy (default: 2)")
-    redteam_run.add_argument("--branch-factor", type=int, default=3, help="Number of concurrent attack mutations per beam branch (default: 3)")
-    redteam_run.add_argument("--attempts", "--turns", dest="attempts", type=int, default=3, help="Maximum multi-turn attack rounds per case (default: 3)")
-    redteam_run.add_argument("--mutator", choices=["none", "zero_width", "homoglyph", "code_switch", "all"], default="none", help="Dynamic Thai NLP mutator: zero_width, homoglyph, code_switch, all, or none (default: none)")
-    redteam_run.add_argument("--backtrack", action="store_true", default=False, help="Enable Crescendo refusal backtracking (USENIX 2025 / PyRIT)")
-    redteam_run.add_argument("--max-backtracks", type=int, default=2, help="Maximum refusal backtracks per case (default: 2)")
-    redteam_run.add_argument("--limit", type=int, default=None, help="Limit total cases to evaluate")
-    redteam_run.add_argument("--dry-run", action="store_true", help="Run simulation using rule-based mock runner without consuming API quota")
-    redteam_run.add_argument("--export-dir", default="results", help="Directory for exported reports")
-    redteam_run.add_argument("--export-name", default="redteam_evaluation_report", help="Report filename prefix")
+    _add_attack_execution_flags(redteam_run)
 
     # redteam list
-    redteam_list = redteam_subs.add_parser("list", parents=[common_parser], help="List available Red adversary profiles and sociolinguistic vectors")
+    redteam_subs.add_parser("list", parents=[common_parser], help="List available Red adversary profiles and sociolinguistic vectors")
+
+    # redteam techniques
+    redteam_techniques = redteam_subs.add_parser("techniques", parents=[common_parser], help="List registered red-team techniques")
+    redteam_techniques.add_argument("--category", choices=["framing", "structural", "agentic_adaptive", "evasion"], default=None, help="Filter techniques by category")
+    redteam_techniques.add_argument("--tier", choices=["core", "advanced"], default=None, help="Filter techniques by tier")
 
     # 7. BENCHMARK command
     bench_parser = subparsers.add_parser("benchmark", parents=[common_parser], help="Unified multi-suite benchmark runner & leaderboard generator")
@@ -343,6 +393,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return run_serve(args)
     elif cmd in ("chat", "manual"):
         return run_chat(args)
+    elif cmd == "attack":
+        return run_attack_dispatch(args)
     elif cmd == "dlp":
         if subcmd == "audit" or subcmd is None:
             return run_dlp_audit(args)
@@ -377,6 +429,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             return run_redteam_run(args)
         elif subcmd == "list":
             return run_redteam_list(args)
+        elif subcmd == "techniques":
+            return run_redteam_techniques(args)
         parser.parse_args(["redteam", "--help"])
         return 2
     elif cmd == "benchmark":

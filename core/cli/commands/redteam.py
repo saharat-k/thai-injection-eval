@@ -19,8 +19,84 @@ from core.evaluator.redteam import (
     RedTeamCaseResult,
     RedTeamTurnResult,
 )
+from core.evaluator.techniques import TechniqueRegistry
 
 print = safe_print
+
+ATTACK_PRESETS: Dict[str, Dict[str, Any]] = {
+    "quick": {
+        "strategy": "template",
+        "technique": "auto",
+        "attempts": 3,
+    },
+    "stealth": {
+        "profile": "thai_nuanced_adversary",
+        "strategy": "crescendo",
+        "technique": "auto",
+        "attempts": 5,
+        "backtrack": True,
+    },
+    "aggressive": {
+        "strategy": "tree",
+        "technique": "auto",
+        "beam_width": 2,
+        "branch_factor": 3,
+        "attempts": 3,
+    },
+    "sweep": {
+        "technique": "core",
+        "strategy": "template",
+        "attempts": 3,
+    },
+}
+
+_STANDARD_ATTACK_DEFAULTS: Dict[str, Any] = {
+    "defense": "all",
+    "role": "registrar_staff",
+    "profile": "thai_nuanced_adversary",
+    "strategy": "template",
+    "technique": "none",
+    "mutator": "none",
+    "attempts": 3,
+    "backtrack": False,
+    "max_backtracks": 2,
+    "beam_width": 2,
+    "branch_factor": 3,
+}
+
+
+def _apply_positional_attack_target(args):
+    """Route optional positional target to args.cases (.json / existing path) or args.case."""
+    target = getattr(args, "target", None)
+    if not target:
+        return args
+    target_str = str(target).strip()
+    if not target_str:
+        return args
+    if target_str.lower().endswith(".json") or os.path.exists(target_str):
+        if not getattr(args, "cases", None):
+            args.cases = target_str
+    else:
+        if not getattr(args, "case", None):
+            args.case = target_str
+    return args
+
+
+def _resolve_attack_presets(args):
+    """Apply preset defaults where explicit flags are None, then fill standard defaults."""
+    preset_name = getattr(args, "preset", None)
+    if preset_name:
+        preset_cfg = ATTACK_PRESETS.get(str(preset_name).strip().lower())
+        if preset_cfg is None:
+            raise ValueError(f"Unknown attack preset: {preset_name!r}")
+        for key, val in preset_cfg.items():
+            if getattr(args, key, None) is None:
+                setattr(args, key, val)
+
+    for key, val in _STANDARD_ATTACK_DEFAULTS.items():
+        if getattr(args, key, None) is None:
+            setattr(args, key, val)
+    return args
 
 
 def _resolve_case_file(filename: Optional[str] = None, parallel: bool = False) -> str:
@@ -59,7 +135,7 @@ def print_preflight_card(args, total_cases: int, cases_path: str, no_color: bool
     print(double_line)
 
     dry_badge = yellow("[SIMULATION / DRY-RUN]", enabled=color_enabled) if getattr(args, "dry_run", False) else green("[LIVE TARGET EXECUTION]", enabled=color_enabled)
-    def_badge = status_badge(str(getattr(args, "defense", "all")).upper(), enabled=color_enabled)
+    def_badge = status_badge(str(getattr(args, "defense", None) or "all").upper(), enabled=color_enabled)
     blue_model = getattr(args, "blue", None) or getattr(args, "model", None) or agent.BLUE_MODEL
     red_model = getattr(args, "red", None) or agent.RED_MODEL
 
@@ -68,22 +144,28 @@ def print_preflight_card(args, total_cases: int, cases_path: str, no_color: bool
     print(f"  {bold('Target Blue Model', enabled=color_enabled):<20} : {cyan(blue_model, enabled=color_enabled)}")
     print(f"  {bold('Red Adversary Model', enabled=color_enabled):<20} : {red(red_model, enabled=color_enabled)}")
     print(f"  {bold('Active Defense', enabled=color_enabled):<20} : {def_badge}")
-    print(f"  {bold('Target Blue Role', enabled=color_enabled):<20} : {cyan(getattr(args, 'role', 'registrar_staff'), enabled=color_enabled)}")
-    print(f"  {bold('Red Adversary Profile', enabled=color_enabled):<20} : {red(getattr(args, 'profile', 'thai_nuanced_adversary'), enabled=color_enabled)}")
-    strat_val = str(getattr(args, 'strategy', 'template')).lower()
+    print(f"  {bold('Target Blue Role', enabled=color_enabled):<20} : {cyan(getattr(args, 'role', None) or 'registrar_staff', enabled=color_enabled)}")
+    print(f"  {bold('Red Adversary Profile', enabled=color_enabled):<20} : {red(getattr(args, 'profile', None) or 'thai_nuanced_adversary', enabled=color_enabled)}")
+    strat_val = str(getattr(args, 'strategy', None) or 'template').lower()
     if strat_val == "tree":
-        bw = getattr(args, "beam_width", 2)
-        bf = getattr(args, "branch_factor", 3)
+        bw = getattr(args, "beam_width", None) or 2
+        bf = getattr(args, "branch_factor", None) or 3
         strat_display = f"TREE (Beam Width: {bw}, Branch Factor: {bf})"
     else:
         strat_display = strat_val.upper()
     print(f"  {bold('Attack Strategy', enabled=color_enabled):<20} : {yellow(strat_display, enabled=color_enabled)}")
-    mutator_raw = str(getattr(args, 'mutator', 'none')).upper()
+    tech_raw = str(getattr(args, 'technique', None) or 'none').upper()
+    tech_display = f"{tech_raw} [Standard]" if tech_raw == "NONE" else f"{tech_raw} [Active]"
+    print(f"  {bold('Red Technique', enabled=color_enabled):<20} : {cyan(tech_display, enabled=color_enabled)}")
+    mutator_raw = str(getattr(args, 'mutator', None) or 'none').upper()
     mutator_display = f"{mutator_raw} [Standard]" if mutator_raw == "NONE" else f"{mutator_raw} [Active]"
     print(f"  {bold('NLP Mutator', enabled=color_enabled):<20} : {cyan(mutator_display, enabled=color_enabled)}")
-    backtrack_status = green(f"[ENABLED (max {getattr(args, 'max_backtracks', 2)})]", enabled=color_enabled) if getattr(args, "backtrack", False) else dim("[DISABLED]", enabled=color_enabled)
+    max_bt = getattr(args, 'max_backtracks', None)
+    max_bt = 2 if max_bt is None else max_bt
+    backtrack_status = green(f"[ENABLED (max {max_bt})]", enabled=color_enabled) if getattr(args, "backtrack", False) else dim("[DISABLED]", enabled=color_enabled)
     print(f"  {bold('Refusal Backtrack', enabled=color_enabled):<20} : {backtrack_status}")
-    print(f"  {bold('Multi-Turn Limit', enabled=color_enabled):<20} : Up to {bold(str(getattr(args, 'attempts', 3)), enabled=color_enabled)} turns per test case")
+    attempts_val = getattr(args, 'attempts', None) or 3
+    print(f"  {bold('Multi-Turn Limit', enabled=color_enabled):<20} : Up to {bold(str(attempts_val), enabled=color_enabled)} turns per test case")
     print(line)
     print(dim("  Adversary will probe iteratively until target honeytoken leaks or max turns reached.", enabled=color_enabled))
     print(double_line + "\n")
@@ -219,6 +301,12 @@ def export_redteam_report(report: RedTeamBenchmarkReport, export_dir: str = "res
 def run_redteam_run(args) -> int:
     """Execute the multi-turn red-teaming evaluation CLI command."""
     no_color = getattr(args, "no_color", False)
+    try:
+        _resolve_attack_presets(args)
+    except ValueError as e:
+        print(red(f"[-] {e}", enabled=not no_color), file=sys.stderr)
+        return 2
+
     dry_run = getattr(args, "dry_run", False)
     parallel = getattr(args, "parallel", False)
     defense = getattr(args, "defense", "all")
@@ -265,41 +353,48 @@ def run_redteam_run(args) -> int:
     print_preflight_card(args, len(cases), cases_file, no_color=no_color)
 
     strategy = getattr(args, "strategy", "template")
+    technique = getattr(args, "technique", None) or "none"
     mutator = getattr(args, "mutator", "none")
-    enable_backtrack = getattr(args, "backtrack", False)
+    enable_backtrack = bool(getattr(args, "backtrack", False))
     max_backtracks = getattr(args, "max_backtracks", 2)
 
-    if strategy == "tree":
-        from core.evaluator.tree import TreeBeamRedTeamRunner, render_ascii_tree
-        beam_width = getattr(args, "beam_width", 2)
-        branch_factor = getattr(args, "branch_factor", 3)
-        runner = TreeBeamRedTeamRunner(
-            beam_width=beam_width,
-            branch_factor=branch_factor,
-            max_depth=max_attempts,
-            defense=defense,
-            blue_role=blue_role,
-            red_profile=red_profile,
-            dry_run=dry_run,
-            blue_model=blue_model,
-            red_model=red_model,
-            strategy=strategy,
-            mutator=mutator,
-        )
-    else:
-        runner = MultiTurnRedTeamRunner(
-            max_attempts=max_attempts,
-            defense=defense,
-            blue_role=blue_role,
-            red_profile=red_profile,
-            dry_run=dry_run,
-            blue_model=blue_model,
-            red_model=red_model,
-            strategy=strategy,
-            mutator=mutator,
-            enable_backtrack=enable_backtrack,
-            max_backtracks=max_backtracks,
-        )
+    try:
+        if strategy == "tree":
+            from core.evaluator.tree import TreeBeamRedTeamRunner, render_ascii_tree
+            beam_width = getattr(args, "beam_width", 2)
+            branch_factor = getattr(args, "branch_factor", 3)
+            runner = TreeBeamRedTeamRunner(
+                beam_width=beam_width,
+                branch_factor=branch_factor,
+                max_depth=max_attempts,
+                defense=defense,
+                blue_role=blue_role,
+                red_profile=red_profile,
+                dry_run=dry_run,
+                blue_model=blue_model,
+                red_model=red_model,
+                strategy=strategy,
+                mutator=mutator,
+                technique=technique,
+            )
+        else:
+            runner = MultiTurnRedTeamRunner(
+                max_attempts=max_attempts,
+                defense=defense,
+                blue_role=blue_role,
+                red_profile=red_profile,
+                dry_run=dry_run,
+                blue_model=blue_model,
+                red_model=red_model,
+                strategy=strategy,
+                mutator=mutator,
+                enable_backtrack=enable_backtrack,
+                max_backtracks=max_backtracks,
+                technique=technique,
+            )
+    except ValueError as e:
+        print(red(f"[-] Invalid red-team configuration: {e}", enabled=not no_color), file=sys.stderr)
+        return 2
 
     def on_turn(c, turn, attempt, total_attempts):
         print_turn_telemetry(c, turn, attempt, total_attempts, no_color=no_color)
@@ -366,6 +461,16 @@ def run_redteam_run(args) -> int:
     for t_idx, asr_val in report.cumulative_asr.items():
         print(f"  {bullet_dot} ASR @ Turn {t_idx} : {asr_val}%")
 
+    if getattr(report, "technique_breakdown", None):
+        print(bold("\nTechnique Breakdown:", enabled=not no_color))
+        for tid, stats in report.technique_breakdown.items():
+            avg_ttb = stats.get("average_ttb")
+            ttb_str = f" | Avg TTB: {avg_ttb}" if avg_ttb is not None else ""
+            print(
+                f"  {bullet_dot} {cyan(tid, enabled=not no_color):<24} : "
+                f"{stats.get('breached', 0)}/{stats.get('total', 0)} breached ({stats.get('asr', 0.0)}% ASR){ttb_str}"
+            )
+
     export_dir = getattr(args, "export_dir", "results")
     export_name = getattr(args, "export_name", "redteam_evaluation_report")
     json_path, md_path = export_redteam_report(report, export_dir=export_dir, base_name=export_name)
@@ -379,21 +484,98 @@ def run_redteam_run(args) -> int:
 def run_redteam_list(args) -> int:
     """List available Red-Team adversary profiles and sociolinguistic vectors."""
     no_color = getattr(args, "no_color", False)
+    fmt = getattr(args, "format", "table")
     profiles = agent.DEFAULT_RED_PROFILES
 
-    rows = []
-    headers = ["Profile ID", "Name", "Knowledge", "Sociolinguistic Focus"]
-    for pid, meta in profiles.items():
-        rows.append([pid, meta.get("name", pid), meta.get("knowledge_level", "blackbox"), meta.get("description", "")])
+    payload = [{"id": pid, **meta} for pid, meta in profiles.items()]
+    if fmt == "table":
+        rows = []
+        headers = ["Profile ID", "Name", "Knowledge", "Sociolinguistic Focus"]
+        for pid, meta in profiles.items():
+            rows.append([pid, meta.get("name", pid), meta.get("knowledge_level", "blackbox"), meta.get("description", "")])
 
-    print(bold("\nAvailable Red Adversary Profiles:\n", enabled=not no_color))
-    render_output(
-        [{"id": pid, **meta} for pid, meta in profiles.items()],
-        format_name=getattr(args, "format", "table"),
-        headers=headers,
-        table_rows=rows,
-        stream=sys.stdout,
-        no_color=no_color,
-    )
-    print()
+        print(bold("\nAvailable Red Adversary Profiles:\n", enabled=not no_color))
+        render_output(
+            payload,
+            format_name="table",
+            headers=headers,
+            table_rows=rows,
+            stream=sys.stdout,
+            no_color=no_color,
+        )
+        print()
+    else:
+        render_output(payload, format_name=fmt, stream=sys.stdout, no_color=no_color)
     return 0
+
+
+def run_redteam_techniques(args) -> int:
+    """List registered red-team techniques with optional category and tier filters."""
+    no_color = getattr(args, "no_color", False)
+    fmt = getattr(args, "format", "table")
+    category = getattr(args, "category", None)
+    tier = getattr(args, "tier", None)
+
+    specs = TechniqueRegistry.list_all(category=category, tier=tier)
+    payload = [
+        {
+            "id": s.id,
+            "name": s.name,
+            "category": s.category,
+            "tier": s.tier,
+            "cost_mode": s.cost_mode,
+            "target_barriers": list(s.target_barriers),
+            "research_ref": s.research_ref,
+            "description": s.description,
+        }
+        for s in specs
+    ]
+
+    if fmt == "table":
+        headers = ["Technique ID", "Name", "Category", "Tier", "Cost Mode", "Target Barriers", "Reference"]
+        rows = [
+            [
+                item["id"],
+                item["name"],
+                item["category"],
+                item["tier"],
+                item["cost_mode"],
+                ", ".join(item["target_barriers"]),
+                item["research_ref"],
+            ]
+            for item in payload
+        ]
+        print(bold(f"\nRegistered Red-Team Techniques ({len(payload)} total):\n", enabled=not no_color))
+        render_output(
+            payload,
+            format_name="table",
+            headers=headers,
+            table_rows=rows,
+            stream=sys.stdout,
+            no_color=no_color,
+        )
+        print()
+    else:
+        render_output(payload, format_name=fmt, stream=sys.stdout, no_color=no_color)
+    return 0
+
+
+def run_attack_dispatch(args) -> int:
+    """Dispatch flat Nmap/Hydra-style attack command to list views or red-team execution."""
+    _apply_positional_attack_target(args)
+    list_target = getattr(args, "list", None)
+    if list_target == "techniques":
+        return run_redteam_techniques(args)
+    if list_target == "profiles":
+        return run_redteam_list(args)
+    if list_target == "cases":
+        from core.cli.commands.eval import run_eval_list
+        return run_eval_list(args)
+
+    try:
+        _resolve_attack_presets(args)
+    except ValueError as e:
+        no_color = getattr(args, "no_color", False)
+        print(red(f"[-] {e}", enabled=not no_color), file=sys.stderr)
+        return 2
+    return run_redteam_run(args)
