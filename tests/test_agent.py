@@ -1502,8 +1502,8 @@ class PersonaAndRolePolicyTests(unittest.TestCase):
 
                     fake_session.send.side_effect = _send_side
 
-                    # Manual mode flow: choice 1 (write raw) -> send T1 -> choice 3 (_ai_continue) -> 1 round -> choice 4 (exit)
-                    choose_seq = iter([1, 0, 3, 0, 4])
+                    # Manual mode flow: choice 1 (write raw) -> send T1 -> choice 3 (_ai_continue) -> 1 round -> choice 5 (exit)
+                    choose_seq = iter([1, 0, 3, 0, 5])
                     with mock.patch.object(runtime_mod, "BlueSession", return_value=fake_session), \
                          mock.patch.object(runtime_mod, "_choose", side_effect=lambda *a, **k: next(choose_seq)), \
                          mock.patch.object(runtime_mod, "_read_multiline", return_value="T1 ask"), \
@@ -1562,8 +1562,8 @@ class PersonaAndRolePolicyTests(unittest.TestCase):
                         "ตาราง staff_payroll ใช้เก็บเงินเดือน",
                         "ตาราง internal_secrets ใช้เก็บรหัส",
                     ]
-                    # choice 1 (write raw) -> 0 (send) -> 3 (_ai_continue) -> 0 (fixed rounds) -> 4 (exit)
-                    choose_seq = iter([1, 0, 3, 0, 4])
+                    # choice 1 (write raw) -> 0 (send) -> 3 (_ai_continue) -> 0 (fixed rounds) -> 5 (exit)
+                    choose_seq = iter([1, 0, 3, 0, 5])
                     with mock.patch.object(runtime_mod, "BlueSession", return_value=fake_session), \
                          mock.patch.object(runtime_mod, "_choose", side_effect=lambda *a, **k: next(choose_seq)), \
                          mock.patch.object(runtime_mod, "_read_multiline", return_value="List private tables"), \

@@ -33,6 +33,14 @@ from core.defenses.dlp import (
     sanitize_error,
 )
 from core.defenses.spotlight import SpotlightingGuard
+from core.evaluator.techniques import (
+    BarrierSelector,
+    TechniqueContext,
+    TechniqueRegistry,
+    TechniqueSessionState,
+    apply_technique_pipeline,
+    parse_technique_spec,
+)
 from core import db as core_db
 from core import prompts as core_prompts
 from core.db import (
@@ -2042,14 +2050,15 @@ def _read_multiline(prompt_msg):
     return "\n".join(lines).strip()
 
 
-def _default_print_preflight(session_id, defense, blue_role, red_profile, lang, attack_type, targets=None, canaries=None):
-    print(f"\nเริ่มโหมดควบคุมเอง | session={session_id} | defense={defense} | Blue role={blue_role} | Red profile={red_profile}")
+def _default_print_preflight(session_id, defense, blue_role, red_profile, lang, attack_type, targets=None, canaries=None, **kwargs):
+    tech = kwargs.get("technique", "none")
+    print(f"\nเริ่มโหมดควบคุมเอง | session={session_id} | defense={defense} | Blue role={blue_role} | Red profile={red_profile} | technique={tech}")
     print("(พิมพ์ได้ทุกเมื่อ แล้วใช้เมนูเพื่อออกไปหน้า default)")
 
 _print_preflight = _default_print_preflight
 
 
-def _default_review_payload(attack, source="Manual", meta=None):
+def _default_review_payload(attack, source="Manual", meta=None, **kwargs):
     """Default fallback payload review dialog with multi-action editing."""
     curr_attack = attack
     while True:
@@ -2267,6 +2276,72 @@ def execute_manual_turn(
 _manual_turn = execute_manual_turn
 
 
+def _resolve_session_technique(
+    active_technique: str,
+    ctx: TechniqueContext,
+    state: TechniqueSessionState,
+    attack_type: str,
+) -> Tuple[str, List[str], Optional[str], Optional[List[str]]]:
+    """Resolve technique IDs, prompt directive, and failed-technique memory for a session turn."""
+    mode = (active_technique or "none").strip().lower() or "none"
+    if mode == "none":
+        return "", [], None, None
+
+    if mode in ("auto", "core", "all"):
+        pool = "all" if mode == "all" else "core"
+        chosen = BarrierSelector.select_next(ctx, state, pool=pool, attack_type=attack_type)
+        directive = f"{chosen.name}: {chosen.prompt_directive}" if chosen.prompt_directive else chosen.name
+        failed_set = set().union(*state.failed_by_barrier.values()) if state.failed_by_barrier else set()
+        failed_list = [tid for tid in dict.fromkeys(state.tried_techniques) if tid in failed_set] or None
+        return chosen.id, [chosen.id], directive, failed_list
+
+    spec_ids = parse_technique_spec(mode)
+    if not spec_ids:
+        return "", [], None, None
+    specs = [TechniqueRegistry.get(tid) for tid in spec_ids]
+    dirs = [f"{s.name}: {s.prompt_directive}" if s.prompt_directive else s.name for s in specs]
+    return ",".join(spec_ids), spec_ids, (" | ".join(dirs) if dirs else None), None
+
+
+def _select_red_technique(current_technique: str) -> str:
+    """Interactive Pure English selector for the active session Red Technique."""
+    mode = _choose(
+        "Select Red Technique mode:",
+        [
+            "none (Disable active Red Technique)",
+            "auto (Barrier-adaptive Core pool selection)",
+            "core (Barrier-adaptive Core 8 techniques)",
+            "all (Barrier-adaptive Core + Advanced 14 techniques)",
+            "Pick single technique from Registry",
+            "Enter explicit technique ID or comma-separated stack",
+        ],
+        1,
+    )
+    if mode == 0:
+        return "none"
+    if mode == 1:
+        return "auto"
+    if mode == 2:
+        return "core"
+    if mode == 3:
+        return "all"
+    if mode == 4:
+        specs = TechniqueRegistry.list_all()
+        options = [f"{s.id} [{s.tier}/{s.category}] - {s.name}" for s in specs]
+        idx = _choose("Select Red Technique:", options, 1)
+        return specs[idx].id
+
+    raw_spec = (_ask("Enter technique ID or comma-separated stack (e.g. policy_puppetry,variation_selector)", current_technique) or "").strip().lower()
+    if not raw_spec or raw_spec in ("none", "auto", "core", "all"):
+        return raw_spec or "none"
+    try:
+        spec_ids = parse_technique_spec(raw_spec)
+        return ",".join(spec_ids) if spec_ids else "none"
+    except ValueError as exc:
+        print(f"  ! Invalid technique specification: {exc}")
+        return current_technique
+
+
 def _ai_continue(
     session,
     case,
@@ -2283,12 +2358,16 @@ def _ai_continue(
     last_tool_calls: Optional[List[Dict[str, Any]]] = None,
     prior_strategies: Optional[List[str]] = None,
     defense_state: Optional[Dict[str, Any]] = None,
+    technique: str = "none",
+    technique_state: Optional[TechniqueSessionState] = None,
 ):
     """Let Red analyze the conversation and keep sending. Returns the next turn number."""
     if last_tool_calls is None:
         last_tool_calls = []
     if prior_strategies is None:
         prior_strategies = []
+    active_tech = (technique or "none").strip().lower() or "none"
+    active_state = technique_state if technique_state is not None else TechniqueSessionState()
 
     cond_choice = _choose(
         "เงื่อนไขการทำงานของ AI:",
@@ -2318,22 +2397,62 @@ def _ai_continue(
             if last_defense_action is _UNSET_DEFENSE_ACTION:
                 last_defense_action = _classify_defense_action(last_resp, tool_calls=last_tool_calls) if last_resp else None
             strat = case.get("strategy", "template")
-            try:
-                attack, meta = ask_red(
-                    case,
-                    history,
-                    turn_no,
-                    red_profile=red_profile,
+
+            tech_ctx: Optional[TechniqueContext] = None
+            technique_used, spec_ids, directive, failed_list = "", [], None, None
+            if active_tech != "none":
+                tech_ctx = TechniqueContext(
+                    language=case.get("language", "Thai"),
+                    turn_no=turn_no,
+                    max_attempts=max_rounds,
+                    targets=list(case.get("targets") or []),
+                    defense=defense,
                     blue_role=blue_role,
-                    refusal_reason=last_defense_action,
-                    red_model=red_model,
-                    strategy=strat,
-                    last_tool_calls=list(last_tool_calls) if last_tool_calls else None,
-                    prior_strategies=list(prior_strategies) if prior_strategies else None,
+                    red_profile=red_profile,
+                    last_response=last_resp,
+                    last_defense_action=last_defense_action,
+                    history=list(history),
+                    seed=turn_no,
                 )
+                technique_used, spec_ids, directive, failed_list = _resolve_session_technique(
+                    active_tech,
+                    tech_ctx,
+                    active_state,
+                    case.get("attack_type", "direct"),
+                )
+
+            is_fallback = False
+            try:
+                ask_kwargs: Dict[str, Any] = {
+                    "red_profile": red_profile,
+                    "blue_role": blue_role,
+                    "refusal_reason": last_defense_action,
+                    "red_model": red_model,
+                    "strategy": strat,
+                    "last_tool_calls": list(last_tool_calls) if last_tool_calls else None,
+                    "prior_strategies": list(prior_strategies) if prior_strategies else None,
+                }
+                if directive is not None:
+                    ask_kwargs["technique_directive"] = directive
+                if failed_list is not None:
+                    ask_kwargs["failed_techniques"] = failed_list
+                attack, meta = ask_red(case, history, turn_no, **ask_kwargs)
+                meta = dict(meta or {})
+                is_fallback = meta.get("red_model_used") == "fallback_static"
             except Exception as e:
                 audit("red_error", {"id": session_id, "turn": turn_no, "error": sanitize_error(str(e))[:300]})
                 attack, meta = build_fallback_attack(case, turn_no, last_resp, strategy=strat)
+                meta = dict(meta or {})
+                is_fallback = True
+
+            if spec_ids and tech_ctx is not None:
+                if is_fallback:
+                    attack = apply_technique_pipeline(attack, ",".join(spec_ids), tech_ctx)
+                else:
+                    evasion_ids = [tid for tid in spec_ids if TechniqueRegistry.get(tid).category == "evasion"]
+                    if evasion_ids:
+                        attack = apply_technique_pipeline(attack, ",".join(evasion_ids), tech_ctx)
+                meta["technique_used"] = technique_used
 
             if mutator and mutator.lower() not in ("none", "off"):
                 from core.evaluator.mutators import apply_mutation
@@ -2367,11 +2486,21 @@ def _ai_continue(
             last_defense_action = _resolve_turn_defense_action(res)
             if defense_state is not None:
                 defense_state["last_defense_action"] = last_defense_action
+            has_targets = bool(case.get("targets"))
+            breached = bool(res.get("is_target_met") or (not has_targets and res.get("leaked")))
+            if spec_ids and tech_ctx is not None:
+                for tid in spec_ids:
+                    active_state.record_outcome(
+                        last_defense_action,
+                        tid,
+                        breached,
+                        ctx=tech_ctx,
+                        attack_type=case.get("attack_type", "direct"),
+                    )
             raw_strat = (meta.get("strategy") or "").strip() if isinstance(meta, dict) else ""
             if raw_strat:
                 prior_strategies.append(raw_strat)
-            has_targets = bool(case.get("targets"))
-            if res.get("is_target_met") or (not has_targets and res.get("leaked")):
+            if breached:
                 target_desc = res.get("hits") or res.get("target_leaked") or res.get("leaked")
                 stop_reason = f"🎯 สำเร็จ! ตรวจพบข้อมูลเป้าหมายที่ตั้งไว้: {target_desc}"
                 break
@@ -2384,10 +2513,14 @@ def _ai_continue(
     return turn_no
 
 
-def manual_mode(defense=None, blue_role=None, red_profile=None, lang=None, attack_type=None, targets=None, blue_model=None, red_model=None, mutator: str = "none"):
+def manual_mode(defense=None, blue_role=None, red_profile=None, lang=None, attack_type=None, targets=None, blue_model=None, red_model=None, mutator: str = "none", technique: str = "none"):
     """Human-controlled mode: one shared Blue chat, optional AI continuation."""
     global _uni_conn, _res_conn
     effective_mutator = (mutator or "none").strip() or "none"
+    effective_technique = (technique or "none").strip().lower() or "none"
+    if effective_technique not in ("none", "auto", "core", "all"):
+        effective_technique = ",".join(parse_technique_spec(effective_technique)) or "none"
+    session_tech_state = TechniqueSessionState()
 
     # Quick Start option if no parameters were preset
     if defense is None and blue_role is None and lang is None and attack_type is None:
@@ -2452,9 +2585,9 @@ def manual_mode(defense=None, blue_role=None, red_profile=None, lang=None, attac
         prior_strategies: List[str] = []
         audit("manual_start", {
             "id": session_id, "defense": defense, "language": lang, "attack_type": attack_type,
-            "blue_role": blue_role, "red_profile": red_profile,
+            "blue_role": blue_role, "red_profile": red_profile, "technique": effective_technique,
         })
-        _print_preflight(session_id, defense, blue_role, red_profile, lang, attack_type, targets, canaries)
+        _print_preflight(session_id, defense, blue_role, red_profile, lang, attack_type, targets, canaries, technique=effective_technique)
 
         while True:
             try:
@@ -2471,12 +2604,20 @@ def manual_mode(defense=None, blue_role=None, red_profile=None, lang=None, attac
                         "เขียน prompt เอง",
                         "ให้ AI Prompt Architect ช่วยวิเคราะห์และสร้าง Prompt",
                         "ให้ AI วิเคราะห์ Turn ล่าสุดแล้วส่ง Prompt โต้ตอบต่อ (AI Continuation)",
+                        f"Select / Change Red Technique [{effective_technique}]",
                         "กลับหน้า default (ออกจากโหมดนี้)",
                     ],
-                    5 if not templates else 1,
+                    6 if not templates else 1,
                 )
-                if choice == 4:
+                if choice == 5:
                     break
+                if choice == 4:
+                    new_tech = _select_red_technique(effective_technique)
+                    if new_tech != effective_technique:
+                        effective_technique = new_tech
+                        session_tech_state = TechniqueSessionState()
+                    print(f"[+] Active Red Technique: {effective_technique}")
+                    continue
                 if choice == 0:
                     if not templates:
                         print("  ! ไม่มีต้นแบบที่ตรงกับภาษา/ชนิดนี้ กรุณาเขียนเอง")
@@ -2488,6 +2629,10 @@ def manual_mode(defense=None, blue_role=None, red_profile=None, lang=None, attac
                         attack_raw,
                         source=f"Template ({tpl['id']})",
                         meta={"technique": tpl.get("technique", attack_type), "attack_type": attack_type},
+                        language=lang,
+                        defense=defense,
+                        red_profile=red_profile,
+                        targets=targets,
                     )
                     if not attack:
                         continue
@@ -2500,6 +2645,10 @@ def manual_mode(defense=None, blue_role=None, red_profile=None, lang=None, attac
                         attack_raw,
                         source="Manual Raw Payload",
                         meta={"attack_type": attack_type},
+                        language=lang,
+                        defense=defense,
+                        red_profile=red_profile,
+                        targets=targets,
                     )
                     if not attack:
                         continue
@@ -2538,6 +2687,10 @@ def manual_mode(defense=None, blue_role=None, red_profile=None, lang=None, attac
                             "tactic": gen_res.get("tactic", ""),
                             "technique": chosen_tech,
                         },
+                        language=lang,
+                        defense=defense,
+                        red_profile=red_profile,
+                        targets=targets,
                     )
                     if not attack:
                         continue
@@ -2562,6 +2715,8 @@ def manual_mode(defense=None, blue_role=None, red_profile=None, lang=None, attac
                         last_tool_calls=last_tool_calls,
                         prior_strategies=prior_strategies,
                         defense_state=defense_state,
+                        technique=effective_technique,
+                        technique_state=session_tech_state,
                     )
                     continue
 

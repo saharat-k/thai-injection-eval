@@ -19,5 +19,17 @@ class TestChatEnglishControls(unittest.TestCase):
             for char in opt:
                 self.assertFalse('\u0e00' <= char <= '\u0e7f', f"Found Thai char in option: {opt}")
 
+    @patch("agent._ask", return_value="policy_puppetry")
+    @patch("agent._choose", side_effect=[3, 0, 0])
+    def test_review_payload_card_technique_controls_pure_english(self, mock_choose, _mock_ask):
+        with patch("sys.stdout"):
+            res = chat_cmd.review_payload_card("ทดสอบ Injection", source="Manual", no_color=True)
+        self.assertIn("<interaction-config", res)
+        for call in mock_choose.call_args_list:
+            prompt_arg, options_arg, _ = call[0]
+            self.assertFalse(any('\u0e00' <= c <= '\u0e7f' for c in prompt_arg), f"Found Thai char in prompt: {prompt_arg}")
+            for opt in options_arg:
+                self.assertFalse(any('\u0e00' <= c <= '\u0e7f' for c in opt), f"Found Thai char in option: {opt}")
+
 if __name__ == "__main__":
     unittest.main()

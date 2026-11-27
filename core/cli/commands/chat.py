@@ -27,8 +27,10 @@ def print_security_turn_card(turn_no: int, sender: str, attack: str, res: dict, 
     print(bold(header.center(width, bullet), enabled=color_enabled))
     print(double_line)
 
-    if red_meta and (red_meta.get("analysis") or red_meta.get("strategy")):
+    if red_meta and (red_meta.get("analysis") or red_meta.get("strategy") or red_meta.get("technique_used")):
         print(bold("🧠 [RED ATTACK STRATEGY & TACTIC]", enabled=color_enabled))
+        if red_meta.get("technique_used"):
+            print(dim(f"  * Technique: {red_meta['technique_used']}", enabled=color_enabled))
         if red_meta.get("analysis"):
             print(dim(f"  * Analysis: {red_meta['analysis']}", enabled=color_enabled))
         if red_meta.get("strategy"):
@@ -110,6 +112,7 @@ def print_preflight_briefing_card(
     canaries: Optional[List[str]] = None,
     no_color: bool = False,
     mutator: Optional[str] = None,
+    technique: Optional[str] = None,
 ):
     """Render a comprehensive Session Pre-Flight Briefing Card in Red/Cyan theme."""
     import agent
@@ -140,6 +143,10 @@ def print_preflight_briefing_card(
         m_upper = mutator.upper()
         m_display = f"{m_upper} [Standard]" if m_upper == "NONE" else f"{m_upper} [Active]"
         print(f"  {bold('NLP Mutator', enabled=color_enabled):<20} : {cyan(m_display, enabled=color_enabled)}")
+    if technique:
+        t_upper = technique.upper()
+        t_display = f"{t_upper} [Standard]" if t_upper == "NONE" else f"{t_upper} [Active]"
+        print(f"  {bold('Red Technique', enabled=color_enabled):<20} : {cyan(t_display, enabled=color_enabled)}")
     print(f"  {bold('Red Operator', enabled=color_enabled):<20} : {red(f'{red_profile} ({r_name})', enabled=color_enabled)}")
 
     tgt_str = ", ".join(targets) if targets else "(Default targets monitored)"
@@ -159,6 +166,10 @@ def review_payload_card(
     source: str = "Manual",
     meta: Optional[Dict[str, Any]] = None,
     no_color: bool = False,
+    language: str = "Thai",
+    defense: str = "off",
+    red_profile: str = "realistic_attacker",
+    targets: Optional[List[str]] = None,
 ) -> Optional[str]:
     """Render an aesthetic Prompt Composer Card with unified review actions in Pure English."""
     import agent
@@ -203,6 +214,7 @@ def review_payload_card(
                 "🚀 Dispatch payload immediately (Send)",
                 "✏️  Edit prompt before sending (Edit)",
                 "❌ Cancel (return to options)",
+                "🧪 Apply Red Technique Wrapper",
             ],
             1,
         )
@@ -242,6 +254,48 @@ def review_payload_card(
                     curr_attack = edited
                     source = f"{source} (Rewritten)"
                 continue
+        elif action == 3:
+            from core.evaluator.techniques import (
+                TechniqueContext,
+                TechniqueRegistry,
+                apply_technique_pipeline,
+            )
+
+            mode_choice = agent._choose(
+                "Select technique input method:",
+                [
+                    "Enter technique ID or comma-separated stack (e.g. policy_puppetry)",
+                    "Select from registered Red Techniques",
+                ],
+                1,
+            )
+            if mode_choice == 0:
+                spec = (agent._ask("Enter technique ID or comma-separated stack", "") or "").strip()
+            else:
+                specs = TechniqueRegistry.list_all()
+                options = [f"{s.id} [{s.tier}/{s.category}] - {s.name}" for s in specs]
+                t_idx = agent._choose("Select Red Technique:", options, 1)
+                spec = specs[t_idx].id
+
+            if not spec or spec.lower() == "none":
+                print("  ! No technique wrapper applied")
+                continue
+            try:
+                ctx = TechniqueContext(
+                    language=language or "Thai",
+                    defense=defense or "off",
+                    red_profile=red_profile or "realistic_attacker",
+                    targets=list(targets or []),
+                )
+                wrapped = apply_technique_pipeline(curr_attack, spec, ctx)
+                if wrapped != curr_attack:
+                    curr_attack = wrapped
+                    source = f"{source} (+{spec})"
+                else:
+                    print(f"  ! Technique '{spec}' produced no change")
+            except ValueError as exc:
+                print(red(f"  ! Invalid technique specification: {exc}", enabled=color_enabled))
+            continue
         else:
             return None
 
@@ -257,6 +311,8 @@ def run_chat(args) -> int:
     attack_type = getattr(args, "attack_type", None)
     targets_arg = getattr(args, "targets", None)
     no_color = getattr(args, "no_color", False)
+    technique = getattr(args, "technique", "none") or "none"
+    targets = [t.strip() for t in targets_arg.split(",") if t.strip()] if targets_arg else None
 
     # Check API key before entering chat
     if not getattr(args, "quiet", False):
@@ -274,20 +330,38 @@ def run_chat(args) -> int:
     def patched_print_turn(turn_no, sender, attack, res, red_meta=None):
         print_security_turn_card(turn_no, sender, attack, res, red_meta=red_meta, no_color=no_color)
 
-    def patched_print_preflight(session_id, defense, blue_role, red_profile, lang, attack_type, targets=None, canaries=None):
+    def patched_print_preflight(session_id, defense, blue_role, red_profile, lang, attack_type, targets=None, canaries=None, **kwargs):
         print_preflight_briefing_card(
-            session_id, defense, blue_role, red_profile, lang, attack_type, targets=targets, canaries=canaries, no_color=no_color, mutator=getattr(args, "mutator", "none")
+            session_id,
+            defense,
+            blue_role,
+            red_profile,
+            lang,
+            attack_type,
+            targets=targets,
+            canaries=canaries,
+            no_color=no_color,
+            mutator=getattr(args, "mutator", "none"),
+            technique=kwargs.get("technique", technique),
         )
 
     def patched_review_payload(attack, source="Manual", meta=None, **kwargs):
-        return review_payload_card(attack, source=source, meta=meta, no_color=no_color)
+        return review_payload_card(
+            attack,
+            source=source,
+            meta=meta,
+            no_color=no_color,
+            language=kwargs.get("language") or lang or "Thai",
+            defense=kwargs.get("defense") or defense or "off",
+            red_profile=kwargs.get("red_profile") or getattr(args, "red_profile", None) or "realistic_attacker",
+            targets=kwargs.get("targets") if kwargs.get("targets") is not None else targets,
+        )
 
     agent._print_turn = patched_print_turn
     agent._print_preflight = patched_print_preflight
     agent._review_payload = patched_review_payload
 
     try:
-        targets = [t.strip() for t in targets_arg.split(",") if t.strip()] if targets_arg else None
         blue_model = getattr(args, "blue", None) or getattr(args, "model", None)
         red_model = getattr(args, "red", None)
         mutator = getattr(args, "mutator", "none") or "none"
@@ -299,6 +373,7 @@ def run_chat(args) -> int:
             "attack_type": attack_type,
             "targets": targets,
             "mutator": mutator,
+            "technique": technique,
         }
         if blue_model:
             manual_kwargs["blue_model"] = blue_model

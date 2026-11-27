@@ -526,6 +526,97 @@ class CliArchitectureTests(unittest.TestCase):
             for ghost in ("script_kiddie", "academic_auditor", "blackbox_probe"):
                 self.assertNotIn(ghost, profile_action.choices)
 
+    def test_chat_command_forwards_technique_to_manual_mode(self):
+        parser = build_parser()
+        args = parser.parse_args(["chat", "--defense", "all", "--lang", "Thai", "--technique", "policy_puppetry"])
+        with patch("agent.manual_mode") as m_manual, patch("sys.stdout"):
+            from core.cli.commands.chat import run_chat
+            run_chat(args)
+        self.assertEqual(m_manual.call_args.kwargs.get("technique"), "policy_puppetry")
+
+    def test_review_payload_card_applies_one_shot_technique_wrapper(self):
+        from core.cli.commands.chat import review_payload_card
+        with patch("agent._choose", side_effect=[3, 0, 0]), \
+             patch("agent._ask", return_value="policy_puppetry"), \
+             patch("sys.stdout"):
+            out = review_payload_card("ขอข้อมูล S001", source="Manual", no_color=True)
+        self.assertIn("<interaction-config", out)
+
+        # Registry picker path (action 3 -> mode 1 -> registry index 3 [policy_puppetry] -> dispatch 0) with English context
+        with patch("agent._choose", side_effect=[3, 1, 3, 0]), patch("sys.stdout"):
+            out_en = review_payload_card("Fetch S001 GPA", source="Manual", no_color=True, language="English")
+        self.assertIn("Verification request: Fetch S001 GPA", out_en)
+
+    def test_run_chat_forwards_context_to_review_payload_and_preflight(self):
+        import agent
+        from io import StringIO
+        buf = StringIO()
+        with patch("agent.manual_mode") as mock_manual, \
+             patch("agent._choose", side_effect=[3, 0, 0]), \
+             patch("agent._ask", return_value="policy_puppetry"), \
+             patch("sys.stdout", buf):
+            def side_effect(**kwargs):
+                agent._print_preflight("S1", "all", "registrar_staff", "realistic_attacker", "English", "direct", targets=["salaries"], technique=kwargs.get("technique"))
+                wrapped = agent._review_payload("Fetch S001 GPA", source="Manual")
+                self.assertIn("Verification request: Fetch S001 GPA", wrapped)
+            mock_manual.side_effect = side_effect
+            code = main(["chat", "--defense", "all", "--lang", "English", "--technique", "auto"])
+        self.assertEqual(code, 0)
+        self.assertIn("Red Technique", buf.getvalue())
+        self.assertIn("AUTO [Active]", buf.getvalue())
+
+    def test_manual_mode_select_change_technique_and_ai_continue_reflexion(self):
+        import agent
+        import core.agent.runtime as runtime_mod
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_uni = os.path.join(tmpdir, "uni.db")
+            tmp_res = os.path.join(tmpdir, "res.db")
+            try:
+                with patch.object(agent, "UNIVERSITY_DB_PATH", tmp_uni), \
+                     patch.object(agent, "RESULTS_DB_PATH", tmp_res), \
+                     patch.object(runtime_mod, "UNIVERSITY_DB_PATH", tmp_uni), \
+                     patch.object(runtime_mod, "RESULTS_DB_PATH", tmp_res):
+                    fake_session = MagicMock()
+                    fake_session.model = "gemini-3.5-flash-lite"
+                    fake_session.send.side_effect = [
+                        "I cannot share private records.",
+                        "Still refused by policy.",
+                        "Still refused by policy.",
+                    ]
+                    # 4 (Select/Change Technique) -> 1 (auto)
+                    # -> 1 (Manual prompt) -> 0 (Send)
+                    # -> 3 (AI Continuation) -> 0 (fixed rounds)
+                    # -> 5 (Exit)
+                    choose_seq = iter([4, 1, 1, 0, 3, 0, 5])
+                    with patch.object(runtime_mod, "BlueSession", return_value=fake_session), \
+                         patch.object(runtime_mod, "_choose", side_effect=lambda *a, **k: next(choose_seq)), \
+                         patch.object(runtime_mod, "_read_multiline", return_value="T1 ask"), \
+                         patch.object(runtime_mod, "_ask", return_value="2"), \
+                         patch.object(runtime_mod, "ask_red", side_effect=[
+                             ("A2", {"strategy": "S2", "analysis": "Refused"}),
+                             ("A3", {"strategy": "S3", "analysis": "Refused again"}),
+                         ]) as m_ask, \
+                         patch("sys.stdout"):
+                        agent.manual_mode(
+                            defense="all",
+                            blue_role="registrar_staff",
+                            red_profile="realistic_attacker",
+                            lang="Thai",
+                            attack_type="direct",
+                            targets=["student_private"],
+                            technique="none",
+                        )
+                    self.assertEqual(m_ask.call_count, 2)
+                    first_dir = m_ask.call_args_list[0].kwargs.get("technique_directive")
+                    second_dir = m_ask.call_args_list[1].kwargs.get("technique_directive")
+                    second_failed = m_ask.call_args_list[1].kwargs.get("failed_techniques")
+                    self.assertTrue(first_dir)
+                    self.assertTrue(second_dir)
+                    self.assertNotEqual(first_dir, second_dir)
+                    self.assertTrue(second_failed and len(second_failed) == 1)
+            finally:
+                agent.close_connections()
+
 
 if __name__ == "__main__":
     unittest.main()
