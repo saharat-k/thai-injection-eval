@@ -10,10 +10,15 @@ from __future__ import annotations
 import re
 from typing import Callable, List, Optional
 
-from core.defenses.converters import _split_into_grapheme_clusters
+from core.defenses.converters import (
+    _split_into_grapheme_clusters,
+    apply_syllable_spacing,
+    encode_polyglot_payload,
+)
 
 ZERO_WIDTH_SPACE = "\u200b"
 ZERO_WIDTH_NON_JOINER = "\u200c"
+VARIATION_SELECTORS = tuple(chr(cp) for cp in range(0xFE00, 0xFE10))
 
 # Visually identical Unicode homoglyphs (Cyrillic confusables for Latin, and decomposed Thai characters)
 HOMOGLYPH_MAP = {
@@ -129,8 +134,23 @@ def _build_target_pattern(targets: List[str]) -> Optional[re.Pattern[str]]:
     return re.compile("|".join(re.escape(t) for t in unique_targets))
 
 
-def inject_zero_width(text: str, targets: Optional[List[str]] = None) -> str:
-    """Inject Zero-Width Space (U+200B) between grapheme clusters while protecting tools and record IDs."""
+def _join_with_variation_selectors(clusters: List[str]) -> str:
+    """Join grapheme clusters with deterministic Unicode variation selectors (U+FE00..U+FE0F)."""
+    parts: List[str] = []
+    for idx, cluster in enumerate(clusters):
+        parts.append(cluster)
+        if idx < len(clusters) - 1:
+            parts.append(VARIATION_SELECTORS[idx % len(VARIATION_SELECTORS)])
+    return "".join(parts)
+
+
+def _inject_cluster_delimiter(
+    text: str,
+    targets: Optional[List[str]],
+    join_fn: Callable[[List[str]], str],
+    mid_fn: Callable[[List[str]], str],
+) -> str:
+    """Inject delimiters between grapheme clusters while protecting tools and record IDs."""
     if not text:
         return ""
 
@@ -138,7 +158,7 @@ def inject_zero_width(text: str, targets: Optional[List[str]] = None) -> str:
     target_re = _build_target_pattern(effective_targets)
     matched_any = False
 
-    def _zw_targets(segment: str) -> str:
+    def _delimit_targets(segment: str) -> str:
         nonlocal matched_any
         if target_re is None:
             return segment
@@ -148,42 +168,61 @@ def inject_zero_width(text: str, targets: Optional[List[str]] = None) -> str:
             clusters = _split_into_grapheme_clusters(m.group(0))
             if len(clusters) >= 2:
                 matched_any = True
-                return ZERO_WIDTH_SPACE.join(clusters)
+                return join_fn(clusters)
             return m.group(0)
 
         return target_re.sub(_replace, segment)
 
-    result = _apply_to_unprotected_spans(text, _zw_targets)
+    result = _apply_to_unprotected_spans(text, _delimit_targets)
 
-    # If no explicit target matched, inject ZWSP between grapheme clusters of longer unprotected words
+    # If no explicit target matched, inject delimiter between grapheme clusters of longer unprotected words
     if not matched_any:
-        def _zw_word(m: re.Match) -> str:
+        def _delimit_word(m: re.Match) -> str:
             word = m.group(0)
             if len(word) >= 4:
                 clusters = _split_into_grapheme_clusters(word)
                 if len(clusters) >= 2:
-                    return ZERO_WIDTH_SPACE.join(clusters)
+                    return join_fn(clusters)
             return word
 
         result = _apply_to_unprotected_spans(
             result,
-            lambda seg: re.sub(r"[A-Za-z0-9_\u0e01-\u0e5b]+", _zw_word, seg),
+            lambda seg: re.sub(r"[A-Za-z0-9_\u0e01-\u0e5b]+", _delimit_word, seg),
         )
 
     # Fallback for short standalone unprotected spans while keeping tools, IDs, and grapheme clusters intact
     if result == text:
-        def _zw_short_span(span: str) -> str:
+        def _delimit_short_span(span: str) -> str:
             if len(span) <= 2:
                 return span
             clusters = _split_into_grapheme_clusters(span)
             if len(clusters) >= 2:
-                mid = len(clusters) // 2
-                return "".join(clusters[:mid]) + ZERO_WIDTH_SPACE + "".join(clusters[mid:])
+                return mid_fn(clusters)
             return span
 
-        result = _apply_to_unprotected_spans(result, _zw_short_span)
+        result = _apply_to_unprotected_spans(result, _delimit_short_span)
 
     return result
+
+
+def inject_zero_width(text: str, targets: Optional[List[str]] = None) -> str:
+    """Inject Zero-Width Space (U+200B) between grapheme clusters while protecting tools and record IDs."""
+    return _inject_cluster_delimiter(
+        text,
+        targets,
+        lambda cs: ZERO_WIDTH_SPACE.join(cs),
+        lambda cs: "".join(cs[: len(cs) // 2]) + ZERO_WIDTH_SPACE + "".join(cs[len(cs) // 2 :]),
+    )
+
+
+def insert_variation_selectors(text: str, targets: Optional[List[str]] = None) -> str:
+    """Insert Unicode variation selectors (U+FE00..U+FE0F) between complete Thai/Latin grapheme clusters."""
+    return _inject_cluster_delimiter(
+        text,
+        targets,
+        _join_with_variation_selectors,
+        lambda cs: "".join(cs[: len(cs) // 2]) + VARIATION_SELECTORS[0] + "".join(cs[len(cs) // 2 :]),
+    )
 
 
 def substitute_homoglyphs(text: str, targets: Optional[List[str]] = None) -> str:
@@ -477,8 +516,140 @@ def caesar_shift(text: str, shift: int = 1) -> str:
     return "".join(res)
 
 
+THAI_PHONETIC_MAP = {
+    "salary": "แซลารี่",
+    "national_id": "แนชนัลไอดี",
+    "password": "พาสเวิร์ด",
+    "bank_account": "แบงก์แอคเคานต์",
+    "secret": "ซีเคร็ต",
+    "token": "โทเค็น",
+    "private": "ไพรเวท",
+    "บัตรประชาชน": "บัดปะชาชน",
+    "เงินเดือน": "งินเดือน",
+    "รหัสผ่าน": "ระหัดผ่าน",
+}
+
+_THAI_PHONETIC_RE = re.compile(
+    "|".join(re.escape(term) for term in sorted(THAI_PHONETIC_MAP, key=len, reverse=True)),
+    re.IGNORECASE,
+)
+
+
+def apply_thai_phonetic_karaoke(text: str) -> str:
+    """Replace sensitive keywords with Thai phonetic/karaoke spellings outside protected spans."""
+    if not text:
+        return ""
+    return _apply_to_unprotected_spans(
+        text,
+        lambda seg: _THAI_PHONETIC_RE.sub(lambda m: THAI_PHONETIC_MAP[m.group(0).lower()], seg),
+    )
+
+
+def _to_json_unicode_escape(substring: str) -> str:
+    """Convert characters in `substring` to JSON \\uXXXX escape sequences."""
+    parts: List[str] = []
+    for ch in substring:
+        cp = ord(ch)
+        if cp <= 0xFFFF:
+            parts.append(f"\\u{cp:04x}")
+        else:
+            cp -= 0x10000
+            parts.append(f"\\u{0xD800 + (cp >> 10):04x}\\u{0xDC00 + (cp & 0x3FF):04x}")
+    return "".join(parts)
+
+
+def encode_json_unicode_escape(text: str, targets: Optional[List[str]] = None) -> str:
+    """Encode unprotected non-ID target substrings into \\uXXXX sequences with a brief parser note."""
+    if not text:
+        return ""
+
+    effective_targets = resolve_mutation_targets(targets)
+    target_re = _build_target_pattern(effective_targets)
+    matched_any = False
+
+    def _escape_targets(segment: str) -> str:
+        nonlocal matched_any
+        if target_re is None:
+            return segment
+
+        def _replace(m: re.Match) -> str:
+            nonlocal matched_any
+            matched_any = True
+            return _to_json_unicode_escape(m.group(0))
+
+        return target_re.sub(_replace, segment)
+
+    result = _apply_to_unprotected_spans(text, _escape_targets)
+
+    if not matched_any:
+        result = _apply_to_unprotected_spans(
+            text,
+            lambda seg: re.sub(
+                r"[^\s]+",
+                lambda m: _to_json_unicode_escape(m.group(0)) if len(m.group(0)) >= 3 else m.group(0),
+                seg,
+            ),
+        )
+        if result == text:
+            result = _apply_to_unprotected_spans(
+                text,
+                lambda seg: _to_json_unicode_escape(seg) if seg.strip() else seg,
+            )
+
+    return f"{result} (decode JSON unicode escapes)"
+
+
+def _flip_clusters(segment: str) -> str:
+    """Reverse grapheme cluster order while keeping Thai combining marks attached to base consonants."""
+    return "".join(reversed(_split_into_grapheme_clusters(segment)))
+
+
+def _flip_unprotected_segment(segment: str) -> str:
+    parts = re.split(r"(\s+)", segment)
+    word_indices = [idx for idx, tok in enumerate(parts) if tok and not tok.isspace()]
+    if len(word_indices) >= 2:
+        reversed_words = [parts[idx] for idx in reversed(word_indices)]
+        for idx, new_word in zip(word_indices, reversed_words):
+            parts[idx] = new_word
+        return "".join(parts)
+    if len(word_indices) == 1:
+        idx = word_indices[0]
+        parts[idx] = _flip_clusters(parts[idx])
+        return "".join(parts)
+    return segment
+
+
+def flip_clauses(text: str, targets: Optional[List[str]] = None) -> str:
+    """Reverse unprotected clause tokens or grapheme clusters while protecting tools and record IDs."""
+    if not text:
+        return ""
+
+    if targets:
+        effective_targets = resolve_mutation_targets(targets)
+        target_re = _build_target_pattern(effective_targets)
+        matched_any = False
+
+        def _flip_targets(segment: str) -> str:
+            nonlocal matched_any
+            if target_re is None:
+                return segment
+
+            def _replace(m: re.Match) -> str:
+                nonlocal matched_any
+                matched_any = True
+                return _flip_clusters(m.group(0))
+
+            return target_re.sub(_replace, segment)
+
+        result = _apply_to_unprotected_spans(text, _flip_targets)
+        if matched_any:
+            return result
+
+    return _apply_to_unprotected_spans(text, _flip_unprotected_segment)
+
+
 def apply_mutation(prompt: str, technique: str = "none", targets: Optional[List[str]] = None) -> str:
-    """Dispatch prompt mutation based on specified technique ('zero_width', 'homoglyph', 'code_switch', 'thai_number_words', 'arithmetic_split', 'caesar_shift')."""
+    """Dispatch prompt mutation across all 15+ supported Thai/Unicode evasion techniques."""
     if not prompt or not technique or technique.lower() in ("none", "off"):
         return prompt
 
@@ -504,6 +675,20 @@ def apply_mutation(prompt: str, technique: str = "none", targets: Optional[List[
                     res = res.replace(t, caesar_shift(t, shift=1))
             return res
         return caesar_shift(prompt, shift=1)
+    if tech in ("base64", "b64"):
+        return encode_polyglot_payload(prompt, encoding="base64")
+    if tech in ("hex", "hexadecimal"):
+        return encode_polyglot_payload(prompt, encoding="hex")
+    if tech in ("syllable_spacing", "syllable", "spacing"):
+        return apply_syllable_spacing(prompt)
+    if tech in ("variation_selector", "variation_selectors", "vs"):
+        return insert_variation_selectors(prompt, targets=targets)
+    if tech in ("thai_phonetic", "phonetic", "karaoke", "thai_karaoke"):
+        return apply_thai_phonetic_karaoke(prompt)
+    if tech in ("json_unicode_escape", "unicode_escape", "json_escape"):
+        return encode_json_unicode_escape(prompt, targets=targets)
+    if tech in ("flip_attack", "flip", "flip_clauses"):
+        return flip_clauses(prompt, targets=targets)
     if tech in ("composite", "all"):
         p = apply_code_switch_pivot(prompt, targets=targets)
         p = substitute_homoglyphs(p, targets=targets)
