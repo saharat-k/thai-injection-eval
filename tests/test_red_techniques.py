@@ -262,6 +262,17 @@ class TestBarrierSelectorReflexion(unittest.TestCase):
         self.assertIn("many_shot_priming", state.tried_techniques)
         self.assertNotIn("many_shot_priming", state.failed_by_barrier.get("prompt_policy_refused", set()))
 
+    def test_spotlight_multiturn_never_repeats_with_raw_last_defense_action(self):
+        for defense, attack_type in (("spotlight", "direct"), ("all", "indirect")):
+            state = TechniqueSessionState()
+            seen = []
+            for action in ("safe_fulfillment", "ignored_injection_answered_primary", "none", None):
+                ctx = TechniqueContext(language="Thai", defense=defense, last_defense_action=action)
+                spec = BarrierSelector.select_next(ctx, state, pool="core", attack_type=attack_type)
+                self.assertNotIn(spec.id, seen)
+                seen.append(spec.id)
+                state.record_outcome(ctx.last_defense_action, spec.id, breached=False)
+
 
 if __name__ == "__main__":
     unittest.main()

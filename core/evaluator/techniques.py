@@ -772,9 +772,16 @@ class TechniqueSessionState:
     failed_by_barrier: dict[str, set[str]] = field(default_factory=dict)
     active_technique: Optional[str] = None
 
-    def record_outcome(self, barrier: str, technique_id: str, breached: bool) -> None:
+    def record_outcome(
+        self,
+        barrier: Optional[str],
+        technique_id: str,
+        breached: bool,
+        ctx: Optional[TechniqueContext] = None,
+        attack_type: str = "direct",
+    ) -> None:
         """Record a turn outcome, normalizing barrier aliases for reflexion memory."""
-        norm_barrier = BarrierSelector.normalize_barrier(barrier)
+        norm_barrier = BarrierSelector.normalize_barrier(barrier, ctx=ctx, attack_type=attack_type)
         self.active_technique = technique_id
         self.tried_techniques.append(technique_id)
         if not breached:
@@ -829,6 +836,7 @@ class BarrierSelector:
             raise ValueError(f"Invalid technique pool: {pool!r}")
 
         allowed_by_id = {spec.id: spec for spec in allowed_specs}
+        raw_barrier = cls.normalize_barrier(ctx.last_defense_action)
         barrier = cls.normalize_barrier(ctx.last_defense_action, ctx, attack_type=attack_type)
 
         preferred_ids = _BARRIER_PREFERENCES.get(barrier, _BARRIER_PREFERENCES["prompt_policy_refused"])
@@ -852,7 +860,9 @@ class BarrierSelector:
             other_specs = [s for s in ordered if "spotlight" not in s.target_barriers]
             ordered = spotlight_specs + other_specs
 
-        failed = state.failed_by_barrier.get(barrier, set())
+        failed = set(state.failed_by_barrier.get(barrier, set()))
+        if raw_barrier != barrier:
+            failed |= state.failed_by_barrier.get(raw_barrier, set())
         candidates = [spec for spec in ordered if spec.id not in failed]
         if candidates:
             return candidates[0]
