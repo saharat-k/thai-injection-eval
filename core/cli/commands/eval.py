@@ -1332,3 +1332,70 @@ def run_benchmark_run(args) -> int:
 
     return 0
 
+
+def run_scan_dispatch(args) -> int:
+    """Dispatch flat `scan [TARGET]` command across eval, probe, and unified benchmark."""
+    from core.cli.commands.probe import run_probe_list, run_probe_run
+    from core.evaluator.probing import DEFAULT_PROBING_PATH
+
+    scan_target = getattr(args, "scan_target", None)
+    if scan_target:
+        target_str = str(scan_target).strip()
+        if target_str:
+            if target_str.lower().endswith(".json") or os.path.exists(target_str):
+                if not getattr(args, "cases", None):
+                    args.cases = target_str
+            else:
+                if not getattr(args, "case", None):
+                    args.case = target_str
+                if not getattr(args, "case_id", None):
+                    args.case_id = target_str
+
+    if not getattr(args, "case_id", None) and getattr(args, "case", None):
+        args.case_id = args.case
+
+    if getattr(args, "info", False):
+        return run_eval_info(args)
+
+    is_probing = bool(getattr(args, "probing", False))
+    if getattr(args, "list", False):
+        if is_probing:
+            if not getattr(args, "probing_cases", None):
+                args.probing_cases = getattr(args, "cases", None) or DEFAULT_PROBING_PATH
+            return run_probe_list(args)
+        return run_eval_list(args)
+
+    if is_probing:
+        if not getattr(args, "probing_cases", None):
+            args.probing_cases = getattr(args, "cases", None) or DEFAULT_PROBING_PATH
+        if getattr(args, "defenses", None) is None:
+            args.defenses = "tools,all"
+        if getattr(args, "export_name", None) is None:
+            args.export_name = "probing_report"
+        return run_probe_run(args)
+
+    is_benchmark = (
+        bool(getattr(args, "all", False))
+        or getattr(args, "suites", None) is not None
+        or getattr(args, "from_results", None) is not None
+    )
+    if is_benchmark:
+        if getattr(args, "suites", None) is None:
+            args.suites = "parallel,indirect,probing,linguistic,benign"
+        if getattr(args, "defenses", None) is None:
+            args.defenses = "off,prompt,tools,spotlight,all"
+        if getattr(args, "export_name", None) is None:
+            args.export_name = "benchmark_leaderboard"
+        if getattr(args, "parallel_cases", None) is None:
+            args.parallel_cases = getattr(args, "cases", None) or DEFAULT_PARALLEL_PATH
+        return run_benchmark_run(args)
+
+    if getattr(args, "parallel_cases", None) is None:
+        args.parallel_cases = getattr(args, "cases", None) or DEFAULT_PARALLEL_PATH
+    if getattr(args, "parallel", False) and getattr(args, "defenses", None) is None:
+        args.defenses = ",".join(PARALLEL_DEFENSES)
+    if getattr(args, "export_name", None) is None:
+        args.export_name = "owasp_evaluation_report"
+    return run_eval_run(args)
+
+

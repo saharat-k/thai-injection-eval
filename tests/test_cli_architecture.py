@@ -51,6 +51,9 @@ class CliArchitectureTests(unittest.TestCase):
             ["chat", "--help"],
             ["manual", "--help"],
             ["attack", "--help"],
+            ["scan", "--help"],
+            ["ui", "--help"],
+            ["check", "--help"],
             ["redteam", "--help"],
             ["redteam", "techniques", "--help"],
         ]
@@ -792,6 +795,42 @@ class CliArchitectureTests(unittest.TestCase):
             self.assertEqual(code_tree, 0)
             self.assertEqual(m_tree.call_args.kwargs.get("technique"), "auto")
             self.assertEqual(m_tree.call_args.kwargs.get("strategy"), "tree")
+
+    def test_root_help_displays_only_five_flat_commands(self):
+        parser = build_parser()
+        help_text = parser.format_help()
+        for primary in ("attack", "scan", "chat", "ui", "check"):
+            self.assertIn(primary, help_text)
+        for hidden in ("==SUPPRESS==", "    probe ", "    benchmark ", "    manual ", "    view ", "    dlp ", "    eval ", "    doctor "):
+            self.assertNotIn(hidden, help_text)
+
+    def test_flat_scan_ui_and_check_dispatch_with_short_flags(self):
+        with patch("sys.stdout"):
+            self.assertIn(main(["scan", "--probing", "--dry-run", "--quiet"]), (0, 1))
+            self.assertEqual(main(["scan", "TH-1", "--info", "--format", "json"]), 0)
+            self.assertEqual(main(["scan", "--parallel", "--dry-run", "-q"]), 0)
+            self.assertEqual(main(["scan", "--all", "--dry-run", "-q"]), 0)
+            self.assertEqual(main(["scan", "--list", "--format", "json"]), 0)
+            self.assertEqual(main(["scan", "--probing", "--list", "--format", "json"]), 0)
+            self.assertEqual(main(["check", "--config", "--format", "json"]), 0)
+            self.assertIn(main(["check", "--dlp", "--format", "json"]), (0, 1))
+            self.assertIn(main(["check", "--format", "json"]), (0, 3))
+            self.assertEqual(main(["check", "--tests", "--list", "--format", "json"]), 0)
+        parser = build_parser()
+        ui_args = parser.parse_args(["ui", "--open", "-p", "5055", "-H", "127.0.0.1"])
+        self.assertEqual(ui_args.port, 5055)
+        self.assertEqual(ui_args.host, "127.0.0.1")
+        self.assertTrue(ui_args.open)
+
+    def test_check_all_runs_sequentially_and_aggregates_exit_code(self):
+        with patch("core.cli.commands.check.run_doctor", return_value=0) as m_doc, \
+             patch("core.cli.commands.check.run_dlp_audit", return_value=0) as m_dlp, \
+             patch("core.cli.commands.check.run_test_run", return_value=1) as m_test:
+            code = main(["check", "--all", "-q"])
+        self.assertEqual(code, 1)
+        m_doc.assert_called_once()
+        m_dlp.assert_called_once()
+        m_test.assert_called_once()
 
 
 if __name__ == "__main__":

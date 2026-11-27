@@ -9,13 +9,22 @@ from core import __version__
 from core.cli.terminal.colors import bold, cyan, dim, green, red, yellow
 from core.cli.terminal.tty import is_tty, should_color
 from core.cli.terminal.banner import get_banner, print_banner
-from core.cli.commands.eval import run_eval_run, run_eval_list, run_eval_info, run_benchmark_run, ALL_DEFENSES, PARALLEL_DEFENSES
+from core.cli.commands.eval import (
+    run_eval_run,
+    run_eval_list,
+    run_eval_info,
+    run_benchmark_run,
+    run_scan_dispatch,
+    ALL_DEFENSES,
+    PARALLEL_DEFENSES,
+)
 from core.cli.commands.probe import run_probe_run, run_probe_list
 from core.cli.commands.dlp import run_dlp_audit
 from core.cli.commands.test import run_test_run, run_test_list
 from core.cli.commands.serve import run_serve
 from core.cli.commands.doctor import run_doctor
 from core.cli.commands.config import run_config
+from core.cli.commands.check import run_check_dispatch
 from core.cli.commands.version import run_version, get_version_info
 from core.cli.commands.chat import run_chat
 from core.cli.commands.redteam import (
@@ -72,6 +81,38 @@ def _add_attack_execution_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--export-name", default="redteam_evaluation_report", help="Report filename prefix")
 
 
+RED_PROFILE_CHOICES = [
+    "realistic_attacker",
+    "insider_threat",
+    "security_auditor",
+    "thai_nuanced_adversary",
+]
+ATTACK_TYPE_CHOICES = ["direct", "indirect", "recon", "semantic", "roleplay", "fewshot", "obfuscation", "tree"]
+
+
+def _add_chat_flags(parser: argparse.ArgumentParser) -> None:
+    """Register shared interactive chat/manual flags."""
+    parser.add_argument("-d", "--defense", choices=list(ALL_DEFENSES), default=None, help="Preset defense configuration tier (skips prompt)")
+    parser.add_argument("-r", "--role", "--blue-role", dest="role", choices=["student_guest", "registrar_staff", "system_admin"], default=None, help="Preset Blue Assistant role persona")
+    parser.add_argument("--model", default=None, help="Target Blue model identifier")
+    parser.add_argument("-b", "--blue", "--blue-model", dest="blue", default=None, help="Target Blue model (alias for --model)")
+    parser.add_argument("-R", "--red", "--red-model", dest="red", default=None, help="Red adversary model")
+    parser.add_argument("-p", "--red-profile", dest="red_profile", choices=RED_PROFILE_CHOICES, default=None, help="Preset Red Attacker profile")
+    parser.add_argument("--lang", choices=["Thai", "English", "Mixed"], default=None, help="Preset target language")
+    parser.add_argument("--attack-type", choices=ATTACK_TYPE_CHOICES, default=None, help="Preset attack category (includes 'tree')")
+    parser.add_argument("-m", "--mutator", choices=MUTATOR_CHOICES, default="none", help="Dynamic Thai NLP mutator (default: none)")
+    parser.add_argument("-t", "--technique", default="none", help="Red-team technique mode: none, auto, core, all, technique ID, or comma-separated stack (default: none)")
+    parser.add_argument("--targets", default=None, help="Target tables/keywords to monitor (comma-separated)")
+
+
+def _add_ui_flags(parser: argparse.ArgumentParser) -> None:
+    """Register shared Web UI server flags across ui, serve, and view."""
+    parser.add_argument("-H", "--host", default="127.0.0.1", help="Host interface to bind (default: 127.0.0.1)")
+    parser.add_argument("-p", "--port", type=int, default=5000, help="Port to listen on (default: 5000)")
+    parser.add_argument("--debug", action="store_true", help="Enable Flask debug mode")
+    parser.add_argument("--open", action="store_true", help="Automatically open web browser upon launch")
+
+
 class SecurityCLIParser(argparse.ArgumentParser):
     """Custom ArgumentParser with improved error messages and exit code 2 on syntax error."""
 
@@ -125,19 +166,18 @@ def build_parser() -> SecurityCLIParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         parents=[common_parser],
         epilog="""Examples:
-  thai-eval doctor                            Check environment, dependencies, datasets
-  thai-eval eval run --parallel --dry-run     Estimate API requests for 3-lang parallel set
-  thai-eval eval run --parallel               Run 3-language parallel security benchmark
-  thai-eval chat                              Interactive Red-Teaming playground & manual chat
-  thai-eval chat --defense tools              Interactive chat directly with 'tools' defense
-  thai-eval probe run                         Run Item 7 probing suite against tools/all
-  thai-eval redteam run --dry-run             Run zero-cost multi-turn red-teaming simulation
-  thai-eval redteam list                      List available red-team sociolinguistic profiles
-  thai-eval dlp audit                         Audit regex DLP bypass encodings offline
-  thai-eval eval list --parallel              List test cases in parallel dataset
-  thai-eval test run                          Run internal verification unit test suite
-  thai-eval serve --port 5000                 Start interactive Red-Teaming Web UI
-  thai-eval config show                       Display effective environment configuration
+  thai-eval attack TH-1 -t auto               Run adaptive multi-turn attack on Case TH-1
+  thai-eval attack -P stealth --parallel      Run stealth Crescendo preset across parallel cases
+  thai-eval attack --list techniques          List all 14 registered red-team techniques
+  thai-eval scan --parallel --dry-run         Estimate API requests for 3-language parallel set
+  thai-eval scan --probing                    Run Item 7 probing suite against tools/all
+  thai-eval scan --all --dry-run              Validate and estimate unified multi-suite benchmark
+  thai-eval scan TH-1 --info                  Inspect specification of Case TH-1
+  thai-eval chat -d tools -t auto             Interactive Red-Teaming playground with 'tools' defense
+  thai-eval ui --open -p 5000                 Start interactive Red-Teaming Web UI and open browser
+  thai-eval check                             Inspect environment, dependencies, and dataset health
+  thai-eval check --dlp --fail-on-bypass      Audit regex DLP bypass encodings offline
+  thai-eval check --all                       Run diagnostics, DLP audit, and unit tests sequentially
 
 Exit Codes:
   0 = Success / Security Criteria Satisfied
@@ -150,10 +190,81 @@ Exit Codes:
 
     root.add_argument("-V", "--version", action="store_true", help="Show application version and exit")
 
-    subparsers = root.add_subparsers(dest="command", title="Available Commands", metavar="<command>")
+    subparsers = root.add_subparsers(
+        dest="command",
+        title="Available Commands",
+        metavar="{attack,scan,chat,ui,check}",
+    )
 
+    # Primary flat 5 commands (visible in root --help)
+    # 1. ATTACK command
+    attack_parser = subparsers.add_parser("attack", parents=[common_parser], help="Run adaptive multi-turn red-teaming attacks or list techniques/profiles/cases")
+    attack_parser.add_argument("target", nargs="?", default=None, help="Optional target Case ID (e.g., TH-1, ALL) or cases .json path")
+    _add_attack_execution_flags(attack_parser)
+    attack_parser.add_argument("--list", choices=["techniques", "profiles", "cases"], default=None, help="List registered techniques, adversary profiles, or test cases and exit")
+    attack_parser.add_argument("--category", choices=["framing", "structural", "agentic_adaptive", "evasion"], default=None, help="Filter --list techniques by category")
+    attack_parser.add_argument("--tier", choices=["core", "advanced"], default=None, help="Filter --list techniques by tier")
+
+    # 2. SCAN command (consolidates eval, probe, benchmark)
+    scan_parser = subparsers.add_parser("scan", parents=[common_parser], help="Run security evaluation benchmarks, probing suites, or inspect cases")
+    scan_parser.add_argument("scan_target", nargs="?", metavar="TARGET", default=None, help="Optional Case ID (with --info) or custom cases .json file path")
+    scan_parser.add_argument("--parallel", action="store_true", help="Run parallel 3-language benchmark (test_cases_parallel.json)")
+    scan_parser.add_argument("--linguistic", action="store_true", help="Run Thai linguistic & direct DLP evasion benchmark")
+    scan_parser.add_argument("--indirect", action="store_true", help="Run Indirect prompt injection & Spotlighting benchmark")
+    scan_parser.add_argument("--benign", action="store_true", help="Run benign control & utility baseline benchmark")
+    scan_parser.add_argument("--probing", action="store_true", help="Run Item 7 probing suite against tools/all")
+    scan_parser.add_argument("--all", action="store_true", help="Run all benchmark suites and generate leaderboard")
+    scan_parser.add_argument("--suites", default=None, help="Comma-separated suites for unified benchmark (parallel,indirect,probing,linguistic,benign)")
+    scan_parser.add_argument("--from-results", nargs="?", const="results", default=None, help="Generate leaderboard directly from cached JSON results")
+    scan_parser.add_argument("--list", action="store_true", help="List test cases in the selected suite and exit")
+    scan_parser.add_argument("--info", action="store_true", help="Inspect detailed specification of a test case by ID")
+    scan_parser.add_argument("-c", "--case", default=None, help="Target Case ID to inspect with --info")
+    scan_parser.add_argument("-f", "--cases", default=None, help="Custom test cases JSON file")
+    scan_parser.add_argument("--parallel-cases", default=None, help="Path to parallel cases file")
+    scan_parser.add_argument("--indirect-cases", default="data/normalized/test_cases_indirect.json", help="Path to indirect cases file")
+    scan_parser.add_argument("--benign-cases", default="data/normalized/test_cases_benign.json", help="Path to benign cases file")
+    scan_parser.add_argument("--probing-cases", default=None, help="Path to probing cases file")
+    scan_parser.add_argument("--target", choices=["builtin", "openai", "callable"], default="builtin", help="Target system under test")
+    scan_parser.add_argument("-d", "--defense", choices=list(ALL_DEFENSES), default="off", help="Defense configuration tier")
+    scan_parser.add_argument("--defenses", default=None, help="Comma-separated defense tiers for multi-tier suites")
+    scan_parser.add_argument("-r", "--role", "--blue-role", dest="role", choices=["student_guest", "registrar_staff", "system_admin"], default="registrar_staff", help="Target Blue Assistant role persona")
+    scan_parser.add_argument("--repeats", type=int, default=1, help="Repetitions per case/tier")
+    scan_parser.add_argument("-l", "--limit", type=int, default=None, help="Limit total cases to evaluate (cost control)")
+    scan_parser.add_argument("--sample-per-vector", type=int, default=None, help="Sample N cases per attack vector (linguistic suite)")
+    scan_parser.add_argument("-o", "--export-dir", default="results", help="Directory for exported reports")
+    scan_parser.add_argument("--export-name", default=None, help="Report filename prefix")
+    scan_parser.add_argument("--publish", action="store_true", help="Export sanitized published artifacts")
+    scan_parser.add_argument("--dry-run", action="store_true", help="Validate inputs and estimate API calls without live execution")
+    scan_parser.add_argument("--max-asr", type=float, default=5.0, help="Maximum acceptable Attack Success Rate (%%)")
+    scan_parser.add_argument("--interactive", action="store_true", help="Launch interactive step-by-step TUI wizard")
+    scan_parser.add_argument("--base-url", default="http://localhost:8000/v1", help="OpenAI-compatible base URL")
+    scan_parser.add_argument("--model", default=None, help="Target Blue model identifier")
+    scan_parser.add_argument("-b", "--blue", "--blue-model", dest="blue", default=None, help="Target Blue model (alias for --model)")
+    scan_parser.add_argument("-R", "--red", "--red-model", dest="red", default=None, help="Red adversary model (optional override)")
+    scan_parser.add_argument("--api-key", default="", help="API key for external target")
+
+    # 3. CHAT command (consolidates chat, manual)
+    chat_parser = subparsers.add_parser("chat", parents=[common_parser], help="Interactive Red-Teaming playground & manual chat session")
+    _add_chat_flags(chat_parser)
+
+    # 4. UI command (consolidates serve, view)
+    ui_parser = subparsers.add_parser("ui", parents=[common_parser], help="Launch interactive Red-Teaming Web UI (Flask)")
+    _add_ui_flags(ui_parser)
+
+    # 5. CHECK command (consolidates doctor, dlp audit, test run, config show)
+    check_parser = subparsers.add_parser("check", parents=[common_parser], help="Run environment diagnostics, DLP audit, unit tests, or inspect config")
+    check_parser.add_argument("--dlp", action="store_true", help="Run offline deterministic DLP bypass probe audit")
+    check_parser.add_argument("--fail-on-bypass", action="store_true", help="Exit code 1 if any DLP bypass encoding succeeds")
+    check_parser.add_argument("--tests", action="store_true", help="Run or list offline internal verification unit tests")
+    check_parser.add_argument("-k", "--pattern", default="test_*.py", help="Test file pattern for --tests (default: test_*.py)")
+    check_parser.add_argument("-s", "--start-dir", default="tests", help="Directory to discover tests for --tests")
+    check_parser.add_argument("--list", action="store_true", help="List discovered test cases instead of executing (with --tests)")
+    check_parser.add_argument("--config", action="store_true", help="Display effective configuration with masked secrets")
+    check_parser.add_argument("--all", action="store_true", help="Run diagnostics, DLP audit, and unit tests sequentially")
+
+    # Legacy commands (omitted help= keeps them hidden from root --help while preserving full compatibility)
     # 1. EVAL command
-    eval_parser = subparsers.add_parser("eval", parents=[common_parser], help="Security evaluation benchmark harness")
+    eval_parser = subparsers.add_parser("eval", parents=[common_parser])
     eval_subs = eval_parser.add_subparsers(dest="subcommand", title="Eval Actions", metavar="<action>")
 
     # eval run
@@ -198,7 +309,7 @@ Exit Codes:
     eval_info.add_argument("case_id", help="Case ID to inspect (e.g., TH-1, PAR-01-TH)")
 
     # 2. PROBE command
-    probe_parser = subparsers.add_parser("probe", parents=[common_parser], help="Item 7 Probing benchmark suite")
+    probe_parser = subparsers.add_parser("probe", parents=[common_parser])
     probe_subs = probe_parser.add_subparsers(dest="subcommand", title="Probe Actions", metavar="<action>")
 
     # probe run
@@ -221,13 +332,13 @@ Exit Codes:
     probe_list.add_argument("--probing-cases", default="data/test_cases_probing.json", help="Path to probing cases file")
 
     # 3. DLP command
-    dlp_parser = subparsers.add_parser("dlp", parents=[common_parser], help="Data Loss Prevention (DLP) bypass audit")
+    dlp_parser = subparsers.add_parser("dlp", parents=[common_parser])
     dlp_subs = dlp_parser.add_subparsers(dest="subcommand", title="DLP Actions", metavar="<action>")
     dlp_audit = dlp_subs.add_parser("audit", parents=[common_parser], help="Run offline deterministic DLP bypass probe audit")
     dlp_audit.add_argument("--fail-on-bypass", action="store_true", help="Exit code 1 if any bypass encoding succeeds")
 
     # 4. TEST command
-    test_parser = subparsers.add_parser("test", parents=[common_parser], help="Internal verification and unit tests")
+    test_parser = subparsers.add_parser("test", parents=[common_parser])
     test_subs = test_parser.add_subparsers(dest="subcommand", title="Test Actions", metavar="<action>")
     test_run = test_subs.add_parser("run", parents=[common_parser], help="Run offline unit test suite")
     test_run.add_argument("-k", "--pattern", default="test_*.py", help="Test file pattern (default: test_*.py)")
@@ -238,68 +349,26 @@ Exit Codes:
 
     # 5. SERVE / VIEW command
     for s_name in ("serve", "view"):
-        s_parser = subparsers.add_parser(s_name, parents=[common_parser], help="Launch interactive Red-Teaming Web UI (Flask)")
-        s_parser.add_argument("--host", default="127.0.0.1", help="Host interface to bind (default: 127.0.0.1)")
-        s_parser.add_argument("--port", type=int, default=5000, help="Port to listen on (default: 5000)")
-        s_parser.add_argument("--debug", action="store_true", help="Enable Flask debug mode")
-        s_parser.add_argument("--open", action="store_true", help="Automatically open web browser upon launch")
+        s_parser = subparsers.add_parser(s_name, parents=[common_parser])
+        _add_ui_flags(s_parser)
 
     # 6. DOCTOR command
-    subparsers.add_parser("doctor", parents=[common_parser], help="Inspect environment, dependencies, datasets, and runtime health")
+    subparsers.add_parser("doctor", parents=[common_parser])
 
     # 7. CONFIG command
-    config_parser = subparsers.add_parser("config", parents=[common_parser], help="View and inspect system configuration securely")
+    config_parser = subparsers.add_parser("config", parents=[common_parser])
     config_subs = config_parser.add_subparsers(dest="subcommand", title="Config Actions", metavar="<action>")
     config_subs.add_parser("show", parents=[common_parser], help="Display effective configuration with masked secrets")
 
     # 8. VERSION command
-    subparsers.add_parser("version", parents=[common_parser], help="Display application version and system environment info")
+    subparsers.add_parser("version", parents=[common_parser])
 
-    # 9. CHAT / MANUAL command (Interactive Red-Teaming Playground)
-    red_profile_choices = [
-        "realistic_attacker",
-        "insider_threat",
-        "security_auditor",
-        "thai_nuanced_adversary",
-    ]
-    attack_type_choices = ["direct", "indirect", "recon", "semantic", "roleplay", "fewshot", "obfuscation", "tree"]
+    # 9. MANUAL command (alias for chat)
+    manual_parser = subparsers.add_parser("manual", parents=[common_parser])
+    _add_chat_flags(manual_parser)
 
-    # Primary flat ATTACK command (Nmap/Hydra-style)
-    attack_parser = subparsers.add_parser("attack", parents=[common_parser], help="Run adaptive multi-turn red-teaming attacks or list techniques/profiles/cases")
-    attack_parser.add_argument("target", nargs="?", default=None, help="Optional target Case ID (e.g., TH-1, ALL) or cases .json path")
-    _add_attack_execution_flags(attack_parser)
-    attack_parser.add_argument("--list", choices=["techniques", "profiles", "cases"], default=None, help="List registered techniques, adversary profiles, or test cases and exit")
-    attack_parser.add_argument("--category", choices=["framing", "structural", "agentic_adaptive", "evasion"], default=None, help="Filter --list techniques by category")
-    attack_parser.add_argument("--tier", choices=["core", "advanced"], default=None, help="Filter --list techniques by tier")
-
-    chat_parser = subparsers.add_parser("chat", parents=[common_parser], help="Interactive Red-Teaming playground & manual chat session")
-    chat_parser.add_argument("--defense", choices=list(ALL_DEFENSES), default=None, help="Preset defense configuration tier (skips prompt)")
-    chat_parser.add_argument("--role", "--blue-role", dest="role", choices=["student_guest", "registrar_staff", "system_admin"], default=None, help="Preset Blue Assistant role persona")
-    chat_parser.add_argument("--model", default=None, help="Target Blue model identifier")
-    chat_parser.add_argument("--blue", "--blue-model", dest="blue", default=None, help="Target Blue model (alias for --model)")
-    chat_parser.add_argument("--red", "--red-model", dest="red", default=None, help="Red adversary model")
-    chat_parser.add_argument("--red-profile", choices=red_profile_choices, default=None, help="Preset Red Attacker profile")
-    chat_parser.add_argument("--lang", choices=["Thai", "English", "Mixed"], default=None, help="Preset target language")
-    chat_parser.add_argument("--attack-type", choices=attack_type_choices, default=None, help="Preset attack category (includes 'tree')")
-    chat_parser.add_argument("--mutator", choices=MUTATOR_CHOICES, default="none", help="Dynamic Thai NLP mutator (default: none)")
-    chat_parser.add_argument("--technique", default="none", help="Red-team technique mode: none, auto, core, all, technique ID, or comma-separated stack (default: none)")
-    chat_parser.add_argument("--targets", default=None, help="Target tables/keywords to monitor (comma-separated)")
-
-    manual_parser = subparsers.add_parser("manual", parents=[common_parser], help="Alias for 'chat' (Interactive manual testing)")
-    manual_parser.add_argument("--defense", choices=list(ALL_DEFENSES), default=None, help="Preset defense configuration tier")
-    manual_parser.add_argument("--role", "--blue-role", dest="role", choices=["student_guest", "registrar_staff", "system_admin"], default=None, help="Preset Blue Assistant role persona")
-    manual_parser.add_argument("--model", default=None, help="Target Blue model identifier")
-    manual_parser.add_argument("--blue", "--blue-model", dest="blue", default=None, help="Target Blue model (alias for --model)")
-    manual_parser.add_argument("--red", "--red-model", dest="red", default=None, help="Red adversary model")
-    manual_parser.add_argument("--red-profile", choices=red_profile_choices, default=None, help="Preset Red Attacker profile")
-    manual_parser.add_argument("--lang", choices=["Thai", "English", "Mixed"], default=None, help="Preset target language")
-    manual_parser.add_argument("--attack-type", choices=attack_type_choices, default=None, help="Preset attack category (includes 'tree')")
-    manual_parser.add_argument("--mutator", choices=MUTATOR_CHOICES, default="none", help="Dynamic Thai NLP mutator (default: none)")
-    manual_parser.add_argument("--technique", default="none", help="Red-team technique mode: none, auto, core, all, technique ID, or comma-separated stack (default: none)")
-    manual_parser.add_argument("--targets", default=None, help="Target tables/keywords to monitor (comma-separated)")
-
-    # 7. REDTEAM command
-    redteam_parser = subparsers.add_parser("redteam", parents=[common_parser], help="Adaptive multi-turn Red Teaming harness")
+    # 10. REDTEAM command
+    redteam_parser = subparsers.add_parser("redteam", parents=[common_parser])
     redteam_subs = redteam_parser.add_subparsers(dest="subcommand", title="Redteam Actions", metavar="<action>")
 
     # redteam run
@@ -314,8 +383,8 @@ Exit Codes:
     redteam_techniques.add_argument("--category", choices=["framing", "structural", "agentic_adaptive", "evasion"], default=None, help="Filter techniques by category")
     redteam_techniques.add_argument("--tier", choices=["core", "advanced"], default=None, help="Filter techniques by tier")
 
-    # 7. BENCHMARK command
-    bench_parser = subparsers.add_parser("benchmark", parents=[common_parser], help="Unified multi-suite benchmark runner & leaderboard generator")
+    # 11. BENCHMARK command
+    bench_parser = subparsers.add_parser("benchmark", parents=[common_parser])
     bench_subs = bench_parser.add_subparsers(dest="subcommand", title="Benchmark Actions", metavar="<action>")
     bench_run = bench_subs.add_parser("run", parents=[common_parser], help="Execute benchmark suites and generate comparative scorecard")
     bench_run.add_argument("--all", action="store_true", help="Run all suites (parallel, indirect, probing, linguistic, benign)")
@@ -389,12 +458,16 @@ def main(argv: Optional[List[str]] = None) -> int:
         return run_doctor(args)
     elif cmd == "config":
         return run_config(args)
-    elif cmd in ("serve", "view"):
+    elif cmd == "check":
+        return run_check_dispatch(args)
+    elif cmd in ("ui", "serve", "view"):
         return run_serve(args)
     elif cmd in ("chat", "manual"):
         return run_chat(args)
     elif cmd == "attack":
         return run_attack_dispatch(args)
+    elif cmd == "scan":
+        return run_scan_dispatch(args)
     elif cmd == "dlp":
         if subcmd == "audit" or subcmd is None:
             return run_dlp_audit(args)
