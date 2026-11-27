@@ -15,6 +15,13 @@ from core.evaluator.engine import SecurityEvaluator
 from core.evaluator.reporter import export_report_files, generate_markdown_report
 from core.evaluator.stats import estimate_requests
 from core.evaluator.probing import evaluate_dlp_bypass_probes
+from core.evaluator.techniques import (
+    TechniqueContext,
+    TechniqueRegistry,
+    TechniqueSessionState,
+    apply_technique_pipeline,
+    parse_technique_spec,
+)
 from core.cli.commands.doctor import run_diagnostics
 from core.cli.commands.config import get_effective_config
 
@@ -259,6 +266,7 @@ def index():
         defense_levels=agent.DEFENSE_LEVELS,
         blue_roles=agent.BLUE_ROLES,
         red_profiles=agent.RED_PROFILES,
+        techniques=TechniqueRegistry.list_all(),
         test_cases=test_cases,
         datasets=datasets,
         selected_dataset=selected_dataset,
@@ -601,6 +609,88 @@ def verify_csrf():
         abort(403, description="Invalid or missing CSRF token.")
 
 
+def _serialize_technique(spec) -> dict:
+    return {
+        "id": spec.id,
+        "name": spec.name,
+        "category": spec.category,
+        "tier": spec.tier,
+        "cost_mode": spec.cost_mode,
+        "target_barriers": list(spec.target_barriers),
+        "description": spec.description,
+        "research_ref": spec.research_ref,
+        "prompt_directive": spec.prompt_directive,
+    }
+
+
+def _validate_manual_technique(raw_technique) -> str:
+    """Validate interactive session technique: 'none', 'auto', or deterministic registry IDs."""
+    tech = (raw_technique or "none").strip().lower() or "none"
+    if tech in ("none", "auto"):
+        return tech
+    spec_ids = parse_technique_spec(tech)
+    return ",".join(spec_ids) if spec_ids else "none"
+
+
+@app.route("/api/techniques", methods=["GET"])
+def api_techniques():
+    return jsonify({
+        "success": True,
+        "techniques": [_serialize_technique(spec) for spec in TechniqueRegistry.list_all()],
+    })
+
+
+@app.route("/api/techniques/apply", methods=["POST"])
+def api_techniques_apply():
+    verify_csrf()
+    data = request.get_json(silent=True) or request.form or {}
+    prompt = data.get("prompt") or ""
+    if not prompt.strip():
+        return jsonify({"success": False, "error": "Prompt message cannot be empty."}), 400
+    if len(prompt) > MAX_PROMPT_LENGTH:
+        return jsonify({"success": False, "error": f"Prompt length exceeds {MAX_PROMPT_LENGTH:,} characters."}), 400
+
+    raw_tech = (data.get("technique") or "").strip()
+    try:
+        tech_ids = parse_technique_spec(raw_tech)
+    except ValueError as exc:
+        return jsonify({"success": False, "error": f"Invalid technique: {exc}"}), 400
+    if not tech_ids:
+        return jsonify({"success": False, "error": "Please select a deterministic technique ID to apply."}), 400
+
+    session_id = data.get("session_id")
+    sess = _manual_sessions.get(session_id) if session_id else None
+    language = (data.get("language") or (sess.get("language") if sess else None) or "Thai").strip()
+    red_profile = _normalize_red_profile(data.get("red_profile") or (sess.get("red_profile") if sess else None))
+    defense = (data.get("defense") or (sess.get("defense") if sess else None) or "off").strip()
+    blue_role = (data.get("blue_role") or (sess.get("blue_role") if sess else None) or "registrar_staff").strip()
+
+    raw_targets = data.get("targets")
+    if raw_targets is None and sess:
+        raw_targets = sess.get("case", {}).get("targets", [])
+    if isinstance(raw_targets, str):
+        targets = [t.strip() for t in raw_targets.split(",") if t.strip()]
+    else:
+        targets = [str(t).strip() for t in (raw_targets or []) if str(t).strip()]
+
+    ctx = TechniqueContext(
+        language=language,
+        turn_no=int(data.get("turn_no") or (sess.get("turn_no") if sess else 1) or 1),
+        max_attempts=1,
+        targets=targets,
+        defense=defense,
+        blue_role=blue_role,
+        red_profile=red_profile,
+    )
+    resolved_spec = ",".join(tech_ids)
+    transformed = apply_technique_pipeline(prompt, resolved_spec, ctx)
+    return jsonify({
+        "success": True,
+        "prompt": transformed,
+        "technique": resolved_spec,
+    })
+
+
 @app.route("/api/manual/templates")
 def manual_templates():
     try:
@@ -671,6 +761,10 @@ def manual_start():
     if blue_role not in agent.BLUE_ROLES:
         blue_role = "registrar_staff"
     red_profile = _normalize_red_profile(data.get("red_profile", "realistic_attacker"))
+    try:
+        technique = _validate_manual_technique(data.get("technique"))
+    except ValueError as exc:
+        return jsonify({"success": False, "error": f"Invalid technique: {exc}"}), 400
 
     raw_targets = data.get("targets", "")
     targets = [t.strip() for t in raw_targets.split(",") if t.strip()]
@@ -707,6 +801,8 @@ def manual_start():
             "attack_type": attack_type,
             "blue_role": blue_role,
             "red_profile": red_profile,
+            "technique": technique,
+            "technique_state": TechniqueSessionState(),
             "strategy": strategy,
             "mutator": mutator,
             "blue_model": blue_model or agent.BLUE_MODEL,
@@ -729,6 +825,7 @@ def manual_start():
             "attack_type": attack_type,
             "blue_role": blue_role,
             "red_profile": red_profile,
+            "technique": technique,
             "targets": targets,
             "source": "web_ui",
         })
@@ -742,6 +839,7 @@ def manual_start():
         "targets": targets,
         "blue_role": blue_role,
         "red_profile": red_profile,
+        "technique": technique,
     })
 
 
@@ -827,6 +925,10 @@ def _restore_manual_session(session_id, data):
         "source_reference": "manual",
         "targets": targets,
     }
+    try:
+        restored_technique = _validate_manual_technique(data.get("technique"))
+    except ValueError:
+        restored_technique = "none"
     sess = {
         "session_id": session_id,
         "defense": defense,
@@ -834,6 +936,8 @@ def _restore_manual_session(session_id, data):
         "attack_type": attack_type,
         "blue_role": blue_role,
         "red_profile": red_profile,
+        "technique": restored_technique,
+        "technique_state": TechniqueSessionState(),
         "strategy": (data.get("strategy") or "template").strip(),
         "mutator": (data.get("mutator") or "none").strip(),
         "blue_model": blue_model or agent.BLUE_MODEL,
@@ -923,6 +1027,7 @@ def manual_send():
         "defense": sess.get("defense", "off"),
         "blue_role": sess.get("blue_role", "registrar_staff"),
         "red_profile": sess.get("red_profile", "realistic_attacker"),
+        "technique": sess.get("technique", "none"),
         "target_leaked": res.get("target_leaked", []),
         "collateral_leaked": res.get("collateral_leaked", []),
         "schema_disclosed": res.get("schema_disclosed", []),
@@ -964,22 +1069,68 @@ def manual_ai_step():
                 tool_calls=last_tool_calls,
             )
 
+        active_tech = (sess.get("technique") or "none").strip().lower() or "none"
+        tech_state = sess.setdefault("technique_state", TechniqueSessionState())
+        tech_ctx = None
+        technique_used, spec_ids, directive, failed_list = "", [], None, None
+        if active_tech != "none":
+            tech_ctx = TechniqueContext(
+                language=sess.get("language", "Thai"),
+                turn_no=turn_no,
+                max_attempts=max(turn_no, 5),
+                targets=list(sess["case"].get("targets") or []),
+                defense=sess.get("defense", "off"),
+                blue_role=blue_role,
+                red_profile=red_profile,
+                last_response=last_resp,
+                last_defense_action=last_defense_action,
+                history=list(sess["history"]),
+                seed=turn_no,
+            )
+            technique_used, spec_ids, directive, failed_list = agent._resolve_session_technique(
+                active_tech,
+                tech_ctx,
+                tech_state,
+                sess["case"].get("attack_type", "direct"),
+            )
+
+        is_fallback = False
         try:
+            ask_kwargs = {
+                "red_profile": red_profile,
+                "blue_role": blue_role,
+                "refusal_reason": last_defense_action,
+                "red_model": sess.get("red_model"),
+                "strategy": sess.get("strategy", "template"),
+                "last_tool_calls": list(last_tool_calls) if last_tool_calls else None,
+                "prior_strategies": list(prior_strategies) if prior_strategies else None,
+            }
+            if directive is not None:
+                ask_kwargs["technique_directive"] = directive
+            if failed_list is not None:
+                ask_kwargs["failed_techniques"] = failed_list
             attack, meta = agent.ask_red(
                 sess["case"],
                 sess["history"],
                 turn_no,
-                red_profile=red_profile,
-                blue_role=blue_role,
-                refusal_reason=last_defense_action,
-                red_model=sess.get("red_model"),
-                strategy=sess.get("strategy", "template"),
-                last_tool_calls=list(last_tool_calls) if last_tool_calls else None,
-                prior_strategies=list(prior_strategies) if prior_strategies else None,
+                **ask_kwargs,
             )
+            meta = dict(meta or {})
+            is_fallback = meta.get("red_model_used") == "fallback_static"
         except Exception as e:
             agent.audit("red_error", {"id": session_id, "turn": turn_no, "error": str(e)[:300]})
             attack, meta = agent.build_fallback_attack(sess["case"], turn_no, last_resp, strategy=sess.get("strategy", "template"))
+            meta = dict(meta or {})
+            is_fallback = True
+
+        if spec_ids and tech_ctx is not None:
+            if is_fallback:
+                attack = apply_technique_pipeline(attack, ",".join(spec_ids), tech_ctx)
+            else:
+                evasion_ids = [tid for tid in spec_ids if TechniqueRegistry.get(tid).category == "evasion"]
+                if evasion_ids:
+                    attack = apply_technique_pipeline(attack, ",".join(evasion_ids), tech_ctx)
+            meta["technique_used"] = technique_used
 
         mutator = sess.get("mutator", "none")
         if mutator and mutator.lower() not in ("none", "off"):
@@ -1009,6 +1160,17 @@ def manual_ai_step():
             sess["last_tool_calls"] = list(res.get("tool_calls") or [])
             sess["last_defense_action"] = agent._resolve_turn_defense_action(res)
             sess["_defense_action_tracked"] = True
+            has_targets = bool(sess["case"].get("targets"))
+            breached = bool(res.get("is_target_met") or (not has_targets and res.get("leaked")))
+            if spec_ids and tech_ctx is not None:
+                for tid in spec_ids:
+                    tech_state.record_outcome(
+                        sess["last_defense_action"],
+                        tid,
+                        breached,
+                        ctx=tech_ctx,
+                        attack_type=sess["case"].get("attack_type", "direct"),
+                    )
         raw_strat = (meta.get("strategy") or "").strip() if isinstance(meta, dict) else ""
         if raw_strat:
             sess.setdefault("prior_strategies", []).append(raw_strat)
@@ -1045,6 +1207,8 @@ def manual_ai_step():
         "defense": sess.get("defense", "off"),
         "blue_role": sess.get("blue_role", "registrar_staff"),
         "red_profile": sess.get("red_profile", "realistic_attacker"),
+        "technique": sess.get("technique", "none"),
+        "technique_used": technique_used or None,
         "target_leaked": res.get("target_leaked", []),
         "collateral_leaked": res.get("collateral_leaked", []),
         "schema_disclosed": res.get("schema_disclosed", []),

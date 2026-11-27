@@ -150,6 +150,17 @@
           </div>
 
           <div class="form-field-group">
+            <label for="manualTechnique">Red Technique:</label>
+            <select id="manualTechnique" name="technique">
+              <option value="none" selected>None (Standard Red Team)</option>
+              <option value="auto">Auto (Barrier-Adaptive Core Pool)</option>
+              {% for tech in techniques %}
+              <option value="{{ tech.id }}" title="{{ tech.description }}">{{ tech.id }} [{{ tech.tier | upper }} / {{ tech.category }}] - {{ tech.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-field-group">
             <label for="manualTargets">Additional Stop Targets (optional):</label>
             <input type="text" id="manualTargets" name="targets" placeholder="e.g. internal_secrets, student_private, national_id">
           </div>

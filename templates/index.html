@@ -296,6 +296,7 @@
                 <span id="activeRedProfileBadge" class="tag red">Realistic Attacker</span>
                 <span id="activeLangBadge" class="tag amber">Thai</span>
                 <span id="activeTypeBadge" class="tag red">Direct</span>
+                <span id="activeTechniqueBadge" class="tag blue">TECH: NONE</span>
                 <span id="activeTargetsBadge" class="tag" style="display:none;">-</span>
                 <span id="activeTurnBadge" class="tag blue">Turn 1</span>
               </div>
@@ -339,6 +340,21 @@
                   <select id="manualTemplateSelect" class="compact-select" style="width: 100%; padding: 6px;" onchange="onTemplateSelected()">
                     <option value="">-- Select or customize attack payload template --</option>
                   </select>
+                </div>
+
+                <div>
+                  <label for="playgroundTechniqueSelect" style="font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; display: block;">RED TECHNIQUE WRAPPER:</label>
+                  <div style="display: flex; gap: 6px; align-items: center;">
+                    <select id="playgroundTechniqueSelect" class="compact-select" style="flex: 1; padding: 6px;">
+                      <option value="">-- Select deterministic technique to wrap prompt --</option>
+                      {% for tech in techniques %}
+                      <option value="{{ tech.id }}" title="{{ tech.description }}">{{ tech.id }} [{{ tech.tier | upper }}] - {{ tech.name }}</option>
+                      {% endfor %}
+                    </select>
+                    <button type="button" id="applyTechniqueBtn" class="btn-secondary" onclick="applySelectedTechnique()" style="white-space: nowrap; padding: 6px 10px; font-size: 11px;">
+                      Apply Technique
+                    </button>
+                  </div>
                 </div>
 
                 <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">

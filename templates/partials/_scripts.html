@@ -337,6 +337,7 @@
         attack_type: document.getElementById("manualAttackType").value,
         blue_role: document.getElementById("manualBlueRole").value,
         red_profile: document.getElementById("manualRedProfile").value,
+        technique: document.getElementById("manualTechnique") ? document.getElementById("manualTechnique").value : "none",
         blue_model: document.getElementById("manualBlueModel") ? document.getElementById("manualBlueModel").value : "",
         red_model: document.getElementById("manualRedModel") ? document.getElementById("manualRedModel").value : "",
         targets: document.getElementById("manualTargets").value
@@ -361,6 +362,12 @@
           document.getElementById("activeRedProfileBadge").textContent = payload.red_profile;
           document.getElementById("activeLangBadge").textContent = payload.language;
           document.getElementById("activeTypeBadge").textContent = payload.attack_type.toUpperCase();
+          const techBadge = document.getElementById("activeTechniqueBadge");
+          if (techBadge) techBadge.textContent = `TECH: ${(data.technique || payload.technique || "none").toUpperCase()}`;
+          const pgTechSel = document.getElementById("playgroundTechniqueSelect");
+          if (pgTechSel && payload.technique && payload.technique !== "none" && payload.technique !== "auto") {
+            pgTechSel.value = payload.technique;
+          }
           document.getElementById("activeTurnBadge").textContent = "Turn 1";
 
           document.getElementById("chatTurnsContainer").innerHTML = "";
@@ -422,6 +429,54 @@
       }
     }
 
+    async function applySelectedTechnique() {
+      const promptInput = document.getElementById("manualPromptInput");
+      const techSel = document.getElementById("playgroundTechniqueSelect");
+      const technique = techSel ? techSel.value : "";
+      if (!technique) {
+        showAlertBanner("Select a deterministic technique ID before applying.", "info");
+        return;
+      }
+      if (!promptInput || !promptInput.value.trim()) {
+        showAlertBanner("Enter or select a prompt payload before applying a technique.", "info");
+        return;
+      }
+
+      const btn = document.getElementById("applyTechniqueBtn");
+      if (btn) btn.disabled = true;
+
+      try {
+        const res = await fetch("/api/techniques/apply", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            'X-CSRFToken': CSRF_TOKEN
+          },
+          body: JSON.stringify({
+            csrf_token: CSRF_TOKEN,
+            session_id: activeSessionId,
+            prompt: promptInput.value,
+            technique: technique,
+            language: document.getElementById("manualLang")?.value || "Thai",
+            red_profile: document.getElementById("manualRedProfile")?.value || "realistic_attacker",
+            targets: document.getElementById("manualTargets")?.value || ""
+          })
+        });
+        const data = await res.json();
+        if (data.success && data.prompt) {
+          promptInput.value = data.prompt;
+          updatePromptCharCount();
+          showAlertBanner(`Applied technique '${data.technique}' to prompt (0 LLM calls).`, "info");
+        } else {
+          showAlertBanner(data.error || "Failed to apply technique.", "leak");
+        }
+      } catch (e) {
+        showAlertBanner("Network error applying technique: " + e.message, "leak");
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
     async function generatePromptWithAi() {
       if (!activeSessionId) {
         openModal("launchPlaygroundModal");
@@ -429,6 +484,12 @@
       }
       const btn = document.querySelector('[onclick="generatePromptWithAi()"]');
       if (btn) btn.textContent = "Generating...";
+      const pgTech = document.getElementById("playgroundTechniqueSelect")?.value || "";
+      const bodyPayload = {
+        csrf_token: CSRF_TOKEN,
+        session_id: activeSessionId
+      };
+      if (pgTech) bodyPayload.technique = pgTech;
 
       try {
         const res = await fetch("/api/manual/generate-prompt", {
@@ -437,10 +498,7 @@
             "Content-Type": "application/json",
             'X-CSRFToken': CSRF_TOKEN
           },
-          body: JSON.stringify({
-            csrf_token: CSRF_TOKEN,
-            session_id: activeSessionId
-          })
+          body: JSON.stringify(bodyPayload)
         });
         const data = await res.json();
         if (data.success && data.prompt) {
@@ -502,6 +560,10 @@
           appendChatBubble("AI (Red)", data.attack || data.prompt || "", "ai-red");
           appendChatBubble("Blue Agent", data.response, "blue-agent", data.tool_calls);
           document.getElementById("activeTurnBadge").textContent = `Turn ${data.turn_no + 1}`;
+          const techBadge = document.getElementById("activeTechniqueBadge");
+          if (techBadge && (data.technique_used || data.technique)) {
+            techBadge.textContent = `TECH: ${(data.technique_used || data.technique).toUpperCase()}`;
+          }
           if (data.should_stop) {
             showAlertBanner("Target Breached: " + (data.stop_reason || "Canary detected"), "leak");
           }
@@ -532,6 +594,8 @@
       }
       activeSessionId = null;
       document.getElementById("activeSessionBadge").textContent = "-";
+      const techBadge = document.getElementById("activeTechniqueBadge");
+      if (techBadge) techBadge.textContent = "TECH: NONE";
       document.getElementById("chatTurnsContainer").innerHTML = '<div id="emptyChatPlaceholder" style="margin: auto; text-align: center; color: var(--text-dim); font-size: 12px;">💬 Session reset. Launch a new session to begin.</div>';
       showAlertBanner("Session reset. Click 'New Session' to configure.", "info");
     }
