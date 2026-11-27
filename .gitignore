@@ -40,5 +40,6 @@ results/*
 !results/published/
 !results/published/**
 .superpowers/
+.worktrees/
 
 
