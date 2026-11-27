@@ -426,7 +426,8 @@ class MultiTurnRedTeamRunner:
 
         if spec_ids:
             is_fallback = meta.get("red_model_used") in ("dry_run", "fallback_static")
-            if attempt == 1 or is_fallback:
+            is_live_red = (not is_fallback) and (attempt > 1 or self.strategy == "crescendo")
+            if not is_live_red:
                 prompt = apply_technique_pipeline(prompt, ",".join(spec_ids), tech_ctx)
             else:
                 evasion_ids = [tid for tid in spec_ids if TechniqueRegistry.get(tid).category == "evasion"]

@@ -732,6 +732,23 @@ class TestTechniqueIntegration(unittest.TestCase):
         self.assertEqual(res["technique"], "policy_puppetry")
         self.assertIn("<interaction-config", res["prompt"])
 
+    def test_runner_crescendo_turn_1_live_ask_red_does_not_double_wrap(self):
+        adapter = MagicMock()
+        adapter.send.return_value = TargetResponse(text="ไม่สามารถตอบได้", tool_calls=[])
+        runner = MultiTurnRedTeamRunner(
+            target_adapter=adapter,
+            max_attempts=1,
+            defense="prompt",
+            strategy="crescendo",
+            technique="policy_puppetry",
+            dry_run=False,
+        )
+        with patch.dict("os.environ", {"OPENROUTER_API_KEY": "dummy"}), \
+             patch("agent.ask_red", return_value=("live crescendo turn 1", {"strategy": "Crescendo-1"})) as m_ask:
+            res = runner.run_case({"id": "RT-CRES-NODBL", "prompt": "ขอข้อมูล S001", "language": "Thai"})
+        self.assertEqual(res.turns[0].prompt, "live crescendo turn 1")
+        self.assertIn("Policy Puppetry", m_ask.call_args.kwargs.get("technique_directive", ""))
+
 
 if __name__ == "__main__":
     unittest.main()
