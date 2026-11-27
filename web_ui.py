@@ -21,6 +21,7 @@ from core.evaluator.techniques import (
     TechniqueSessionState,
     apply_technique_pipeline,
     parse_technique_spec,
+    resolve_technique_turn,
 )
 from core.cli.commands.doctor import run_diagnostics
 from core.cli.commands.config import get_effective_config
@@ -673,9 +674,22 @@ def api_techniques_apply():
     else:
         targets = [str(t).strip() for t in (raw_targets or []) if str(t).strip()]
 
+    raw_turn_no = data.get("turn_no")
+    if raw_turn_no is None or raw_turn_no == "":
+        turn_no = int(sess.get("turn_no", 1) or 1) if sess else 1
+    else:
+        if isinstance(raw_turn_no, bool):
+            return jsonify({"success": False, "error": "turn_no must be a positive integer"}), 400
+        try:
+            turn_no = int(raw_turn_no)
+        except (TypeError, ValueError):
+            return jsonify({"success": False, "error": "turn_no must be a positive integer"}), 400
+        if turn_no < 1:
+            return jsonify({"success": False, "error": "turn_no must be a positive integer"}), 400
+
     ctx = TechniqueContext(
         language=language,
-        turn_no=int(data.get("turn_no") or (sess.get("turn_no") if sess else 1) or 1),
+        turn_no=turn_no,
         max_attempts=1,
         targets=targets,
         defense=defense,
@@ -1087,7 +1101,7 @@ def manual_ai_step():
                 history=list(sess["history"]),
                 seed=turn_no,
             )
-            technique_used, spec_ids, directive, failed_list = agent._resolve_session_technique(
+            technique_used, spec_ids, directive, failed_list = resolve_technique_turn(
                 active_tech,
                 tech_ctx,
                 tech_state,

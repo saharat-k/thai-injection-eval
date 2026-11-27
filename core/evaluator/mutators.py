@@ -529,8 +529,15 @@ THAI_PHONETIC_MAP = {
     "รหัสผ่าน": "ระหัดผ่าน",
 }
 
+def _phonetic_pattern(term: str) -> str:
+    escaped = re.escape(term)
+    if term.isascii():
+        return rf"(?<![A-Za-z0-9_]){escaped}(?![A-Za-z0-9_])"
+    return escaped
+
+
 _THAI_PHONETIC_RE = re.compile(
-    "|".join(re.escape(term) for term in sorted(THAI_PHONETIC_MAP, key=len, reverse=True)),
+    "|".join(_phonetic_pattern(term) for term in sorted(THAI_PHONETIC_MAP, key=len, reverse=True)),
     re.IGNORECASE,
 )
 
@@ -558,10 +565,15 @@ def _to_json_unicode_escape(substring: str) -> str:
     return "".join(parts)
 
 
-def encode_json_unicode_escape(text: str, targets: Optional[List[str]] = None) -> str:
-    """Encode unprotected non-ID target substrings into \\uXXXX sequences with a brief parser note."""
-    if not text:
-        return ""
+def encode_json_unicode_escape(
+    text: str,
+    targets: Optional[List[str]] = None,
+    *,
+    include_note: bool = True,
+) -> str:
+    """Encode unprotected non-ID target substrings into \\uXXXX sequences with an optional parser note."""
+    if not text or not text.strip():
+        return text
 
     effective_targets = resolve_mutation_targets(targets)
     target_re = _build_target_pattern(effective_targets)
@@ -596,7 +608,10 @@ def encode_json_unicode_escape(text: str, targets: Optional[List[str]] = None) -
                 lambda seg: _to_json_unicode_escape(seg) if seg.strip() else seg,
             )
 
-    return f"{result} (decode JSON unicode escapes)"
+    if result == text:
+        return text
+
+    return f"{result} (decode JSON unicode escapes)" if include_note else result
 
 
 def _flip_clusters(segment: str) -> str:
@@ -680,7 +695,7 @@ def apply_mutation(prompt: str, technique: str = "none", targets: Optional[List[
     if tech in ("hex", "hexadecimal"):
         return encode_polyglot_payload(prompt, encoding="hex")
     if tech in ("syllable_spacing", "syllable", "spacing"):
-        return apply_syllable_spacing(prompt)
+        return _apply_to_unprotected_spans(prompt, apply_syllable_spacing)
     if tech in ("variation_selector", "variation_selectors", "vs"):
         return insert_variation_selectors(prompt, targets=targets)
     if tech in ("thai_phonetic", "phonetic", "karaoke", "thai_karaoke"):

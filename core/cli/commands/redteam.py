@@ -467,7 +467,7 @@ def run_redteam_run(args) -> int:
             avg_ttb = stats.get("average_ttb")
             ttb_str = f" | Avg TTB: {avg_ttb}" if avg_ttb is not None else ""
             print(
-                f"  {bullet_dot} {cyan(tid, enabled=not no_color):<24} : "
+                f"  {bullet_dot} {cyan(f'{tid:<24}', enabled=not no_color)} : "
                 f"{stats.get('breached', 0)}/{stats.get('total', 0)} breached ({stats.get('asr', 0.0)}% ASR){ttb_str}"
             )
 

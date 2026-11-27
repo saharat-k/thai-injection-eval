@@ -55,6 +55,15 @@ MUTATOR_CHOICES = (
 )
 
 
+RED_PROFILE_CHOICES = [
+    "thai_nuanced_adversary",
+    "realistic_attacker",
+    "insider_threat",
+    "security_auditor",
+]
+ATTACK_TYPE_CHOICES = ["direct", "indirect", "recon", "semantic", "roleplay", "fewshot", "obfuscation", "tree"]
+
+
 def _add_attack_execution_flags(parser: argparse.ArgumentParser) -> None:
     """Register shared attack/redteam execution flags with None defaults for preset resolution."""
     parser.add_argument("-c", "--case", default=None, help="Target specific Case ID (default: all cases in dataset)")
@@ -65,7 +74,7 @@ def _add_attack_execution_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--model", default=None, help="Target Blue model identifier")
     parser.add_argument("-b", "--blue", "--blue-model", dest="blue", default=None, help="Target Blue model (alias for --model)")
     parser.add_argument("-R", "--red", "--red-model", dest="red", default=None, help="Red adversary model (e.g. openrouter:openrouter/free)")
-    parser.add_argument("-p", "--profile", "--red-profile", dest="profile", choices=["thai_nuanced_adversary", "realistic_attacker", "insider_threat", "security_auditor"], default=None, help="Red adversary profile (default: thai_nuanced_adversary)")
+    parser.add_argument("-p", "--profile", "--red-profile", dest="profile", choices=RED_PROFILE_CHOICES, default=None, help="Red adversary profile (default: thai_nuanced_adversary)")
     parser.add_argument("-s", "--strategy", choices=["crescendo", "tap", "template", "tree"], default=None, help="Multi-turn attack strategy: template, crescendo, tap, or tree (default: template)")
     parser.add_argument("-t", "--technique", default=None, help="Red-team technique mode: none, auto, core (sweep 8), all (sweep 14), or comma-separated IDs")
     parser.add_argument("--beam-width", type=int, default=None, help="Beam search width for tree strategy (default: 2)")
@@ -79,15 +88,6 @@ def _add_attack_execution_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--dry-run", action="store_true", help="Run simulation using rule-based mock runner without consuming API quota")
     parser.add_argument("-o", "--export-dir", default="results", help="Directory for exported reports")
     parser.add_argument("--export-name", default="redteam_evaluation_report", help="Report filename prefix")
-
-
-RED_PROFILE_CHOICES = [
-    "realistic_attacker",
-    "insider_threat",
-    "security_auditor",
-    "thai_nuanced_adversary",
-]
-ATTACK_TYPE_CHOICES = ["direct", "indirect", "recon", "semantic", "roleplay", "fewshot", "obfuscation", "tree"]
 
 
 def _add_chat_flags(parser: argparse.ArgumentParser) -> None:

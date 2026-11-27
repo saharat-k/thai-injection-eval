@@ -365,8 +365,10 @@
           const techBadge = document.getElementById("activeTechniqueBadge");
           if (techBadge) techBadge.textContent = `TECH: ${(data.technique || payload.technique || "none").toUpperCase()}`;
           const pgTechSel = document.getElementById("playgroundTechniqueSelect");
-          if (pgTechSel && payload.technique && payload.technique !== "none" && payload.technique !== "auto") {
-            pgTechSel.value = payload.technique;
+          if (pgTechSel) {
+            pgTechSel.value = (payload.technique && payload.technique !== "none" && payload.technique !== "auto")
+              ? payload.technique
+              : "";
           }
           document.getElementById("activeTurnBadge").textContent = "Turn 1";
 
@@ -446,21 +448,24 @@
       if (btn) btn.disabled = true;
 
       try {
+        const bodyPayload = {
+          csrf_token: CSRF_TOKEN,
+          session_id: activeSessionId,
+          prompt: promptInput.value,
+          technique: technique
+        };
+        if (!activeSessionId) {
+          bodyPayload.language = document.getElementById("manualLang")?.value || "Thai";
+          bodyPayload.red_profile = document.getElementById("manualRedProfile")?.value || "realistic_attacker";
+          bodyPayload.targets = document.getElementById("manualTargets")?.value || "";
+        }
         const res = await fetch("/api/techniques/apply", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             'X-CSRFToken': CSRF_TOKEN
           },
-          body: JSON.stringify({
-            csrf_token: CSRF_TOKEN,
-            session_id: activeSessionId,
-            prompt: promptInput.value,
-            technique: technique,
-            language: document.getElementById("manualLang")?.value || "Thai",
-            red_profile: document.getElementById("manualRedProfile")?.value || "realistic_attacker",
-            targets: document.getElementById("manualTargets")?.value || ""
-          })
+          body: JSON.stringify(bodyPayload)
         });
         const data = await res.json();
         if (data.success && data.prompt) {
@@ -596,6 +601,8 @@
       document.getElementById("activeSessionBadge").textContent = "-";
       const techBadge = document.getElementById("activeTechniqueBadge");
       if (techBadge) techBadge.textContent = "TECH: NONE";
+      const pgTechSel = document.getElementById("playgroundTechniqueSelect");
+      if (pgTechSel) pgTechSel.value = "";
       document.getElementById("chatTurnsContainer").innerHTML = '<div id="emptyChatPlaceholder" style="margin: auto; text-align: center; color: var(--text-dim); font-size: 12px;">💬 Session reset. Launch a new session to begin.</div>';
       showAlertBanner("Session reset. Click 'New Session' to configure.", "info");
     }

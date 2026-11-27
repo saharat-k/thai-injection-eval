@@ -832,6 +832,54 @@ class CliArchitectureTests(unittest.TestCase):
         m_dlp.assert_called_once()
         m_test.assert_called_once()
 
+    def test_scan_case_id_without_info_errors_and_exits_2(self):
+        from io import StringIO
+        err_buf = StringIO()
+        with patch("core.cli.commands.eval.run_eval_run") as m_eval, \
+             patch("sys.stderr", err_buf):
+            code = main(["scan", "TH-1", "--no-color"])
+        self.assertEqual(code, 2)
+        self.assertIn("Case ID target requires --info", err_buf.getvalue())
+        m_eval.assert_not_called()
+
+    def test_redteam_breakdown_pads_before_ansi_and_shares_red_profile_choices(self):
+        from io import StringIO
+        from core.cli.app import RED_PROFILE_CHOICES
+        from core.evaluator.redteam import RedTeamBenchmarkReport
+
+        parser = build_parser()
+        atk_args = parser.parse_args(["attack", "-p", RED_PROFILE_CHOICES[0]])
+        chat_args = parser.parse_args(["chat", "-p", RED_PROFILE_CHOICES[-1]])
+        self.assertEqual(atk_args.profile, RED_PROFILE_CHOICES[0])
+        self.assertEqual(chat_args.red_profile, RED_PROFILE_CHOICES[-1])
+
+        fake_report = RedTeamBenchmarkReport(
+            timestamp="2026-11-27T00:00:00Z",
+            defense="all",
+            blue_role="registrar_staff",
+            red_profile="thai_nuanced_adversary",
+            max_attempts=1,
+            total_cases=1,
+            breached_cases=0,
+            defended_cases=1,
+            error_cases=0,
+            overall_asr=0.0,
+            cumulative_asr={1: 0.0},
+            average_ttb=None,
+            results=[],
+            technique="core",
+            technique_breakdown={"policy_puppetry": {"total": 1, "breached": 0, "asr": 0.0, "average_ttb": None}},
+        )
+        out_buf = StringIO()
+        from core.cli.terminal.colors import cyan
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch("core.cli.commands.redteam.MultiTurnRedTeamRunner") as m_runner, \
+                 patch("sys.stdout", out_buf):
+                m_runner.return_value.run_benchmark.return_value = fake_report
+                code = main(["attack", "SCN-DIR-01-TH", "-f", "data/normalized/test_cases_parallel_v2.json", "-t", "core", "--dry-run", "-o", tmpdir])
+        self.assertEqual(code, 0)
+        self.assertIn(cyan(f"{'policy_puppetry':<24}", enabled=True), out_buf.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()

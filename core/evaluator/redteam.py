@@ -20,12 +20,12 @@ from core.adapters.base import BaseTargetAdapter, TargetResponse
 from core.adapters.factory import create_target_adapter
 from core.evaluator.mutators import apply_mutation
 from core.evaluator.techniques import (
-    BarrierSelector,
     TechniqueContext,
     TechniqueRegistry,
     TechniqueSessionState,
     apply_technique_pipeline,
     parse_technique_spec,
+    resolve_technique_turn,
 )
 from core.tools.context import SecurityContext, set_current_security_context
 
@@ -343,34 +343,6 @@ class MultiTurnRedTeamRunner:
 
         return DryRunMockAdapter(self.defense, self.blue_role)
 
-    def _resolve_turn_technique(
-        self,
-        active_technique: str,
-        ctx: TechniqueContext,
-        state: Optional[TechniqueSessionState],
-        attack_type: str,
-    ) -> Tuple[str, List[str], Optional[str], Optional[List[str]]]:
-        """Resolve technique IDs, directive, and failed-technique memory for the current turn."""
-        mode = (active_technique or "none").strip().lower() or "none"
-        if mode == "none":
-            return "", [], None, None
-
-        if mode in ("auto", "core", "all"):
-            pool = "all" if mode == "all" else "core"
-            session_state = state or TechniqueSessionState()
-            chosen = BarrierSelector.select_next(ctx, session_state, pool=pool, attack_type=attack_type)
-            directive = f"{chosen.name}: {chosen.prompt_directive}" if chosen.prompt_directive else chosen.name
-            failed_set = set().union(*session_state.failed_by_barrier.values()) if session_state.failed_by_barrier else set()
-            failed_list = [tid for tid in dict.fromkeys(session_state.tried_techniques) if tid in failed_set] or None
-            return chosen.id, [chosen.id], directive, failed_list
-
-        spec_ids = parse_technique_spec(mode)
-        if not spec_ids:
-            return "", [], None, None
-        specs = [TechniqueRegistry.get(tid) for tid in spec_ids]
-        dirs = [f"{s.name}: {s.prompt_directive}" if s.prompt_directive else s.name for s in specs]
-        return ",".join(spec_ids), spec_ids, (" | ".join(dirs) if dirs else None), None
-
     def _generate_payload(
         self,
         case: dict,
@@ -404,7 +376,7 @@ class MultiTurnRedTeamRunner:
             history=history,
             seed=attempt_index if attempt_index is not None else attempt,
         )
-        technique_used, spec_ids, directive, failed_list = self._resolve_turn_technique(
+        technique_used, spec_ids, directive, failed_list = resolve_technique_turn(
             active_tech,
             tech_ctx,
             technique_state,
@@ -562,7 +534,7 @@ class MultiTurnRedTeamRunner:
         cid = case.get("id", "UNKNOWN")
         category = case.get("category", "direct_injection")
         technique = case.get("technique", "instruction_override")
-        language = case.get("language", "th")
+        language = case.get("language", "Thai")
         difficulty = case.get("difficulty", "medium")
         initial_prompt = case.get("prompt", "")
         active_technique = (technique_override or self.technique or "none").strip().lower() or "none"
@@ -734,6 +706,7 @@ class MultiTurnRedTeamRunner:
                 "strategy": self.strategy,
                 "mutator": self.mutator,
                 "technique": active_technique,
+                "techniques_tried": list(dict.fromkeys(technique_state.tried_techniques)),
                 "dry_run": self.dry_run,
                 "enable_backtrack": self.enable_backtrack,
                 "backtracks": backtrack_count,

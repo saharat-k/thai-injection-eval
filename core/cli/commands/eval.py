@@ -1365,6 +1365,17 @@ def run_scan_dispatch(args) -> int:
             return run_probe_list(args)
         return run_eval_list(args)
 
+    if getattr(args, "case", None):
+        no_color = getattr(args, "no_color", False)
+        print(
+            red(
+                "Error: Case ID target requires --info (e.g., thai-eval scan TH-1 --info), or pass a .json cases file.",
+                enabled=not no_color,
+            ),
+            file=sys.stderr,
+        )
+        return 2
+
     if is_probing:
         if not getattr(args, "probing_cases", None):
             args.probing_cases = getattr(args, "cases", None) or DEFAULT_PROBING_PATH

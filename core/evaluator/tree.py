@@ -27,6 +27,8 @@ from core.evaluator.techniques import (
     TechniqueRegistry,
     TechniqueSpec,
     apply_technique_pipeline,
+    build_live_technique_directive,
+    parse_technique_spec,
 )
 from core.evaluator.redteam import (
     MultiTurnRedTeamRunner,
@@ -302,7 +304,17 @@ class TreeBeamRedTeamRunner(MultiTurnRedTeamRunner):
         on_turn_callback: Optional[Callable[[dict, RedTeamTurnResult, int, int], None]] = None,
     ) -> TreeBeamRedTeamResult:
         """Execute tree beam search evaluation for a single case, compatible with MultiTurnRedTeamRunner."""
-        res = self.run_tree_case(case)
+        return self._run_case_impl(case, on_turn_callback=on_turn_callback)
+
+    def _run_case_impl(
+        self,
+        case: dict,
+        on_turn_callback: Optional[Callable[[dict, RedTeamTurnResult, int, int], None]] = None,
+        *,
+        technique_override: Optional[str] = None,
+    ) -> TreeBeamRedTeamResult:
+        """Execute tree beam search for a single case with optional sweep technique override."""
+        res = self.run_tree_case(case, technique_override=technique_override)
         if on_turn_callback:
             for turn in res.turns:
                 on_turn_callback(case, turn, turn.turn_no, res.max_attempts)
@@ -395,6 +407,12 @@ class TreeBeamRedTeamRunner(MultiTurnRedTeamRunner):
         has_any_key = any(os.getenv(k) for k in ("GEMINI_API_KEY", "OPENROUTER_API_KEY", "GITHUB_TOKEN", "GROQ_API_KEY"))
         if not self.dry_run and has_any_key:
             try:
+                combined_ids = [branch_spec.id]
+                for tid in self._explicit_technique_ids:
+                    if tid not in combined_ids:
+                        combined_ids.append(tid)
+                combined_specs = [TechniqueRegistry.get(tid) for tid in combined_ids]
+                live_directive = build_live_technique_directive(combined_specs, tech_ctx)
                 prompt, meta = agent.ask_red(
                     case,
                     history,
@@ -407,7 +425,7 @@ class TreeBeamRedTeamRunner(MultiTurnRedTeamRunner):
                     max_attempts=self.max_depth,
                     last_tool_calls=last_tool_calls,
                     prior_strategies=prior_strategies or None,
-                    technique_directive=branch_spec.prompt_directive,
+                    technique_directive=live_directive,
                     failed_techniques=failed_techniques,
                 )
                 meta = dict(meta or {})
@@ -544,9 +562,20 @@ class TreeBeamRedTeamRunner(MultiTurnRedTeamRunner):
         self,
         case: dict,
         on_node_callback: Optional[Callable[[TreeNode], None]] = None,
+        *,
+        technique_override: Optional[str] = None,
     ) -> TreeBeamRedTeamResult:
         """Run multi-branching beam search evaluation for a single benchmark case."""
         self.target.reset()
+        prev_technique = self.technique
+        prev_explicit = self._explicit_technique_ids
+        effective_technique = (technique_override or self.technique or "none").strip().lower() or "none"
+        if technique_override is not None:
+            self.technique = effective_technique
+            self._explicit_technique_ids = (
+                [] if effective_technique in ("none", "auto", "core", "all")
+                else parse_technique_spec(effective_technique)
+            )
 
         cid = case.get("id", "UNKNOWN")
         category = case.get("category", "direct_injection")
@@ -578,92 +607,96 @@ class TreeBeamRedTeamRunner(MultiTurnRedTeamRunner):
         total_nodes = 1
         node_counter = 0
 
-        for depth in range(1, self.max_depth + 1):
-            if winning_node is not None:
-                break
-
-            candidates_this_depth: List[TreeNode] = []
-
-            for parent_node in active_beam:
-                # Generate B concurrent child branch mutations
-                for b_idx in range(self.branch_factor):
-                    node_counter += 1
-                    child_id = f"node_{depth}_{node_counter}"
-                    child_prompt, meta = self._generate_branch_prompt(
-                        case, parent_node, depth, b_idx, node_map=node_map
-                    )
-                    child_node = TreeNode(
-                        node_id=child_id,
-                        parent_id=parent_node.node_id,
-                        turn_no=depth,
-                        prompt=child_prompt,
-                        metadata=meta,
-                    )
-                    node_map[child_id] = child_node
-                    parent_node.children.append(child_node)
-                    candidates_this_depth.append(child_node)
-                    total_nodes += 1
-
-            # Concurrently evaluate candidate nodes for this depth
-            with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-                futures = []
-                for node in candidates_this_depth:
-                    anc_nodes = self._get_ancestor_nodes(node, node_map)
-                    anc_prompts = [anc.prompt for anc in anc_nodes]
-                    anc_pairs = [(anc.prompt, anc.response) for anc in anc_nodes if anc.prompt and anc.response]
-                    if anc_pairs and len(anc_pairs) == len(anc_prompts):
-                        futures.append(
-                            executor.submit(
-                                self._evaluate_node,
-                                node,
-                                case,
-                                expected_tokens,
-                                anc_prompts,
-                                anc_pairs,
-                            )
-                        )
-                    else:
-                        futures.append(
-                            executor.submit(
-                                self._evaluate_node,
-                                node,
-                                case,
-                                expected_tokens,
-                                anc_prompts,
-                            )
-                        )
-                for fut in concurrent.futures.as_completed(futures):
-                    evaluated_node = fut.result()
-                    if on_node_callback:
-                        on_node_callback(evaluated_node)
-
-            # Check for immediate breach among evaluated candidates
-            for node in candidates_this_depth:
-                if node.is_breached or node.score == 100:
-                    node.is_beam_selected = True
-                    winning_node = node
-                    turn_to_breach = depth
+        try:
+            for depth in range(1, self.max_depth + 1):
+                if winning_node is not None:
                     break
 
-            if winning_node is not None:
-                break
+                candidates_this_depth: List[TreeNode] = []
 
-            # Filter surviving candidates (Score > 0 and not pruned)
-            survivors = [n for n in candidates_this_depth if not n.is_pruned and n.score > 0]
-            if not survivors:
-                # If all nodes were pruned, gracefully retain top candidate by score to avoid beam collapse
-                candidates_this_depth.sort(key=lambda n: n.score, reverse=True)
-                survivors = candidates_this_depth[:self.beam_width]
+                for parent_node in active_beam:
+                    # Generate B concurrent child branch mutations
+                    for b_idx in range(self.branch_factor):
+                        node_counter += 1
+                        child_id = f"node_{depth}_{node_counter}"
+                        child_prompt, meta = self._generate_branch_prompt(
+                            case, parent_node, depth, b_idx, node_map=node_map
+                        )
+                        child_node = TreeNode(
+                            node_id=child_id,
+                            parent_id=parent_node.node_id,
+                            turn_no=depth,
+                            prompt=child_prompt,
+                            metadata=meta,
+                        )
+                        node_map[child_id] = child_node
+                        parent_node.children.append(child_node)
+                        candidates_this_depth.append(child_node)
+                        total_nodes += 1
 
-            # Rank surviving nodes by score descending
-            survivors.sort(key=lambda n: n.score, reverse=True)
-            active_beam = survivors[:self.beam_width]
+                # Concurrently evaluate candidate nodes for this depth
+                with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                    futures = []
+                    for node in candidates_this_depth:
+                        anc_nodes = self._get_ancestor_nodes(node, node_map)
+                        anc_prompts = [anc.prompt for anc in anc_nodes]
+                        anc_pairs = [(anc.prompt, anc.response) for anc in anc_nodes if anc.prompt and anc.response]
+                        if anc_pairs and len(anc_pairs) == len(anc_prompts):
+                            futures.append(
+                                executor.submit(
+                                    self._evaluate_node,
+                                    node,
+                                    case,
+                                    expected_tokens,
+                                    anc_prompts,
+                                    anc_pairs,
+                                )
+                            )
+                        else:
+                            futures.append(
+                                executor.submit(
+                                    self._evaluate_node,
+                                    node,
+                                    case,
+                                    expected_tokens,
+                                    anc_prompts,
+                                )
+                            )
+                    for fut in concurrent.futures.as_completed(futures):
+                        evaluated_node = fut.result()
+                        if on_node_callback:
+                            on_node_callback(evaluated_node)
 
-            for node in active_beam:
-                node.is_beam_selected = True
+                # Check for immediate breach among evaluated candidates
+                for node in candidates_this_depth:
+                    if node.is_breached or node.score == 100:
+                        node.is_beam_selected = True
+                        winning_node = node
+                        turn_to_breach = depth
+                        break
 
-            if not active_beam:
-                break
+                if winning_node is not None:
+                    break
+
+                # Filter surviving candidates (Score > 0 and not pruned)
+                survivors = [n for n in candidates_this_depth if not n.is_pruned and n.score > 0]
+                if not survivors:
+                    # If all nodes were pruned, gracefully retain top candidate by score to avoid beam collapse
+                    candidates_this_depth.sort(key=lambda n: n.score, reverse=True)
+                    survivors = candidates_this_depth[:self.beam_width]
+
+                # Rank surviving nodes by score descending
+                survivors.sort(key=lambda n: n.score, reverse=True)
+                active_beam = survivors[:self.beam_width]
+
+                for node in active_beam:
+                    node.is_beam_selected = True
+
+                if not active_beam:
+                    break
+        finally:
+            self.technique = prev_technique
+            self._explicit_technique_ids = prev_explicit
 
         final_status = 1 if winning_node is not None else 0
 
@@ -698,8 +731,24 @@ class TreeBeamRedTeamRunner(MultiTurnRedTeamRunner):
                     red_strategy=step_node.metadata.get("strategy", ""),
                     defense_action=step_node.metadata.get("defense_action") or ("breached" if step_node.is_breached else ("refused" if step_node.score == 0 else "safe_fulfillment")),
                     red_model_used=step_node.metadata.get("red_model_used") or ("dry_run" if self.dry_run else None),
+                    technique_used=step_node.metadata.get("technique_id", ""),
                 )
             )
+
+        res_meta: Dict[str, Any] = {
+            "beam_width": self.beam_width,
+            "branch_factor": self.branch_factor,
+            "max_depth": self.max_depth,
+            "total_nodes": total_nodes,
+            "defense": self.defense,
+            "blue_role": self.blue_role,
+            "strategy": "tree",
+            "mutator": self.mutator,
+            "technique": effective_technique,
+            "dry_run": self.dry_run,
+        }
+        if technique_override is not None:
+            res_meta["sweep_technique"] = effective_technique
 
         return TreeBeamRedTeamResult(
             case_id=cid,
@@ -715,16 +764,5 @@ class TreeBeamRedTeamRunner(MultiTurnRedTeamRunner):
             tree_root=root,
             winning_node=winning_node,
             turns=turns,
-            metadata={
-                "beam_width": self.beam_width,
-                "branch_factor": self.branch_factor,
-                "max_depth": self.max_depth,
-                "total_nodes": total_nodes,
-                "defense": self.defense,
-                "blue_role": self.blue_role,
-                "strategy": "tree",
-                "mutator": self.mutator,
-                "technique": self.technique,
-                "dry_run": self.dry_run,
-            },
+            metadata=res_meta,
         )

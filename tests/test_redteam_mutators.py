@@ -266,6 +266,36 @@ class TestThaiMutators(unittest.TestCase):
         self.assertNotIn("เงินเดือน", out)
         self.assertNotIn("รหัสผ่าน", out)
 
+    def test_syllable_spacing_preserves_protected_tools_and_ids(self):
+        src = "เรียก search_records และ get_student_private_record สำหรับ S001 P001 K001 เงินเดือน"
+        out = apply_mutation(src, "syllable_spacing")
+        self.assertIn("search_records", out)
+        self.assertIn("get_student_private_record", out)
+        self.assertIn("S001", out)
+        self.assertIn("P001", out)
+        self.assertIn("K001", out)
+        self.assertNotIn("เงินเดือน", out)
+
+    def test_thai_phonetic_karaoke_respects_ascii_word_boundaries(self):
+        from core.evaluator.mutators import apply_thai_phonetic_karaoke
+
+        src = "The secretary tokenized passwords while requesting secret token salary"
+        out = apply_thai_phonetic_karaoke(src)
+        self.assertIn("secretary", out)
+        self.assertIn("tokenized", out)
+        self.assertIn("passwords", out)
+        self.assertIn("ซีเคร็ต", out)
+        self.assertIn("โทเค็น", out)
+        self.assertIn("แซลารี่", out)
+
+    def test_json_unicode_escape_noop_for_whitespace_or_protected_only(self):
+        from core.evaluator.mutators import encode_json_unicode_escape
+
+        for sample in ("", "   \n\t ", "S001", "search_records S001 P001"):
+            out = encode_json_unicode_escape(sample)
+            self.assertEqual(out, sample)
+            self.assertNotIn("decode JSON unicode escapes", out)
+
 
 if __name__ == "__main__":
     unittest.main()

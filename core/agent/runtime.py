@@ -34,12 +34,12 @@ from core.defenses.dlp import (
 )
 from core.defenses.spotlight import SpotlightingGuard
 from core.evaluator.techniques import (
-    BarrierSelector,
     TechniqueContext,
     TechniqueRegistry,
     TechniqueSessionState,
     apply_technique_pipeline,
     parse_technique_spec,
+    resolve_technique_turn,
 )
 from core import db as core_db
 from core import prompts as core_prompts
@@ -2276,33 +2276,6 @@ def execute_manual_turn(
 _manual_turn = execute_manual_turn
 
 
-def _resolve_session_technique(
-    active_technique: str,
-    ctx: TechniqueContext,
-    state: TechniqueSessionState,
-    attack_type: str,
-) -> Tuple[str, List[str], Optional[str], Optional[List[str]]]:
-    """Resolve technique IDs, prompt directive, and failed-technique memory for a session turn."""
-    mode = (active_technique or "none").strip().lower() or "none"
-    if mode == "none":
-        return "", [], None, None
-
-    if mode in ("auto", "core", "all"):
-        pool = "all" if mode == "all" else "core"
-        chosen = BarrierSelector.select_next(ctx, state, pool=pool, attack_type=attack_type)
-        directive = f"{chosen.name}: {chosen.prompt_directive}" if chosen.prompt_directive else chosen.name
-        failed_set = set().union(*state.failed_by_barrier.values()) if state.failed_by_barrier else set()
-        failed_list = [tid for tid in dict.fromkeys(state.tried_techniques) if tid in failed_set] or None
-        return chosen.id, [chosen.id], directive, failed_list
-
-    spec_ids = parse_technique_spec(mode)
-    if not spec_ids:
-        return "", [], None, None
-    specs = [TechniqueRegistry.get(tid) for tid in spec_ids]
-    dirs = [f"{s.name}: {s.prompt_directive}" if s.prompt_directive else s.name for s in specs]
-    return ",".join(spec_ids), spec_ids, (" | ".join(dirs) if dirs else None), None
-
-
 def _select_red_technique(current_technique: str) -> str:
     """Interactive Pure English selector for the active session Red Technique."""
     mode = _choose(
@@ -2414,7 +2387,7 @@ def _ai_continue(
                     history=list(history),
                     seed=turn_no,
                 )
-                technique_used, spec_ids, directive, failed_list = _resolve_session_technique(
+                technique_used, spec_ids, directive, failed_list = resolve_technique_turn(
                     active_tech,
                     tech_ctx,
                     active_state,
