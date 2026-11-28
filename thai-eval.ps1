@@ -4,3 +4,4 @@ if (-not (Test-Path $python)) {
     $python = "python"
 }
 & $python -m core.cli @args
+exit $LASTEXITCODE
