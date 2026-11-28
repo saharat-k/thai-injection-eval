@@ -12,7 +12,7 @@ class TestDocumentationAndArtifacts(unittest.TestCase):
         self.assertTrue(os.path.exists(pyproject_path))
         with open(pyproject_path, "r", encoding="utf-8") as f:
             content = f.read()
-        self.assertIn('version = "2.0.0"', content)
+        self.assertIn('version = "2.1.0"', content)
 
     def test_pre_registration_document_specifications(self):
         prereg_path = os.path.join("docs", "benchmark", "PRE_REGISTRATION.md")

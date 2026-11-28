@@ -3,9 +3,10 @@
 All notable changes to `thai-injection-eval` are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.1.0] - 2026-11-28
 
 ### Added
+- Red-Team Technique Registry (`core/evaluator/techniques.py`) with 10 composable techniques, `BarrierSelector` rotation, and Nmap/Hydra-style flat CLI (`attack`, `eval`, `check`, `chat`).
 - Hybrid multi-turn red teaming supporting `crescendo`, `tap`, and beam-search `tree` strategies (`core/evaluator/tree.py`) with configurable turns (`--attempts`), refusal backtracking (`--backtrack`, `--max-backtracks`), and dynamic Thai NLP mutators (`--mutator`).
 - Language-aware red-team guidance and validator enforcement in `core/agent/runtime.py` (`ask_red`), blocking unstructured refusals and `[NEXT_PROMPT]` omissions while normalizing narrow no-break spaces and curly quotes in `is_red_refusal`.
 - Auth circuit breaker (`reset_auth_failed_specs`), effective red-model telemetry (`effective_red_models` in CLI and Markdown exports), and expanded Thai refusal pattern coverage in `core/prompts.py`.
